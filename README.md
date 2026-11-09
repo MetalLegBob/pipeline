@@ -26,6 +26,7 @@ chart sites integrate Pipeline once and see every new market without per-market 
 | | Address |
 |---|---|
 | Router | [`PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34`](https://orbmarkets.io/address/PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34/history?cluster=devnet) |
+| Hosted API | <https://pipeline-devnet.up.railway.app> ([`docs/API.md`](docs/API.md)) |
 | Example strategy (constant product) | [`yRptCdde1du1JYR2DcNFtLC1fkp5Asd6rE3XSvZoUFx`](https://orbmarkets.io/address/yRptCdde1du1JYR2DcNFtLC1fkp5Asd6rE3XSvZoUFx/history?cluster=devnet) |
 
 [`docs/DEVNET.md`](docs/DEVNET.md) gets you from nothing to a swap through the router on
@@ -38,6 +39,7 @@ devnet in a few minutes.
 | Try it on devnet | [`docs/DEVNET.md`](docs/DEVNET.md) |
 | Build your own AMM or market | [`docs/QUICKSTART.md`](docs/QUICKSTART.md), then [`docs/STRATEGY-GUIDE.md`](docs/STRATEGY-GUIDE.md) |
 | Build a desk, terminal, bot or chart on top | [`docs/INTEGRATOR-GUIDE.md`](docs/INTEGRATOR-GUIDE.md) |
+| Use the hosted API (markets, trust flags, quotes, swap transactions, trades, candles, live stream) | [`docs/API.md`](docs/API.md) |
 | Check a strategy's market (yours or anyone's) | [`crates/pipeline-check`](crates/pipeline-check/README.md) |
 | Show and filter trust facts (upgradeable, verified build, token powers) | [`docs/INTEGRATOR-GUIDE.md`](docs/INTEGRATOR-GUIDE.md) section 5, [`sdk/ts`](sdk/ts/README.md) |
 | Understand the router | [`docs/ROUTER.md`](docs/ROUTER.md) |

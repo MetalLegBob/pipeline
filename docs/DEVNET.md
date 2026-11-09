@@ -71,6 +71,10 @@ market is recorded, nothing built on Pipeline can see or trade it. See
 (`getProgramAccounts` on the router), quoting (embedded VM, or RPC simulation), building
 swaps and multi-hop routes, and indexing trades from `SwapEvent`.
 
+Or skip the indexing: the hosted API at <https://pipeline-devnet.up.railway.app> lists every
+strategy and market with trust flags and filters, quotes, builds ready-to-sign swap
+transactions, and serves trades, candles and a live event stream. See [`API.md`](API.md).
+
 ## Running Pipeline on a local validator
 
 To test without devnet, load the router and example strategy into a local validator:

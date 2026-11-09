@@ -26,14 +26,15 @@ All are Apache-2.0; package names are placeholders until first publish. Router p
 
 ## 2. Quote
 
-Two options, from fastest to simplest:
+Three options, from fastest to simplest:
 
 1. **`pipeline-quoter`, embedded.**
    - Load each strategy's program (from its ProgramData account) and keep the market's accounts updated from your stream.
    - `Quoter::quote` runs the strategy's real `pipeline_quote` in a sandboxed VM and applies Pipeline's fee, your integrator fee and Token-2022 transfer fees: about 10–20 µs for simple strategies.
    - `Quoter::simulate_swap` simulates the whole router swap for exact numbers with any token behaviour.
    - Reload a program when its ProgramData changes, since strategies can be upgraded.
-2. **RPC simulation** of `pipeline_quote` (TypeScript SDK `quoteStrategy`): no infrastructure, 50–300 ms.
+2. **The Pipeline API's quote endpoint** ([`API.md`](API.md)), hosted on devnet at <https://pipeline-devnet.up.railway.app>. It also serves market lists with trust flags and server-side filters (`/v1/markets?exclude=…`), trades, candles, trader history and a live stream.
+3. **RPC simulation** of `pipeline_quote` (TypeScript SDK `quoteStrategy`): no infrastructure, 50–300 ms.
 
 **Before quoting a new market, resolve its accounts** with `pipeline_resolve_accounts` (the quoter's `resolve_accounts`, or the SDK). This tells you which strategy-specific accounts to cache and to include in swaps.
 
