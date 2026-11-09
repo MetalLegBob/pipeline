@@ -1,0 +1,4817 @@
+{
+  "flags": [
+    [
+      "upgradeable",
+      "The strategy program can be upgraded: it has an upgrade authority (loader v3) or is not finalized (loader v4)."
+    ],
+    [
+      "frozen",
+      "The strategy program can no longer be upgraded: no upgrade authority (loader v3), finalized (loader v4), or a non-upgradeable loader."
+    ],
+    [
+      "program-missing",
+      "No executable code at the strategy program address (never deployed, closed, or retracted)."
+    ],
+    [
+      "verified-build",
+      "OtterSec's verified-builds API reports the program as built from public source, and its hash matches the deployed code. Mainnet only; needs the SDK to hash the program (the default)."
+    ],
+    [
+      "unverified-build",
+      "OtterSec's verified-builds API answered but does not report a verified build of the deployed code. Not set when the API could not be reached, off mainnet, or when the program wasn't hashed."
+    ],
+    [
+      "unregistered",
+      "The program has no Strategy account in the router."
+    ],
+    [
+      "metadata-missing",
+      "The strategy's metadata URI is empty."
+    ],
+    [
+      "metadata-unreachable",
+      "The metadata URI is unsupported, or could not be fetched (network error, timeout, HTTP error, too large)."
+    ],
+    [
+      "metadata-invalid",
+      "The metadata document was fetched but is not valid strategy metadata version 1."
+    ],
+    [
+      "conformance-report",
+      "Valid metadata links a conformance report. The SDK does not check the report."
+    ],
+    [
+      "mint-unreadable",
+      "A market mint account is missing or is not an SPL Token or Token-2022 mint."
+    ],
+    [
+      "token-2022",
+      "A mint is owned by Token-2022."
+    ],
+    [
+      "mint-authority",
+      "A mint has a mint authority, so its supply can grow."
+    ],
+    [
+      "freeze-authority",
+      "A mint has a freeze authority, which can freeze token accounts (including market vaults and fee accounts)."
+    ],
+    [
+      "transfer-hook",
+      "A mint has a transfer hook program set: every transfer calls it."
+    ],
+    [
+      "transfer-hook-authority",
+      "A mint's transfer hook has an authority, which can set or change the hook program."
+    ],
+    [
+      "transfer-fee",
+      "A mint charges a non-zero transfer fee now, or from a scheduled epoch."
+    ],
+    [
+      "transfer-fee-authority",
+      "A mint's transfer fee has an authority, which can set or change the fee."
+    ],
+    [
+      "permanent-delegate",
+      "A mint has a permanent delegate, which can transfer or burn tokens from any account."
+    ],
+    [
+      "non-transferable",
+      "A mint is non-transferable."
+    ],
+    [
+      "default-frozen",
+      "New token accounts for a mint start frozen (DefaultAccountState)."
+    ],
+    [
+      "pausable",
+      "A mint is pausable: an authority can pause minting, burning and transfers."
+    ],
+    [
+      "paused",
+      "A mint is currently paused."
+    ],
+    [
+      "closable-mint",
+      "A mint has a close authority."
+    ],
+    [
+      "interest-bearing",
+      "A mint is interest-bearing: its UI amount differs from the raw amount."
+    ],
+    [
+      "scaled-ui-amount",
+      "A mint scales its UI amount by a multiplier an authority can change."
+    ],
+    [
+      "confidential-transfers",
+      "A mint supports confidential transfers."
+    ],
+    [
+      "permissioned-burn",
+      "Burning a mint requires an authority’s approval."
+    ],
+    [
+      "unknown-extension",
+      "A mint has a Token-2022 extension this SDK does not decode."
+    ]
+  ],
+  "metadata": [
+    {
+      "document": {
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [],
+      "name": "minimal",
+      "ok": true,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [],
+      "name": "full",
+      "ok": true,
+      "warnings": []
+    },
+    {
+      "document": [
+        1,
+        2
+      ],
+      "errors": [
+        "$: must be an object"
+      ],
+      "name": "not-an-object",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/2"
+      },
+      "errors": [
+        "schema: must be \"pipeline-strategy-metadata/1\""
+      ],
+      "name": "wrong-schema",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [
+        "name: must be a non-empty string"
+      ],
+      "name": "missing-name",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "description": null,
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [
+        "description: must be a string"
+      ],
+      "name": "null-description",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "name": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [
+        "name: must be at most 64 characters"
+      ],
+      "name": "long-name-emoji",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "name": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [],
+      "name": "name-64-accented",
+      "ok": true,
+      "warnings": []
+    },
+    {
+      "document": {
+        "image": "http://example.com/a.png",
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [
+        "image: URL scheme must be one of https:, ipfs:, ar:"
+      ],
+      "name": "http-image",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "image": "not a url",
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [
+        "image: must be a URL"
+      ],
+      "name": "not-a-url",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "image": "https://",
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [
+        "image: must be a URL"
+      ],
+      "name": "https-without-host",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "links": {
+          "website": "javascript:alert(1)"
+        },
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [
+        "links.website: URL scheme must be one of https:, ipfs:, ar:"
+      ],
+      "name": "javascript-link",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "category": "prediction-market",
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [],
+      "name": "unknown-category",
+      "ok": true,
+      "warnings": [
+        "category: unknown category \"prediction-market\""
+      ]
+    },
+    {
+      "document": {
+        "links": {
+          "discord": "ipfs://cid",
+          "github": "https://gist.github.com/x",
+          "twitter": "https://example.com/me"
+        },
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [],
+      "name": "social-links-elsewhere",
+      "ok": true,
+      "warnings": [
+        "links.discord: expected a link on discord.gg or discord.com",
+        "links.twitter: expected a link on x.com or twitter.com"
+      ]
+    },
+    {
+      "document": {
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1",
+        "tags": [
+          "t",
+          "t",
+          "t",
+          "t",
+          "t",
+          "t",
+          "t",
+          "t",
+          "t",
+          "t",
+          "t",
+          "t",
+          "t",
+          "t",
+          "t",
+          "t",
+          "t"
+        ]
+      },
+      "errors": [
+        "tags: must have at most 16 items"
+      ],
+      "name": "too-many-tags",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1",
+        "tags": [
+          "ok",
+          ""
+        ]
+      },
+      "errors": [
+        "tags[1]: must be a non-empty string"
+      ],
+      "name": "empty-tag",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "xyz",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "source.commit: must be a commit hash (7 to 64 hex digits)"
+      ],
+      "name": "bad-commit",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1",
+        "source": {
+          "path": "p"
+        }
+      },
+      "errors": [
+        "source.repository: must be a non-empty string"
+      ],
+      "name": "source-without-repository",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "abc"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "conformance.sha256: must be 64 hex digits"
+      ],
+      "name": "bad-conformance-hash",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "conformance": {},
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [
+        "conformance.report: must be a non-empty string"
+      ],
+      "name": "conformance-without-report",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-13-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "security.audits[0].date: must be a date as YYYY-MM-DD"
+      ],
+      "name": "bad-audit-date",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-02-30",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [],
+      "name": "rollover-audit-date",
+      "ok": true,
+      "warnings": []
+    },
+    {
+      "document": {
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "policy": "https://x.com"
+        }
+      },
+      "errors": [
+        "security.contact: must be a non-empty string"
+      ],
+      "name": "security-without-contact",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "mint:0"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "init.accounts[0].source: \"mint:0\" refers to the market's mints, which don't exist before the market is created"
+      ],
+      "name": "init-uses-market-mint",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "market"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "init.market_state: cannot refer to the market itself"
+      ],
+      "name": "init-market-state-itself",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:arg:nope"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "init.market_state: seed refers to unknown argument \"nope\""
+      ],
+      "name": "unknown-seed-arg",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "ata:pda:strategy,mint:0"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].accounts[0].source: \"ata:pda:strategy,mint:0\": pda and ata sources cannot be nested"
+      ],
+      "name": "nested-pda",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "vault:4"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].accounts[0].source: \"vault:4\": index must be 0 to 3"
+      ],
+      "name": "bad-index",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "fixed:notanaddress"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].accounts[0].source: \"fixed:notanaddress\": not an address"
+      ],
+      "name": "bad-fixed",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "pda:strategy:str:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].accounts[0].source: \"pda:strategy:str:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\": str seed longer than 32 bytes"
+      ],
+      "name": "long-str-seed",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "pda:strategy:hex:abc"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].accounts[0].source: \"pda:strategy:hex:abc\": hex seed must be at most 32 bytes of hex"
+      ],
+      "name": "odd-hex-seed",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "pda:strategy:str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].accounts[0].source: \"pda:strategy:str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a\": at most 15 seeds"
+      ],
+      "name": "too-many-seeds",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "pda:strategy:num:1"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].accounts[0].source: \"pda:strategy:num:1\": unknown seed \"num:1\" (expected str:, hex:, key: or arg:)"
+      ],
+      "name": "unknown-seed-kind",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "ata:wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].accounts[0].source: \"ata:wallet\": expected ata:<owner>,<mint>"
+      ],
+      "name": "bad-ata",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "treasury"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].accounts[0].source: unknown account source \"treasury\""
+      ],
+      "name": "unknown-source",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          },
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[1].name: duplicate action \"deposit\""
+      ],
+      "name": "duplicate-action",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_a",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].args[1].name: duplicate argument \"amount_a\""
+      ],
+      "name": "duplicate-arg",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u128"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].args[0].type: must be one of u8, u16, u32, u64, i64, bool, pubkey, bytes, string"
+      ],
+      "name": "bad-arg-type",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].discriminator: must be 16 hex digits"
+      ],
+      "name": "bad-discriminator",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": true,
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "stake",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [],
+      "name": "unknown-action-kind",
+      "ok": true,
+      "warnings": [
+        "actions[0].kind: unknown kind \"stake\""
+      ]
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "accounts": [
+              {
+                "name": "depositor",
+                "signer": "yes",
+                "source": "wallet"
+              },
+              {
+                "name": "pool",
+                "source": "market_state",
+                "writable": true
+              },
+              {
+                "name": "depositor_a",
+                "source": "wallet_token_account:0",
+                "writable": true
+              },
+              {
+                "name": "vault_a",
+                "source": "vault:0",
+                "writable": true
+              },
+              {
+                "name": "fixed",
+                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              },
+              {
+                "name": "pda",
+                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+              }
+            ],
+            "args": [
+              {
+                "decimals_of": "mint:0",
+                "label": "Amount of token A",
+                "name": "amount_a",
+                "type": "u64"
+              },
+              {
+                "decimals_of": "mint:1",
+                "label": "Amount of token B",
+                "name": "amount_b",
+                "type": "u64"
+              }
+            ],
+            "discriminator": "f223c68952e1f2b6",
+            "kind": "add_liquidity",
+            "label": "Add liquidity",
+            "name": "deposit"
+          }
+        ],
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "actions[0].accounts[0].signer: must be a boolean"
+      ],
+      "name": "signer-not-boolean",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": [
+          {
+            "name": "go"
+          }
+        ],
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [
+        "actions[0].label: must be a non-empty string"
+      ],
+      "name": "action-without-label",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "actions": {},
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [
+        "actions: must be an array"
+      ],
+      "name": "actions-not-array",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "init": "x",
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [
+        "init: must be an object"
+      ],
+      "name": "init-not-object",
+      "ok": false,
+      "warnings": []
+    }
+  ],
+  "mints": [
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [],
+        "flags": [],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "spl-plain",
+      "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    },
+    {
+      "data": "AQAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBABCl1OgAAAAJAQEAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg==",
+      "epoch": "0",
+      "expected": {
+        "decimals": 9,
+        "extension_types": [],
+        "flags": [
+          "mint-authority",
+          "freeze-authority"
+        ],
+        "freeze_authority": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+        "mint_authority": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+        "supply": "1000000000000",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "spl-authorities",
+      "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [],
+        "flags": [
+          "token-2022"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "t22-no-extensions",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AQAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARIAQAAoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKDIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyEwCnACgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIKAAAAVGVzdCBUb2tlbgQAAABURVNUHgAAAGh0dHBzOi8vZXhhbXBsZS5jb20vdG9rZW4uanNvbgIAAAAEAAAAc2l0ZRMAAABodHRwczovL2V4YW1wbGUuY29tAgAAAMOpAgAAAMO8",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          18,
+          19
+        ],
+        "flags": [
+          "token-2022",
+          "mint-authority"
+        ],
+        "freeze_authority": null,
+        "mint_authority": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+        "supply": "18446744073709551615",
+        "token_metadata_name": "Test Token",
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "t22-metadata",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEAbAADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f0gQAAAAAAAAAAAAAAAAAAIgTAAAAAAAAMgAAAAAAAAAAAIgTAAAAAAAAMgA=",
+      "epoch": "10",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          1
+        ],
+        "flags": [
+          "token-2022",
+          "transfer-fee",
+          "transfer-fee-authority"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": 50,
+        "unknown_extensions": []
+      },
+      "name": "t22-transfer-fee-in-force",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEAbAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f0gQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUAAAAAAAAAAkAAAAAAAAAZAA=",
+      "epoch": "10",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          1
+        ],
+        "flags": [
+          "token-2022",
+          "transfer-fee"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": 0,
+        "unknown_extensions": []
+      },
+      "name": "t22-transfer-fee-scheduled",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEAbAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f0gQAAAAAAAAAAAAAAAAAAAkAAAAAAAAAZAAFAAAAAAAAAAAAAAAAAAAAAAA=",
+      "epoch": "10",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          1
+        ],
+        "flags": [
+          "token-2022"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": 0,
+        "unknown_extensions": []
+      },
+      "name": "t22-transfer-fee-lowered-to-zero",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEAbAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f0gQAAAAAAAAAAAAAAAAAAAkAAAAAAAAAZAAFAAAAAAAAAAAAAAAAAAAAAAA=",
+      "epoch": "4",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          1
+        ],
+        "flags": [
+          "token-2022",
+          "transfer-fee"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": 100,
+        "unknown_extensions": []
+      },
+      "name": "t22-transfer-fee-before-lowering",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ4AQAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUF",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          14
+        ],
+        "flags": [
+          "token-2022",
+          "transfer-hook",
+          "transfer-hook-authority"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "t22-transfer-hook",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ4AQAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          14
+        ],
+        "flags": [
+          "token-2022",
+          "transfer-hook-authority"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "t22-transfer-hook-authority-only",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AQAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBABCl1OgAAAAJAQEAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQMAIAAGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYAAQACCQAAAAoANAAHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwDxU2UAAAAA+gBk8VNlAAAAAOL/DAAgAAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI",
+      "epoch": "0",
+      "expected": {
+        "decimals": 9,
+        "extension_types": [
+          3,
+          6,
+          9,
+          10,
+          12
+        ],
+        "flags": [
+          "token-2022",
+          "mint-authority",
+          "freeze-authority",
+          "permanent-delegate",
+          "non-transferable",
+          "default-frozen",
+          "closable-mint",
+          "interest-bearing"
+        ],
+        "freeze_authority": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+        "mint_authority": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+        "supply": "1000000000000",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "t22-many-powers",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQMAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAQABDAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgAhAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          3,
+          6,
+          12,
+          26
+        ],
+        "flags": [
+          "token-2022"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "t22-renounced-powers",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARoAIQAJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQE=",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          26
+        ],
+        "flags": [
+          "token-2022",
+          "pausable",
+          "paused"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "t22-paused",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARoAIQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE=",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          26
+        ],
+        "flags": [
+          "token-2022",
+          "pausable",
+          "paused"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "t22-paused-without-authority",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARkAOAAKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgAAAAAAAPg/ANJJawAAAAAAAAAAAAAAQAQAQQALCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwAIAAMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA==",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          25,
+          4,
+          28
+        ],
+        "flags": [
+          "token-2022",
+          "scaled-ui-amount",
+          "confidential-transfers",
+          "permissioned-burn"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "t22-scaled-confidential-burn",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQAQAANDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDTIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyFQBQAA0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIDAAAAAAAAAAoAAAAAAAAAFgBAAA0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIXAEgAMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgEAAAAAAAAA",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          20,
+          21,
+          22,
+          23
+        ],
+        "flags": [
+          "token-2022"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "t22-groups",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEAbAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f0gQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAIEADw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGADEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          1,
+          16,
+          24
+        ],
+        "flags": [
+          "token-2022",
+          "confidential-transfers"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": 0,
+        "unknown_extensions": []
+      },
+      "name": "t22-confidential-mint-burn-and-fee",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcgAAwABAgM=",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          200
+        ],
+        "flags": [
+          "token-2022",
+          "unknown-extension"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": [
+          200
+        ]
+      },
+      "name": "t22-unknown-extension-type",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQwAHwAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          12
+        ],
+        "flags": [
+          "token-2022",
+          "unknown-extension"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": [
+          12
+        ]
+      },
+      "name": "t22-short-extension",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQYAAQAH",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          6
+        ],
+        "flags": [
+          "token-2022",
+          "unknown-extension"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": [
+          6
+        ]
+      },
+      "name": "t22-bad-default-state",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARMAfAAoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKDIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyyAAAAFRlc3QgVG9rZW4EAAAAVEVTVB4AAABodHRwczovL2V4YW1wbGUuY29tL3Rva2VuLmpzb24AAAAA",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [
+          19
+        ],
+        "flags": [
+          "token-2022",
+          "unknown-extension"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": [
+          19
+        ]
+      },
+      "name": "t22-truncated-token-metadata",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQwAIAAICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [],
+        "flags": [
+          "token-2022"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "t22-truncated-tlv",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAMACAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg=",
+      "epoch": "0",
+      "expected": {
+        "decimals": 6,
+        "extension_types": [],
+        "flags": [
+          "token-2022"
+        ],
+        "freeze_authority": null,
+        "mint_authority": null,
+        "supply": "18446744073709551615",
+        "token_metadata_name": null,
+        "transfer_fee_current_bps": null,
+        "unknown_extensions": []
+      },
+      "name": "t22-entries-after-uninitialized",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "epoch": "0",
+      "expected": null,
+      "name": "not-a-mint-uninitialized",
+      "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "epoch": "0",
+      "expected": null,
+      "name": "not-a-mint-wrong-owner",
+      "owner": "548jb4wcUtpbNS1TAva8TXJmeXd5QpCCXUzNVogwpzMR"
+    },
+    {
+      "data": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB",
+      "epoch": "0",
+      "expected": null,
+      "name": "not-a-mint-short",
+      "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQkAAAA=",
+      "epoch": "0",
+      "expected": null,
+      "name": "not-a-mint-spl-with-extensions",
+      "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "epoch": "0",
+      "expected": null,
+      "name": "not-a-mint-t22-between-lengths",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    },
+    {
+      "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8GAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgkAAAA=",
+      "epoch": "0",
+      "expected": null,
+      "name": "not-a-mint-t22-token-account-type",
+      "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    }
+  ],
+  "programs": [
+    {
+      "expected": {
+        "deployed": true,
+        "executable_sha256": "168eff340d3ee11bdbe591d1d10aae321f049cd180a5553d6b2be54a01d8b37f",
+        "flags": [
+          "upgradeable"
+        ],
+        "last_deploy_slot": "500",
+        "loader": "upgradeable",
+        "loader_address": "BPFLoaderUpgradeab1e11111111111111111111111",
+        "loader_v4_status": null,
+        "program_data_address": "5jKh25biPsnrmLWXXuqKNH2Q67j69T4Q7Zew5c8wJKaV",
+        "upgrade_authority": "5sAHJgXjaUPK3X1YQWV9x2ZvaS9VVaS3ENzFCNE8nzDu",
+        "upgradeable": true
+      },
+      "name": "v3-upgradeable",
+      "program": {
+        "data": "AgAAAEZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG",
+        "executable": true,
+        "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+      },
+      "program_data": {
+        "data": "AwAAAPQBAAAAAAAAAUhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhIf0VMRgIBAQAgcHJldGVuZCBwcm9ncmFtIGNvZGUgAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "executable": false,
+        "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+      },
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "expected": {
+        "deployed": true,
+        "executable_sha256": "168eff340d3ee11bdbe591d1d10aae321f049cd180a5553d6b2be54a01d8b37f",
+        "flags": [
+          "frozen"
+        ],
+        "last_deploy_slot": "501",
+        "loader": "upgradeable",
+        "loader_address": "BPFLoaderUpgradeab1e11111111111111111111111",
+        "loader_v4_status": null,
+        "program_data_address": "5jKh25biPsnrmLWXXuqKNH2Q67j69T4Q7Zew5c8wJKaV",
+        "upgrade_authority": null,
+        "upgradeable": false
+      },
+      "name": "v3-frozen",
+      "program": {
+        "data": "AgAAAEZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG",
+        "executable": true,
+        "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+      },
+      "program_data": {
+        "data": "AwAAAPUBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf0VMRgIBAQAgcHJldGVuZCBwcm9ncmFtIGNvZGUgAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "executable": false,
+        "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+      },
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "expected": {
+        "deployed": false,
+        "executable_sha256": null,
+        "flags": [
+          "program-missing"
+        ],
+        "last_deploy_slot": null,
+        "loader": "upgradeable",
+        "loader_address": "BPFLoaderUpgradeab1e11111111111111111111111",
+        "loader_v4_status": null,
+        "program_data_address": "5jKh25biPsnrmLWXXuqKNH2Q67j69T4Q7Zew5c8wJKaV",
+        "upgrade_authority": null,
+        "upgradeable": false
+      },
+      "name": "v3-program-data-closed",
+      "program": {
+        "data": "AgAAAEZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZG",
+        "executable": true,
+        "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+      },
+      "program_data": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "expected": {
+        "deployed": true,
+        "executable_sha256": "168eff340d3ee11bdbe591d1d10aae321f049cd180a5553d6b2be54a01d8b37f",
+        "flags": [
+          "upgradeable"
+        ],
+        "last_deploy_slot": "900",
+        "loader": "v4",
+        "loader_address": "LoaderV411111111111111111111111111111111111",
+        "loader_v4_status": "deployed",
+        "program_data_address": null,
+        "upgrade_authority": "5oEzAP4izB65uRm2yDAEf9oALGwHpWkDfyKb8zBY3euC",
+        "upgradeable": true
+      },
+      "name": "v4-deployed",
+      "program": {
+        "data": "hAMAAAAAAABHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHRwEAAAAAAAAAf0VMRgIBAQAgcHJldGVuZCBwcm9ncmFtIGNvZGUgAAEAAAAAAAAAAA==",
+        "executable": true,
+        "owner": "LoaderV411111111111111111111111111111111111"
+      },
+      "program_data": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "expected": {
+        "deployed": true,
+        "executable_sha256": "168eff340d3ee11bdbe591d1d10aae321f049cd180a5553d6b2be54a01d8b37f",
+        "flags": [
+          "frozen"
+        ],
+        "last_deploy_slot": "900",
+        "loader": "v4",
+        "loader_address": "LoaderV411111111111111111111111111111111111",
+        "loader_v4_status": "finalized",
+        "program_data_address": null,
+        "upgrade_authority": null,
+        "upgradeable": false
+      },
+      "name": "v4-finalized",
+      "program": {
+        "data": "hAMAAAAAAABHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHRwIAAAAAAAAAf0VMRgIBAQAgcHJldGVuZCBwcm9ncmFtIGNvZGUgAAEAAAAAAAAAAA==",
+        "executable": true,
+        "owner": "LoaderV411111111111111111111111111111111111"
+      },
+      "program_data": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "expected": {
+        "deployed": false,
+        "executable_sha256": null,
+        "flags": [
+          "program-missing"
+        ],
+        "last_deploy_slot": "900",
+        "loader": "v4",
+        "loader_address": "LoaderV411111111111111111111111111111111111",
+        "loader_v4_status": "retracted",
+        "program_data_address": null,
+        "upgrade_authority": "5oEzAP4izB65uRm2yDAEf9oALGwHpWkDfyKb8zBY3euC",
+        "upgradeable": true
+      },
+      "name": "v4-retracted",
+      "program": {
+        "data": "hAMAAAAAAABHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHRwAAAAAAAAAAf0VMRgIBAQAgcHJldGVuZCBwcm9ncmFtIGNvZGUgAAEAAAAAAAAAAA==",
+        "executable": true,
+        "owner": "LoaderV411111111111111111111111111111111111"
+      },
+      "program_data": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "expected": {
+        "deployed": true,
+        "executable_sha256": "168eff340d3ee11bdbe591d1d10aae321f049cd180a5553d6b2be54a01d8b37f",
+        "flags": [],
+        "last_deploy_slot": "900",
+        "loader": "v4",
+        "loader_address": "LoaderV411111111111111111111111111111111111",
+        "loader_v4_status": "unknown",
+        "program_data_address": null,
+        "upgrade_authority": null,
+        "upgradeable": false
+      },
+      "name": "v4-unknown-status",
+      "program": {
+        "data": "hAMAAAAAAABHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHRwkAAAAAAAAAf0VMRgIBAQAgcHJldGVuZCBwcm9ncmFtIGNvZGUgAAEAAAAAAAAAAA==",
+        "executable": true,
+        "owner": "LoaderV411111111111111111111111111111111111"
+      },
+      "program_data": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "expected": {
+        "deployed": true,
+        "executable_sha256": "168eff340d3ee11bdbe591d1d10aae321f049cd180a5553d6b2be54a01d8b37f",
+        "flags": [
+          "frozen"
+        ],
+        "last_deploy_slot": null,
+        "loader": "v2",
+        "loader_address": "BPFLoader2111111111111111111111111111111111",
+        "loader_v4_status": null,
+        "program_data_address": null,
+        "upgrade_authority": null,
+        "upgradeable": false
+      },
+      "name": "v2",
+      "program": {
+        "data": "f0VMRgIBAQAgcHJldGVuZCBwcm9ncmFtIGNvZGUgAAEAAAAAAAAAAAAAAAAAAAAA",
+        "executable": true,
+        "owner": "BPFLoader2111111111111111111111111111111111"
+      },
+      "program_data": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "expected": {
+        "deployed": true,
+        "executable_sha256": null,
+        "flags": [],
+        "last_deploy_slot": null,
+        "loader": "native",
+        "loader_address": "NativeLoader1111111111111111111111111111111",
+        "loader_v4_status": null,
+        "program_data_address": null,
+        "upgrade_authority": null,
+        "upgradeable": false
+      },
+      "name": "native",
+      "program": {
+        "data": "c3BsX3Rva2Vu",
+        "executable": true,
+        "owner": "NativeLoader1111111111111111111111111111111"
+      },
+      "program_data": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "expected": {
+        "deployed": false,
+        "executable_sha256": null,
+        "flags": [
+          "program-missing"
+        ],
+        "last_deploy_slot": null,
+        "loader": "other",
+        "loader_address": "5w5aSyzkAmgYBcG3qop5EuLgpbMhAe7rnneuFkGjYKYc",
+        "loader_v4_status": null,
+        "program_data_address": null,
+        "upgrade_authority": null,
+        "upgradeable": false
+      },
+      "name": "not-a-program",
+      "program": {
+        "data": "AQID",
+        "executable": false,
+        "owner": "5w5aSyzkAmgYBcG3qop5EuLgpbMhAe7rnneuFkGjYKYc"
+      },
+      "program_data": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "expected": {
+        "deployed": false,
+        "executable_sha256": null,
+        "flags": [
+          "program-missing"
+        ],
+        "last_deploy_slot": null,
+        "loader": "none",
+        "loader_address": null,
+        "loader_v4_status": null,
+        "program_data_address": null,
+        "upgrade_authority": null,
+        "upgradeable": false
+      },
+      "name": "no-account",
+      "program": null,
+      "program_data": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    }
+  ]
+}

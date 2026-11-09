@@ -11,6 +11,8 @@ use sha2::{Digest, Sha256};
 pub use solana_instruction::{AccountMeta, Instruction};
 pub use solana_pubkey::{pubkey, Pubkey};
 
+pub mod facts;
+pub mod metadata;
 pub mod wallet;
 
 /// The Pipeline router program.

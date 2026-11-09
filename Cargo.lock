@@ -2061,6 +2061,7 @@ dependencies = [
 name = "pipeline-client"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "borsh",
  "pipeline-events",
  "pipeline-strategy-interface",
@@ -2068,6 +2069,8 @@ dependencies = [
  "sha2 0.10.9",
  "solana-instruction 3.5.1",
  "solana-pubkey 4.3.0",
+ "spl-token-2022-interface",
+ "url",
 ]
 
 [[package]]

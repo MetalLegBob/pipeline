@@ -24,7 +24,7 @@
         "build": "tsc -p tsconfig.build.json",
         "typecheck": "tsc -p tsconfig.json --noEmit",
         "test": "npm run typecheck && npm run format:check && vitest run",
-        "fixtures": "cargo run -q -p pipeline-client --example ts_fixtures > test/fixtures.json",
+        "fixtures": "cargo run -q -p pipeline-client --example ts_fixtures > test/fixtures.json && cargo run -q -p pipeline-client --example ts_facts_fixtures > ../../crates/pipeline-client/tests/fixtures/trust-facts.json",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },
