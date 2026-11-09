@@ -21,4 +21,4 @@ no-log-ix-name = []
 
 [dependencies]
 anchor-lang = { version = "=1.2.2", features = ["event-cpi"] }
-pipeline-strategy-interface = { path = "../../crates/pipeline-strategy-interface" }
+pipeline-strategy-interface = { path = "../pipeline-strategy-interface" }

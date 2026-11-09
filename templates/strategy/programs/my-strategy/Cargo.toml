@@ -1,0 +1,40 @@
+[package]
+name = "my-strategy"
+version = "0.1.0"
+edition.workspace = true
+description = "A Pipeline strategy"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "my_strategy"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+custom-heap = []
+custom-panic = []
+anchor-debug = []
+no-log-ix-name = []
+
+[dependencies]
+anchor-lang = { version = "=1.2.2", features = ["init-if-needed"] }
+anchor-spl = "=1.2.2"
+pipeline-strategy-interface.workspace = true
+
+# Anchor's macros check `target_os = "solana"`, which host builds don't know about.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
+
+# For the LiteSVM tests in `tests/` only. `cargo build-sbf` never builds these.
+[dev-dependencies]
+borsh = { version = "1.5", features = ["derive"] }
+litesvm = "=0.18.2"
+pipeline-check.workspace = true
+pipeline-client.workspace = true
+solana-keypair = "=3.1.2"
+solana-signer = "=3.0.1"
+solana-transaction = "=4.3.0"
+spl-token-2022-interface = "3.1.2"

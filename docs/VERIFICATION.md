@@ -13,9 +13,9 @@ possible input; every account-level property passes its tests against the real r
 
 | Tool | What it gives | Where |
 |---|---|---|
-| **Kani** (model checker) | A proof for every input of the Rust code itself | `crates/pipeline-strategy-interface/src/bok_kani/` |
-| **Z3** (SMT solver) | A proof for every 64-bit input of the fee arithmetic, modelled step by step including each overflow check | `crates/pipeline-strategy-interface/proofs/fee_maths_z3.py` |
-| **Proptest** | Thousands of random inputs against the real functions | `crates/pipeline-strategy-interface/tests/bok_prop_*.rs`, `crates/pipeline-tests/tests/bok_prop_*.rs` |
+| **Kani** (model checker) | A proof for every input of the Rust code itself | `programs/pipeline-strategy-interface/src/bok_kani/` |
+| **Z3** (SMT solver) | A proof for every 64-bit input of the fee arithmetic, modelled step by step including each overflow check | `programs/pipeline-strategy-interface/proofs/fee_maths_z3.py` |
+| **Proptest** | Thousands of random inputs against the real functions | `programs/pipeline-strategy-interface/tests/bok_prop_*.rs`, `crates/pipeline-tests/tests/bok_prop_*.rs` |
 | **LiteSVM** | Transactions against the compiled router | `crates/pipeline-tests/tests/bok_*.rs` |
 
 The swap's measurement and fee arithmetic lives in one pure function,
@@ -30,11 +30,46 @@ Run them:
 ```sh
 cargo kani -p pipeline-strategy-interface -Z unstable-options -Z stubbing   # 45 proofs, ~2 min
 python -m venv /tmp/z3 && /tmp/z3/bin/pip install z3-solver
-/tmp/z3/bin/python crates/pipeline-strategy-interface/proofs/fee_maths_z3.py  # 13 proofs, ~6 s
+/tmp/z3/bin/python programs/pipeline-strategy-interface/proofs/fee_maths_z3.py  # 13 proofs, ~6 s
 cargo test -p pipeline-strategy-interface -p pipeline-tests                  # Proptest + LiteSVM
 ```
 
 CI runs all of them on every push.
+
+## Reproducible builds
+
+Anyone can rebuild the router from this repository and get the exact bytes that are
+deployed. Build it with [`solana-verify`](https://github.com/Ellipsis-Labs/solana-verifiable-build)
+0.5.2 or later, in Docker (the mount path must be absolute):
+
+```sh
+cargo install solana-verify --version 0.5.2 --locked
+solana-verify build "$PWD/programs" --library-name pipeline --arch v3
+solana-verify get-executable-hash programs/target/deploy/pipeline.so
+solana-verify get-program-hash -u <cluster> PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34
+```
+
+The last two hashes match when the deployed router was built from the commit you checked
+out. The Docker image and platform tools are pinned in `programs/Cargo.toml`
+(`[workspace.metadata.cli]` and `[workspace.metadata.solana]`).
+
+Two things keep the bytes stable:
+
+- **The strategy interface crate lives in `programs/`.** Cargo folds a path dependency's
+  location into its compiled symbol names when it sits outside the workspace, which
+  reorders functions in the binary. Inside the workspace folder the path is the same in
+  every checkout.
+- **Each program is built on its own** (`scripts/build-programs.sh`, and what
+  `solana-verify` does). Building the whole workspace in one go unifies dependency features
+  across programs and changes the router's bytes.
+
+Local builds on macOS are reproducible among themselves but differ from Linux builds, so
+the Docker build is the reference.
+
+On mainnet the router will be deployed from this Docker build, and its upgrade authority
+will publish a verification record so [OtterSec's verified builds](https://verify.osec.io)
+can confirm it independently. OtterSec covers mainnet only; on devnet, compare the hashes
+yourself as above.
 
 ## The properties
 

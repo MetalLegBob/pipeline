@@ -20,7 +20,7 @@ fn bare_env() -> Env {
     let admin = Keypair::new();
     svm.airdrop(&admin.pubkey(), 1_000 * SOL).unwrap();
     svm.add_program_from_file(client::PROGRAM_ID, sbf_dir().join("pipeline.so"))
-        .expect("build programs first: cd programs && cargo build-sbf");
+        .expect("build programs first: scripts/build-programs.sh");
     set_upgrade_authority(&mut svm, &client::PROGRAM_ID, Some(&admin.pubkey()));
     Env {
         svm,

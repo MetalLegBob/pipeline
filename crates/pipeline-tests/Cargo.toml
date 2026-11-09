@@ -12,7 +12,7 @@ litesvm = "=0.18.2"
 pipeline-client = { path = "../pipeline-client" }
 pipeline-events = { path = "../pipeline-events" }
 pipeline-quoter = { path = "../pipeline-quoter" }
-pipeline-strategy-interface = { path = "../pipeline-strategy-interface" }
+pipeline-strategy-interface = { path = "../../programs/pipeline-strategy-interface" }
 sha2 = "0.10"
 solana-account = "=4.7.0"
 solana-clock = "~3.2.0"

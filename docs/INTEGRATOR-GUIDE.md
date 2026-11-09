@@ -21,7 +21,8 @@ All are Apache-2.0; package names are placeholders until first publish. Router p
 
   Decoders: `pipeline_client::decode_strategy` / `decode_market`, or the TypeScript SDK.
 - **Events:** subscribe to the router and decode `MarketCreated` and `StrategyRegistered` (section 4) to learn about new ones as they appear.
-- **Metadata:** fetch the strategy's metadata URL for its name, image, links and custom-action forms (see `docs/STRATEGY-GUIDE.md` section 7). Treat metadata as untrusted user content.
+- **Metadata:** fetch the strategy's metadata URL for its name, image, links and custom-action forms (see `docs/STRATEGY-GUIDE.md` section 7). Treat metadata as untrusted user content. In TypeScript, `fetchStrategyMetadata` fetches and validates it (https, IPFS and Arweave, with size and time limits).
+- **Custom actions without per-strategy code:** metadata describes each action (add liquidity, claim, …) as typed arguments plus account sources. `buildActionInstruction` turns an action, a market and the user's inputs into a ready instruction, and `buildCreateMarketFromMetadata` does the same for creating a market, so one generic form works for every strategy that publishes metadata. The instruction always targets the strategy's own program, but signing it means trusting that strategy with the accounts the action lists, as with any app; show the user which accounts it writes to.
 
 ## 2. Quote
 
@@ -81,15 +82,28 @@ The same decoder handles `MarketCreated`, `StrategyRegistered`, `MetadataUpdated
 
 ## 5. What to show users
 
-Show neutral facts and no judgements:
+Pipeline does not vet strategies, so it's up to front ends what to show and filter. Show
+neutral facts and no judgements. The TypeScript SDK collects them for you:
 
-- whether the strategy program is upgradeable or frozen;
-- mint and freeze authorities;
-- liquidity (vault balances);
-- market age;
-- volume.
+```ts
+const market = await inspectMarket(rpc, marketAddress, { cluster: 'mainnet' });
+market.flags;          // ['upgradeable', 'verified-build', 'token-2022', 'transfer-fee', …]
+const shown = filterMarkets(markets, { exclude: ['permanent-delegate', 'freeze-authority'] });
+```
 
-Pipeline does not vet strategies.
+| Facts | Helper | Examples of flags |
+|---|---|---|
+| The strategy program: upgradeable or frozen, upgrade authority, last deploy, code hash | `inspectProgram` | `upgradeable`, `frozen` |
+| Verified build: OtterSec's record matches the deployed code (mainnet only) | `fetchVerifiedBuild` | `verified-build`, `unverified-build` |
+| The strategy's metadata: present, reachable, valid; conformance report linked | `inspectStrategy` | `metadata-missing`, `metadata-invalid`, `conformance-report` |
+| Each mint: authorities and Token-2022 extensions | `inspectMint` | `mint-authority`, `freeze-authority`, `transfer-hook`, `transfer-fee`, `permanent-delegate`, `non-transferable`, `default-frozen`, `pausable` |
+
+A market's flags are its strategy's flags plus every mint's. The full list, with exact
+meanings, is `FLAGS` and `FLAG_DESCRIPTIONS` in the SDK. Also worth showing: liquidity
+(vault balances), market age and volume.
+
+`inspectProgram` downloads the program's code to hash it (up to a few MB); cache results per
+program and pass `hashExecutable: false` when you only need the upgrade status.
 
 ## 6. Limits worth knowing
 

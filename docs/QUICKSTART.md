@@ -5,13 +5,13 @@ This takes you from an empty folder to a strategy that is registered, has a mark
 You need:
 - Rust;
 - `cargo-build-sbf` 4.4 or later, which builds sBPF v3 programs (`cargo install cargo-build-sbf --version 4.6.0 --locked`), and the Solana CLI 4.4;
-- Node 20.19 or later, for the TypeScript SDK and scripts.
+- Node 22.18 or later, for the TypeScript SDK and scripts.
 
 ## 1. Build and test everything
 
 ```sh
 git clone <this repository> && cd <it>
-(cd programs && cargo build-sbf)
+scripts/build-programs.sh
 cargo test --workspace
 ```
 
@@ -21,42 +21,37 @@ You should see every test pass, including:
 - **adversarial tests** — a hostile strategy can't harm traders or fees;
 - **quoter tests** — quotes match execution exactly.
 
-## 2. Copy the reference strategy
+## 2. Start from the template
 
-`programs/test-strategy-cp` is a complete constant-product strategy in Anchor. To make your own:
+`templates/strategy` is a complete strategy project: a constant-product pool in Anchor, LiteSVM tests against the real router, a metadata file and a devnet script. Copy it out with a new name and program key:
 
-1. Copy it into `programs/my-strategy`, rename the package, and add it to `programs/Cargo.toml`'s members.
-2. Generate a program key and put its address in `declare_id!`:
+```sh
+scripts/new-strategy.sh my-amm ~/code/my-amm
+cd ~/code/my-amm
+```
+
+The script creates your program's keypair at `~/.config/pipeline/keys/my-amm.json` (outside the project) and writes its address into `declare_id!`. Then:
+
+1. Change the pricing in `programs/my-amm/src/pricing.rs`. `pipeline_quote` and `pipeline_swap` both call it, which keeps quotes and swaps identical.
+2. Keep the rest of the structure. Its comments mark the rules that matter; `docs/STRATEGY-GUIDE.md` sections 2 and 4 explain them.
+3. Build:
 
    ```sh
-   solana-keygen new --outfile ~/my-strategy-keypair.json
-   ```
-
-3. Change the pricing in `Pool::quote`. Keep the rest of the structure:
-   - `pipeline_swap` credits input with `credited_input`, calls the same `quote`, then settles. That keeps quotes and swaps identical.
-   - Read `docs/STRATEGY-GUIDE.md` sections 2 and 4 before changing anything else.
-4. Build:
-
-   ```sh
-   (cd programs && cargo build-sbf)
+   cargo build-sbf --manifest-path programs/my-amm/Cargo.toml
    ```
 
 ## 3. Test it against the real router
 
-Copy `crates/pipeline-tests/tests/router.rs` to a new file and point its helpers at your program. `tests/common/mod.rs` shows how to:
-- load the router and your program into LiteSVM, and set your upgrade authority;
-- register your strategy, create a market and fee accounts, and add liquidity;
-- swap through the router and decode the `SwapEvent`.
-
-Also copy the checks in `tests/quoter.rs`, which prove your quotes match execution. Run them with:
-
 ```sh
-cargo test -p pipeline-tests --test <your file>
+scripts/fetch-router.sh     # the devnet router, for the tests
+cargo test
 ```
+
+The tests create a market through the router, add fee accounts and liquidity, swap through the router, then run every `pipeline-check` check on the market: quotes match swaps in every direction and size, minimums hold, zero input buys nothing, and more. Run them after every pricing change. `crates/pipeline-tests` has more examples of router tests.
 
 ## 4. Rehearse on a local validator
 
-`docs/DEVNET.md` ("Running Pipeline on a local validator") starts `solana-test-validator` with Pipeline loaded and runs `scripts/devnet/smoke.ts`. To rehearse your own strategy, add `--upgradeable-program <your id> <your .so> <your key>` to the validator, and adapt the market-creation and deposit steps in the script.
+`docs/DEVNET.md` ("Running Pipeline on a local validator") starts `solana-test-validator` with Pipeline loaded. Add `--upgradeable-program <your id> target/deploy/my_amm.so <your wallet>` to it, then run your project's `scripts/deploy-devnet.ts` with `RPC_URL` pointing at the validator.
 
 ## 5. On devnet
 
@@ -65,13 +60,27 @@ Pipeline is live on devnet ([`DEVNET.md`](DEVNET.md)):
 1. **Deploy your program:**
 
    ```sh
-   solana program deploy programs/target/deploy/my_strategy.so --program-id ~/my-strategy-keypair.json --url devnet
+   solana program deploy target/deploy/my_amm.so --program-id ~/.config/pipeline/keys/my-amm.json --url devnet
    ```
 
-2. **Register it** with the router's `register_strategy`, signed by your upgrade authority. This pays the 0.01 devnet-SOL listing fee. In TypeScript: `registerStrategy` from the SDK.
-3. **Publish a metadata JSON** (`docs/STRATEGY-GUIDE.md` section 7) and point your registration at it with `update_metadata`.
-4. **Create a market** with `create_market` plus `init_fee_account` for each mint, then add liquidity with your own custom action.
-5. **Trade it:** `resolveAccounts`, `quoteStrategy`, then `swap`, all in the SDK. Anything built on Pipeline can now see and trade your market.
+2. **Publish `metadata.json`** (`docs/STRATEGY-GUIDE.md` section 7) at an `https://`, `ipfs://` or `ar://` URL.
+3. **Register, create a market and trade** with the project's script:
+
+   ```sh
+   (cd <this repository>/sdk/ts && npm install && npm run build)   # once
+   cd scripts && npm install
+   node deploy-devnet.ts https://<where you published>/metadata.json
+   ```
+
+   It registers the strategy (`register_strategy`, signed by your upgrade authority, 0.01 devnet SOL), points it at your metadata, creates a market and records it with `init_fee_account` for each mint in one transaction, adds liquidity with the `deposit` action from your metadata, then quotes and swaps through the router. A market the router hasn't recorded is invisible to everything built on Pipeline (`docs/STRATEGY-GUIDE.md` section 6).
+4. **Check it** the way integrators will, and publish the report:
+
+   ```sh
+   cargo install --path <this repository>/crates/pipeline-check
+   pipeline-check --url devnet --market <market address> --json > report.json
+   ```
+
+   Put the report's URL and SHA-256 in your metadata's `conformance`.
 
 ## Where to read next
 

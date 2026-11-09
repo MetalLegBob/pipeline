@@ -47,15 +47,20 @@ jobs:
           cargo fmt --all -- --check
           (cd programs && cargo fmt --all -- --check)
 
-      - name: Build on-chain programs
-        working-directory: programs
-        run: cargo build-sbf
+      - name: Build on-chain programs (one at a time, as solana-verify builds them)
+        run: scripts/build-programs.sh
 
       - name: Lint
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Test
         run: cargo test --workspace
+
+      - name: Strategy template (build and test against these sources)
+        run: scripts/test-template.sh
+
+      - name: Strategy generator
+        run: scripts/test-new-strategy.sh
 
   verification:
     # Formal proofs of the router's maths: Z3 for the fee arithmetic over every 64-bit
@@ -71,7 +76,7 @@ jobs:
         run: |
           python -m venv /tmp/z3
           /tmp/z3/bin/pip install --quiet z3-solver
-          /tmp/z3/bin/python crates/pipeline-strategy-interface/proofs/fee_maths_z3.py
+          /tmp/z3/bin/python programs/pipeline-strategy-interface/proofs/fee_maths_z3.py
       - name: Cache Kani
         uses: actions/cache@v4
         with:
@@ -104,3 +109,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+      - name: Type-check the strategy template's scripts
+        working-directory: templates/strategy/scripts
+        run: |
+          npm ci
+          npm run typecheck

@@ -1,0 +1,27 @@
+# A Pipeline strategy: the on-chain program in `programs/my-strategy`, with its LiteSVM
+# tests in `programs/my-strategy/tests`.
+#
+#   cargo build-sbf --manifest-path programs/my-strategy/Cargo.toml
+#                       builds the program into target/deploy/
+#   cargo test          runs the tests against the real router
+#
+# Build each program by its manifest: a whole-workspace build unifies dependency features
+# across programs, which can change a program's bytes.
+[workspace]
+resolver = "2"
+members = ["programs/*"]
+
+[workspace.package]
+edition = "2021"
+
+# The Pipeline crates come from the public repository. Pin `rev` (or, after the first
+# release, a version tag) to make builds reproducible.
+[workspace.dependencies]
+pipeline-strategy-interface = { git = "https://github.com/MetalLegBob/pipeline", branch = "main" }
+pipeline-client = { git = "https://github.com/MetalLegBob/pipeline", branch = "main" }
+pipeline-check = { git = "https://github.com/MetalLegBob/pipeline", branch = "main", default-features = false }
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1

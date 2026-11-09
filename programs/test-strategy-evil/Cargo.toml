@@ -11,5 +11,5 @@ name = "test_strategy_evil"
 
 [dependencies]
 borsh = "1.5"
-pipeline-strategy-interface = { path = "../../crates/pipeline-strategy-interface" }
+pipeline-strategy-interface = { path = "../pipeline-strategy-interface" }
 solana-program = "3"

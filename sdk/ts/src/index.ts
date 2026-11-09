@@ -1,8 +1,13 @@
+export * from './actions.js';
 export * from './codecs.js';
 export * from './constants.js';
 export * from './discovery.js';
 export * from './events.js';
 export * from './fees.js';
+export * from './inspect.js';
 export * from './instructions.js';
+export * from './listing.js';
+export * from './metadata.js';
 export * from './pda.js';
 export * from './quote.js';
+export type { FetchLike } from './http.js';

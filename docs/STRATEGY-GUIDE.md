@@ -99,8 +99,42 @@ Anything that isn't a swap, such as adding liquidity, claims or keeper jobs, is 
 
 1. Deploy your program with the upgradeable loader.
 2. **Register** it with the router's `register_strategy`, signed by the program's upgrade authority. This pays the one-time listing fee (0.01 SOL on devnet). An immutable program registers by signing through a CPI with its own `["pipeline-register"]` PDA (see `forward_to_router` in the hostile test strategy). Upgrades are free; your registration persists.
-3. **Create markets.** Anyone calls `create_market` with your setup data and accounts; the router calls your `pipeline_init_market` and `pipeline_market_info`. The creator sets `max_creator_lamports`: the router lends exactly that much to your setup through the payer account, and returns whatever you don't spend. Setup cannot touch the creator's wallet or token accounts. To seed liquidity from the creator, use a separate custom action they sign directly. Then call `init_fee_account` once per mint, in the same transaction if you like. A market your program creates by itself, outside `create_market`, can be recorded with `register_existing_market`.
+3. **Create markets through the router, or record them straight after creating them** (below).
 4. Point your registration at a **metadata JSON file** (`update_metadata` changes it).
+
+### Every market must be recorded
+
+Registering your program does not make its markets visible. The router, indexers, desks and
+quoters only know about markets that have a router `Market` account. A pool your program
+creates on its own is invisible to all of them, and can't be traded through Pipeline, until
+someone records it. There are two ways to get a market recorded, and both should happen in the
+transaction that creates the pool:
+
+- **Create it through the router (recommended).** Anyone calls `create_market` with your
+  setup data; the router calls your `pipeline_init_market`, then `pipeline_market_info`, and
+  records the market in the same instruction. The creator sets `max_creator_lamports`: the
+  router lends exactly that much to your setup through the payer account and returns whatever
+  you don't spend. Setup can't touch the creator's wallet or token accounts, so seed liquidity
+  with a separate custom action the creator signs directly, in the same transaction.
+- **Create it yourself, then record it.** If your program creates pools with its own
+  instruction, put the router's `register_existing_market` **in the same transaction, right
+  after it**. Your program can't make that call itself through a CPI: the router calls back
+  into your program to read `pipeline_market_info`, and Solana doesn't allow a program to be
+  re-entered through another program. So it has to be a separate instruction, built by your
+  front end or SDK.
+
+Either way, also add `init_fee_account` for each of the market's mints (idempotent; anyone can
+pay). A mint can't be sold through Pipeline until its fee account exists. A complete "new
+pool" transaction therefore looks like:
+
+```
+[create_market]                     or   [your_init_pool, register_existing_market]
+[init_fee_account × each mint]           [init_fee_account × each mint]
+[your deposit / seed action]             (liquidity, if your init didn't add it)
+```
+
+If a market was created without being recorded, anyone can record it later with
+`register_existing_market`; nothing is lost except the time it wasn't visible.
 
 Things worth knowing:
 
@@ -111,7 +145,18 @@ Things worth knowing:
 
 ## 7. Metadata JSON (version 1)
 
-Host it on IPFS, Arweave or any stable URL. Desks use it for names, links and custom-action forms.
+Point your registration's `metadata_uri` at a JSON file on IPFS (`ipfs://`), Arweave (`ar://`) or any `https://` URL. Desks use it for names, links, trust facts you declare, and forms for creating markets and calling your custom actions. Treat it as public: anyone can read it, and desks treat it as untrusted.
+
+The JSON Schema is [`sdk/ts/schema/strategy-metadata.v1.json`](../sdk/ts/schema/strategy-metadata.v1.json). The TypeScript SDK reads and uses the file:
+
+| Helper | Does |
+|---|---|
+| `parseStrategyMetadata(json)` | Validates a document. Returns `{ ok, value, warnings }` or `{ ok: false, errors }` |
+| `fetchStrategyMetadata(uri)` | Fetches `https://`, `ipfs://` or `ar://` (64 KiB limit, 10 s timeout), then validates |
+| `buildActionInstruction(...)` | Turns one of your `actions` into an instruction to your program |
+| `buildCreateMarketFromMetadata(...)` | Turns your `init` into the router's `create_market` |
+
+This example describes the constant-product test strategy (`programs/test-strategy-cp`). The SDK's tests build its `init` and `deposit` from this exact document and check the result against the program's accounts.
 
 ```json
 {
@@ -119,18 +164,39 @@ Host it on IPFS, Arweave or any stable URL. Desks use it for names, links and cu
   "name": "Constant product",
   "description": "x*y=k pool with a configurable fee.",
   "image": "https://example.com/logo.png",
-  "links": { "website": "https://example.com", "source": "https://github.com/...", "docs": "https://..." },
+  "category": "amm",
+  "tags": ["cpmm", "fees"],
+  "links": {
+    "website": "https://example.com",
+    "source": "https://github.com/example/cp",
+    "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+    "idl": "ar://abc123/idl.json",
+    "twitter": "https://x.com/example",
+    "github": "https://github.com/example",
+    "discord": "https://discord.gg/example",
+    "telegram": "https://t.me/example"
+  },
+  "source": { "repository": "https://github.com/example/cp", "commit": "dac82fef2b88", "path": "programs/cp" },
   "init": {
+    "description": "Creates a pool for two mints.",
+    "idl_type": "InitParams",
+    "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps",
     "args": [{ "name": "fee_bps", "type": "u16", "label": "Pool fee (basis points)" }],
     "accounts": [
       { "name": "mint_a", "source": "input:mint_a" },
-      { "name": "mint_b", "source": "input:mint_b" }
+      { "name": "mint_b", "source": "input:mint_b" },
+      { "name": "vault_a", "source": "ata:market_state,input:mint_a", "writable": true },
+      { "name": "vault_b", "source": "ata:market_state,input:mint_b", "writable": true },
+      { "name": "token_program_a", "source": "token_program_of:input:mint_a" },
+      { "name": "token_program_b", "source": "token_program_of:input:mint_b" },
+      { "name": "associated_token_program", "source": "associated_token_program" }
     ]
   },
   "actions": [
     {
       "name": "deposit",
       "label": "Add liquidity",
+      "kind": "add_liquidity",
       "discriminator": "f223c68952e1f2b6",
       "args": [
         { "name": "amount_a", "type": "u64", "label": "Amount of token A", "decimals_of": "mint:0" },
@@ -149,33 +215,121 @@ Host it on IPFS, Arweave or any stable URL. Desks use it for names, links and cu
         { "name": "token_program_b", "source": "token_program:1" }
       ]
     }
-  ]
+  ],
+  "conformance": {
+    "report": "https://example.com/report.json",
+    "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  },
+  "security": {
+    "contact": "security@example.com",
+    "policy": "https://example.com/security",
+    "audits": [{ "by": "Example Audits", "url": "https://example.com/audit.pdf", "date": "2026-10-01" }]
+  }
 }
 ```
 
-**Argument types:** `u8`, `u16`, `u32`, `u64`, `i64`, `bool`, `pubkey`, `bytes`. They are encoded in order with Borsh after the 8-byte discriminator.
+### Fields
 
-**Account sources:**
+Only `schema` and `name` are required. Unknown keys are allowed everywhere and ignored, so later additions don't break older readers.
 
-| Source | Meaning |
+| Field | Meaning |
 |---|---|
-| `wallet` | The user's wallet |
+| `schema` | Always `pipeline-strategy-metadata/1` |
+| `name` | Up to 64 characters |
+| `description` | Up to 2,000 characters |
+| `image` | Logo or icon URL |
+| `category` | `amm`, `launchpad`, `order-book`, `auction`, `lbp` or `other` |
+| `tags` | Up to 16 free tags, 32 characters each |
+| `links` | `website`, `docs`, `source` (a link for people), `idl` (your Anchor IDL or Codama file); social accounts `twitter`, `github`, `discord`, `telegram`, `farcaster`; and any other named URL. A social link on an unexpected site (a `twitter` link not on x.com or twitter.com, say) is accepted with a warning |
+| `source` | `{ repository, commit?, path? }`: the code a verified build is made from. `path` is the program's directory |
+| `init` | How to create a market (below) |
+| `actions` | Your custom instructions (below) |
+| `conformance` | `{ report, sha256? }`: a `pipeline-check` JSON report and its SHA-256 in hex |
+| `security` | `{ contact, policy?, audits? }`. `contact` is an email address, URL or handle; each audit is `{ by, url?, date? }` with `date` as `YYYY-MM-DD` |
+
+Every URL must start with `https://`, `ipfs://` or `ar://`. Other schemes, including `http://`, make the document invalid.
+
+An unknown `category` or action `kind` is a warning, not an error, so new values can be added later.
+
+### `init`: creating a market
+
+`init` describes the `create_market` call.
+
+| Field | Meaning |
+|---|---|
+| `args` | Encoded in order with Borsh, with no discriminator, to form `init_data` (the `data` your `pipeline_init_market` receives) |
+| `accounts` | Your own setup accounts. They are passed after the router's four fixed accounts (market signer, market state, payer, system program) |
+| `market_state` | Where the market state lives. `new_keypair` (the default): the creator generates a keypair, which signs. Or an account source, usually a `pda:` |
+| `idl_type` | The IDL type `init_data` decodes to, if you publish an IDL |
+| `description` | Shown on the create form |
+
+`init` can't use the sources that need an existing market (`mint:i`, `vault:i`, `token_program:i`, `wallet_token_account:i`). Use `input:` for the mints instead, as in the example. `market_state` can't be `market_state` or `market`.
+
+### `actions`: custom instructions
+
+| Field | Meaning |
+|---|---|
+| `name` | The instruction's name. For Anchor programs, use the IDL instruction name |
+| `label` | Button text, up to 64 characters |
+| `kind` | `add_liquidity`, `remove_liquidity`, `claim`, `create_market` or `other` |
+| `description` | Shown with the form |
+| `discriminator` | 8 bytes as 16 hex digits. Optional: the default is Anchor's `sha256("global:<name>")[..8]` |
+| `args` | Encoded in order with Borsh after the discriminator |
+| `accounts` | The instruction's accounts, in order |
+
+Users sign actions directly. They don't go through the router and pay no Pipeline fee.
+
+### Arguments
+
+Each argument is `{ name, type, label?, description?, decimals_of? }`. `name` is an identifier (letters, digits, `_`). `decimals_of` is an account source naming the mint whose decimals a form should use for the amount, such as `mint:0`.
+
+| Type | Borsh encoding |
+|---|---|
+| `u8`, `u16`, `u32`, `u64` | Little-endian unsigned integer |
+| `i64` | Little-endian signed integer |
+| `bool` | One byte, 0 or 1 |
+| `pubkey` | 32 bytes |
+| `bytes` | u32 length, then the bytes |
+| `string` | u32 length, then UTF-8 |
+
+### Accounts
+
+Each account is `{ name, source, signer?, writable? }`. `signer` and `writable` default to `false`.
+
+| Source | Account |
+|---|---|
+| `wallet` | The user's wallet. For `init`, the market creator |
 | `market_state` | The market's state account |
 | `market` | The router's market account |
-| `mint:i` | The market's mint at index `i` |
+| `strategy_program` | Your program |
+| `system_program` | The system program |
+| `associated_token_program` | The associated token account program |
+| `mint:i` | The market's mint at index `i` (0–3) |
 | `vault:i` | The market's vault at index `i` |
 | `token_program:i` | The token program of mint `i` |
 | `wallet_token_account:i` | The user's associated token account for mint `i` |
-| `system_program` | The system program |
 | `fixed:<address>` | A fixed address |
-| `pda:<program>:<seed>,<seed>…` | A PDA |
 | `input:<name>` | An address the user enters |
+| `pda:<program>:<seed>,<seed>…` | A PDA. `<program>` is an address, or `strategy` for your program |
+| `ata:<owner>,<mint>` | The associated token account of `<owner>` for `<mint>`; both are sources |
+| `token_program_of:<mint>` | The token program that owns the mint given by a source |
 
-In `pda:` sources, a seed is `str:<text>`, `key:<source>` or `hex:<bytes>`.
+A `pda:` seed is one of:
+
+| Seed | Bytes |
+|---|---|
+| `str:<text>` | UTF-8 text, at most 32 bytes, with no commas |
+| `hex:<bytes>` | Raw bytes as hex, at most 32 |
+| `key:<source>` | The 32 bytes of another source's address |
+| `arg:<name>` | The Borsh encoding of the named argument. The example's `arg:fee_bps` is the two little-endian bytes the test strategy uses as its fee seed |
+
+Sources nested inside `pda:`, `ata:` and `token_program_of:` can't themselves be `pda:` or `ata:` sources. A PDA has at most 15 seeds (Solana allows 16, including the bump the SDK adds).
+
+For `ata:` and `token_program_of:` on a mint that isn't one of the market's, the SDK needs the mint's token program. Pass it in, or give the SDK an RPC client to look it up.
 
 ## 8. Testing
 
-Test your strategy against the real router in LiteSVM: `crates/pipeline-tests` shows the setup (`tests/common/mod.rs`) and the kinds of checks worth copying, including quote-versus-execution equivalence (`tests/quoter.rs`). Build programs with `cargo build-sbf` in `programs/`, then run `cargo test`.
+Test your strategy against the real router in LiteSVM: `crates/pipeline-tests` shows the setup (`tests/common/mod.rs`) and the kinds of checks worth copying, including quote-versus-execution equivalence (`tests/quoter.rs`). Build programs with `scripts/build-programs.sh`, then run `cargo test`.
 
 ## 9. Optional: accepting graduations
 

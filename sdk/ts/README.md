@@ -160,15 +160,49 @@ maxTotalSpend(1_000_000n, 50); // 1_007_500n, or null on u64 overflow
 amountForBudget(1_007_500n, 50); // 1_000_000n
 ```
 
+### Show and filter on trust facts
+
+`inspectMarket` and `inspectStrategy` read the router's registry, the strategy program, its
+metadata, OtterSec's verified-builds API and each mint, and return facts plus flags. There
+are no scores and no safe/unsafe judgements.
+
+```ts
+import { filterMarkets, inspectMarket } from '@pipeline-placeholder/sdk';
+
+const facts = await inspectMarket(rpc, marketAddress, { cluster: 'devnet' });
+const shown = filterMarkets([facts!], { exclude: ['permanent-delegate', 'transfer-hook'] });
+```
+
+OtterSec only covers mainnet. Pass `cluster` so the lookup is skipped elsewhere
+(`verifiedBuild.status` is then `not-applicable` and neither build flag is set).
+`FLAG_DESCRIPTIONS` holds each flag's exact meaning:
+
+| Group    | Flags                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Program  | `upgradeable`, `frozen`, `program-missing`, `verified-build`, `unverified-build`                                                                                                                                                                                                                                                                                                                                                                     |
+| Registry | `unregistered`, `metadata-missing`, `metadata-unreachable`, `metadata-invalid`, `conformance-report`                                                                                                                                                                                                                                                                                                                                                 |
+| Mints    | `mint-unreadable`, `token-2022`, `mint-authority`, `freeze-authority`, `transfer-hook` (a hook is set), `transfer-hook-authority` (can set one), `transfer-fee` (non-zero now or scheduled), `transfer-fee-authority` (can change it), `permanent-delegate`, `non-transferable`, `default-frozen`, `pausable`, `paused`, `closable-mint`, `interest-bearing`, `scaled-ui-amount`, `confidential-transfers`, `permissioned-burn`, `unknown-extension` |
+
+### Strategy metadata and custom actions
+
+`fetchStrategyMetadata(uri)` fetches and validates a strategy's metadata document
+(`schema/strategy-metadata.v1.json`; see `docs/STRATEGY-GUIDE.md` section 7).
+`buildActionInstruction` turns one of its `actions` into an instruction, and
+`buildCreateMarketFromMetadata` turns its `init` into `create_market`.
+
 ## Contents
 
-| Module         | What it provides                                                                                                                                                           |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `constants`    | Program addresses, seeds, discriminators, `PIPELINE_FEE_BPS`, trade account positions                                                                                      |
-| `pda`          | `configPda`, `strategyPda`, `marketPda`, `feeAuthorityPda`, `feeAccountPda`, `registerPda`, `eventAuthorityPda`, `programDataPda`, `associatedTokenAddress`                |
-| `codecs`       | Borsh codecs for strategy wire types, router arguments, `SwapResult` and router accounts (`decodeConfig`, `decodeStrategy`, `decodeMarket` check the Anchor discriminator) |
-| `instructions` | `initializeConfig`, `updateConfig`, `registerStrategy`, `updateMetadata`, `createMarket`, `registerExistingMarket`, `initFeeAccount`, `swap`, `sweepFees`                  |
-| `fees`         | `ceilBps`, `pipelineFee`, `maxTotalSpend`, `amountForBudget`                                                                                                               |
-| `events`       | `decodeEvent`, `encodeEvent`, `extractEvents`, `extractEventsFromInnerInstructions`                                                                                        |
-| `discovery`    | `fetchMarkets`, `fetchStrategies` (`getProgramAccounts` filtered by discriminator)                                                                                         |
-| `quote`        | `quoteStrategy`, `resolveAccounts` (RPC simulation), and the instructions they simulate                                                                                    |
+| Module         | What it provides                                                                                                                                                             |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `constants`    | Program addresses, seeds, discriminators, `PIPELINE_FEE_BPS`, trade account positions                                                                                        |
+| `pda`          | `configPda`, `strategyPda`, `marketPda`, `feeAuthorityPda`, `feeAccountPda`, `registerPda`, `eventAuthorityPda`, `programDataPda`, `associatedTokenAddress`                  |
+| `codecs`       | Borsh codecs for strategy wire types, router arguments, `SwapResult` and router accounts (`decodeConfig`, `decodeStrategy`, `decodeMarket` check the Anchor discriminator)   |
+| `instructions` | `initializeConfig`, `updateConfig`, `registerStrategy`, `updateMetadata`, `createMarket`, `registerExistingMarket`, `initFeeAccount`, `swap`, `sweepFees`                    |
+| `fees`         | `ceilBps`, `pipelineFee`, `maxTotalSpend`, `amountForBudget`                                                                                                                 |
+| `events`       | `decodeEvent`, `encodeEvent`, `extractEvents`, `extractEventsFromInnerInstructions`                                                                                          |
+| `discovery`    | `fetchMarkets`, `fetchStrategies` (`getProgramAccounts` filtered by discriminator)                                                                                           |
+| `quote`        | `quoteStrategy`, `resolveAccounts` (RPC simulation), and the instructions they simulate                                                                                      |
+| `listing`      | `registerAndListMarketInstructions`, `createAndListMarketInstructions` (record a market, then `init_fee_account` per mint)                                                   |
+| `metadata`     | Strategy metadata v1 (`schema/strategy-metadata.v1.json`): `parseStrategyMetadata`, `fetchStrategyMetadata` (https, ipfs, ar; size limit and timeout), `parseAccountSource`  |
+| `actions`      | `buildActionInstruction`, `resolveInit`, `buildCreateMarketFromMetadata`, `encodeArg`: instructions from metadata `actions` and `init`                                       |
+| `inspect`      | `inspectProgram`, `fetchVerifiedBuild`, `inspectMint`, `inspectStrategy`, `inspectMarket`, `FLAG_DESCRIPTIONS`, `filterMarkets`: trust facts and filter flags, no judgements |

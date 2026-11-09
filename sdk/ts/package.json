@@ -14,7 +14,8 @@
         }
     },
     "files": [
-        "dist"
+        "dist",
+        "schema"
     ],
     "engines": {
         "node": ">=20.19"

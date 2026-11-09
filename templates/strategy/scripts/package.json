@@ -1,0 +1,23 @@
+{
+    "name": "my-strategy-scripts",
+    "private": true,
+    "type": "module",
+    "description": "Lists the strategy on Pipeline's devnet router and trades it once",
+    "engines": {
+        "node": ">=22.18"
+    },
+    "scripts": {
+        "deploy-devnet": "node deploy-devnet.ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@pipeline-placeholder/sdk": "file:../../../sdk/ts",
+        "@solana-program/system": "^0.16.0",
+        "@solana-program/token": "^0.18.0",
+        "@solana/kit": "^8.4.0"
+    },
+    "devDependencies": {
+        "@types/node": "^24.19.2",
+        "typescript": "^7.0.2"
+    }
+}

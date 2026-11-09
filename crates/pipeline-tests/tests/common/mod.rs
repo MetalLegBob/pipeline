@@ -1,7 +1,7 @@
 //! Shared LiteSVM setup for router integration tests.
 //!
 //! Programs are loaded from `programs/target/deploy` (override with
-//! `PIPELINE_SBF_DIR`), so build them first with `cargo build-sbf` in `programs/`.
+//! `PIPELINE_SBF_DIR`), so build them first with `scripts/build-programs.sh`.
 
 #![allow(dead_code, clippy::result_large_err)]
 
@@ -52,7 +52,7 @@ impl Env {
         let admin = Keypair::new();
         svm.airdrop(&admin.pubkey(), 1_000 * SOL).unwrap();
         svm.add_program_from_file(client::PROGRAM_ID, sbf_dir().join("pipeline.so"))
-            .expect("build programs first: cd programs && cargo build-sbf");
+            .expect("build programs first: scripts/build-programs.sh");
         set_upgrade_authority(&mut svm, &client::PROGRAM_ID, Some(&admin.pubkey()));
         add_native_mint(&mut svm);
 

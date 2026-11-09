@@ -1,0 +1,9 @@
+target/
+node_modules/
+*.so
+.DS_Store
+test-ledger/
+
+# Keypairs never belong in the project. Keep them in ~/.config/ (see README).
+*keypair*.json
+id.json

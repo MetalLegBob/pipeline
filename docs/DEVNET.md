@@ -44,8 +44,9 @@ uses only the TypeScript SDK; it is the quickest way to see every call in contex
 ## 2. Build your own strategy
 
 A strategy is any Solana program that implements Pipeline's five strategy instructions.
-[`QUICKSTART.md`](QUICKSTART.md) walks through copying the example strategy, testing it
-against the real router in LiteSVM, and putting it on devnet:
+[`QUICKSTART.md`](QUICKSTART.md) walks through starting from the strategy template
+(`scripts/new-strategy.sh`), testing it against the real router in LiteSVM, and putting it
+on devnet, where the template's `scripts/deploy-devnet.ts` does steps 2 to 4 for you:
 
 1. **Deploy** your program to devnet as usual (`solana program deploy`).
 2. **Register** it with the router's `register_strategy`, signed by the program's upgrade
@@ -57,6 +58,12 @@ against the real router in LiteSVM, and putting it on devnet:
    of its mints, then add liquidity with your strategy's own instruction.
 
 From then on, anything built on Pipeline can find, quote and trade your market.
+
+**Every market must be recorded with the router.** Registering your program doesn't list its
+markets. If your program creates pools with its own instruction instead of `create_market`,
+add the router's `register_existing_market` to the same transaction, right after it. Until a
+market is recorded, nothing built on Pipeline can see or trade it. See
+[`STRATEGY-GUIDE.md`](STRATEGY-GUIDE.md) section 6.
 
 ## 3. Build on top
 
@@ -73,7 +80,7 @@ To test without devnet, load the router and example strategy into a local valida
 cargo install cargo-build-sbf --version 4.6.0 --locked
 sh -c "$(curl -sSfL https://release.anza.xyz/v4.4.1/install)"
 
-(cd programs && cargo build-sbf)
+scripts/build-programs.sh
 KEY=~/.config/solana/id.json
 ME=$(solana-keygen pubkey $KEY)
 solana-test-validator --reset \
@@ -94,5 +101,5 @@ the router's config and registers the example strategy, then runs the same steps
 devnet. The `--deactivate-feature` flag switches off the deeper CPI limit (SIMD-0268),
 which test validators enable by default but devnet and mainnet don't have yet.
 
-To try your own strategy, add `--upgradeable-program <id> <your .so> $ME` and adapt the
-market-creation and deposit steps in `smoke.ts`.
+To try your own strategy, add `--upgradeable-program <id> <your .so> $ME`, then run your
+project's `scripts/deploy-devnet.ts` with `RPC_URL=http://127.0.0.1:8899`.

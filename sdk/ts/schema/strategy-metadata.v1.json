@@ -1,0 +1,171 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Pipeline strategy metadata, version 1",
+    "description": "The JSON document a registered strategy's metadata_uri points to. Unknown keys are allowed everywhere. Account source strings follow the grammar documented in the SDK's parseAccountSource; parseStrategyMetadata in the TypeScript SDK is the reference validator.",
+    "type": "object",
+    "required": ["schema", "name"],
+    "properties": {
+        "schema": { "const": "pipeline-strategy-metadata/1" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "image": { "$ref": "#/$defs/url", "description": "Icon or logo." },
+        "category": {
+            "type": "string",
+            "description": "One of amm, launchpad, order-book, auction, lbp, other. Readers treat other values as unknown, not invalid.",
+            "examples": ["amm", "launchpad", "order-book", "auction", "lbp", "other"]
+        },
+        "tags": {
+            "type": "array",
+            "maxItems": 16,
+            "items": { "type": "string", "minLength": 1, "maxLength": 32 }
+        },
+        "links": {
+            "type": "object",
+            "description": "Links shown to users: website, docs, source, IDL and social accounts. Every value is a URL; other named links are allowed. A social link on an unexpected site is accepted with a warning.",
+            "properties": {
+                "website": { "$ref": "#/$defs/url" },
+                "docs": { "$ref": "#/$defs/url" },
+                "source": { "$ref": "#/$defs/url", "description": "Human-facing source link." },
+                "idl": { "$ref": "#/$defs/url", "description": "Anchor IDL or Codama document." },
+                "twitter": { "$ref": "#/$defs/url", "description": "X (Twitter) profile, on x.com or twitter.com." },
+                "github": {
+                    "$ref": "#/$defs/url",
+                    "description": "GitHub organisation, user or repository, on github.com."
+                },
+                "discord": { "$ref": "#/$defs/url", "description": "Discord invite, on discord.gg or discord.com." },
+                "telegram": { "$ref": "#/$defs/url", "description": "Telegram group or channel, on t.me." },
+                "farcaster": {
+                    "$ref": "#/$defs/url",
+                    "description": "Farcaster profile or channel, on farcaster.xyz or warpcast.com."
+                }
+            },
+            "additionalProperties": { "$ref": "#/$defs/url" }
+        },
+        "source": {
+            "type": "object",
+            "description": "The code a verified build is made from.",
+            "required": ["repository"],
+            "properties": {
+                "repository": { "$ref": "#/$defs/url" },
+                "commit": { "type": "string", "pattern": "^[0-9a-fA-F]{7,64}$" },
+                "path": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "description": "The program's directory in the repository."
+                }
+            }
+        },
+        "init": {
+            "type": "object",
+            "description": "How to build create_market: init_data is the args Borsh-encoded in order (no discriminator); accounts are the strategy's own setup accounts after the router's four fixed ones.",
+            "properties": {
+                "description": { "type": "string", "maxLength": 2000 },
+                "idl_type": { "type": "string", "maxLength": 128 },
+                "market_state": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "description": "new_keypair (default: a fresh keypair signs) or an account source such as pda:strategy:..."
+                },
+                "args": { "$ref": "#/$defs/args" },
+                "accounts": { "$ref": "#/$defs/accounts" }
+            }
+        },
+        "actions": {
+            "type": "array",
+            "maxItems": 64,
+            "items": { "$ref": "#/$defs/action" }
+        },
+        "conformance": {
+            "type": "object",
+            "required": ["report"],
+            "properties": {
+                "report": { "$ref": "#/$defs/url", "description": "A pipeline-check JSON report." },
+                "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+            }
+        },
+        "security": {
+            "type": "object",
+            "required": ["contact"],
+            "properties": {
+                "contact": { "type": "string", "minLength": 1, "maxLength": 256 },
+                "policy": { "$ref": "#/$defs/url" },
+                "audits": {
+                    "type": "array",
+                    "maxItems": 32,
+                    "items": {
+                        "type": "object",
+                        "required": ["by"],
+                        "properties": {
+                            "by": { "type": "string", "minLength": 1, "maxLength": 128 },
+                            "url": { "$ref": "#/$defs/url" },
+                            "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "$defs": {
+        "url": {
+            "type": "string",
+            "maxLength": 512,
+            "pattern": "^(https|ipfs|ar)://",
+            "description": "https://, ipfs:// or ar:// only."
+        },
+        "identifier": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$" },
+        "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "wallet | market_state | market | strategy_program | system_program | associated_token_program | mint:i | vault:i | token_program:i | wallet_token_account:i | fixed:<address> | input:<name> | pda:<address|strategy>:<seed>,... (seeds str:<text>, hex:<bytes>, key:<source>, arg:<name>) | ata:<owner>,<mint> | token_program_of:<mint>",
+            "pattern": "^(wallet|market_state|market|strategy_program|system_program|associated_token_program|(mint|vault|token_program|wallet_token_account):[0-3]|fixed:.+|input:.+|pda:.+|ata:.+,.+|token_program_of:.+)$"
+        },
+        "arg": {
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+                "name": { "$ref": "#/$defs/identifier" },
+                "type": { "enum": ["u8", "u16", "u32", "u64", "i64", "bool", "pubkey", "bytes", "string"] },
+                "label": { "type": "string", "maxLength": 64 },
+                "description": { "type": "string", "maxLength": 1000 },
+                "decimals_of": { "$ref": "#/$defs/source" }
+            }
+        },
+        "args": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/arg" } },
+        "account": {
+            "type": "object",
+            "required": ["name", "source"],
+            "properties": {
+                "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+                "source": { "$ref": "#/$defs/source" },
+                "signer": { "type": "boolean" },
+                "writable": { "type": "boolean" }
+            }
+        },
+        "accounts": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/account" } },
+        "action": {
+            "type": "object",
+            "required": ["name", "label"],
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/identifier",
+                    "description": "For Anchor programs, the IDL instruction name."
+                },
+                "label": { "type": "string", "minLength": 1, "maxLength": 64 },
+                "kind": {
+                    "type": "string",
+                    "description": "add_liquidity, remove_liquidity, claim, create_market or other. Readers treat other values as unknown, not invalid.",
+                    "examples": ["add_liquidity", "remove_liquidity", "claim", "create_market", "other"]
+                },
+                "description": { "type": "string", "maxLength": 2000 },
+                "discriminator": {
+                    "type": "string",
+                    "pattern": "^[0-9a-fA-F]{16}$",
+                    "description": "Defaults to Anchor's sha256(\"global:<name>\")[..8]."
+                },
+                "args": { "$ref": "#/$defs/args" },
+                "accounts": { "$ref": "#/$defs/accounts" }
+            }
+        }
+    }
+}

@@ -1,9 +1,24 @@
-# On-chain programs, built with `cargo build-sbf` (4.4 or later, for sBPF v3).
+# On-chain programs. Build each one on its own, for example
+# `cargo build-sbf --manifest-path pipeline/Cargo.toml`: building the whole workspace at once
+# unifies dependency features across programs and changes the router's bytes.
+#
+# The strategy interface crate lives here (not under `crates/`) so that its path, which Cargo
+# folds into compiled symbol names, is the same in every checkout. That keeps builds
+# reproducible for `solana-verify`.
 [workspace]
 resolver = "2"
+exclude = ["pipeline-strategy-interface"]
 members = ["pipeline", "test-strategy-cp", "test-strategy-evil", "test-hook", "test-hook-refill"]
 
 [profile.release]
 overflow-checks = true
 lto = "fat"
 codegen-units = 1
+
+[workspace.metadata.solana]
+# Platform tools used by cargo-build-sbf (sBPF v3 output).
+tools-version = "v1.58"
+
+[workspace.metadata.cli]
+# Selects the solana-verify Docker image.
+solana = "4.3.0"
