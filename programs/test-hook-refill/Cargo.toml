@@ -1,6 +1,7 @@
 [package]
 name = "test-hook-refill"
 version = "0.1.0"
+publish = false
 edition = "2021"
 license = "Apache-2.0"
 description = "Hostile Token-2022 transfer hook used in Pipeline tests: refills a token account during the transfer"

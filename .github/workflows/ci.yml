@@ -109,8 +109,9 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
-      - name: Type-check the strategy template's scripts
+      - name: Type-check the strategy template's scripts (against this SDK)
         working-directory: templates/strategy/scripts
         run: |
-          npm ci
+          npm pkg set "dependencies.@pipeline-sol/sdk=file:../../../sdk/ts"
+          npm install --no-audit --no-fund --no-package-lock
           npm run typecheck

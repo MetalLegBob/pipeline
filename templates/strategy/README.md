@@ -86,7 +86,6 @@ repository works.
 ### 6. Register, create a market and trade
 
 ```sh
-(cd <your clone of pipeline>/sdk/ts && npm install && npm run build)   # once
 cd scripts && npm install
 node deploy-devnet.ts https://<where you published>/metadata.json
 ```
@@ -177,6 +176,7 @@ address) and `metadata.json` in step with the program.
 
 ## Dependencies
 
-The Pipeline crates come from the public repository's `main` branch, set once in the root
-`Cargo.toml`. A version tag will replace the branch at the first release; until then, pin a
-commit with `rev = "…"` to keep builds reproducible, and commit `Cargo.lock`.
+The Pipeline crates come from crates.io (`pipeline-strategy-interface`, `pipeline-client`,
+`pipeline-check`, version `0.1`), set once in the root `Cargo.toml`, and the scripts use
+`@pipeline-sol/sdk` from npm. Commit `Cargo.lock` and `scripts/package-lock.json` to keep
+builds reproducible.

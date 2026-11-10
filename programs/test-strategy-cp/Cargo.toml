@@ -1,6 +1,7 @@
 [package]
 name = "test-strategy-cp"
 version = "0.1.0"
+publish = false
 edition = "2021"
 license = "Apache-2.0"
 description = "Constant-product strategy used to test the Pipeline router; basis of the strategy template"

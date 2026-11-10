@@ -14,12 +14,11 @@ members = ["programs/*"]
 [workspace.package]
 edition = "2021"
 
-# The Pipeline crates come from the public repository. Pin `rev` (or, after the first
-# release, a version tag) to make builds reproducible.
+# The Pipeline crates, from crates.io.
 [workspace.dependencies]
-pipeline-strategy-interface = { git = "https://github.com/MetalLegBob/pipeline", branch = "main" }
-pipeline-client = { git = "https://github.com/MetalLegBob/pipeline", branch = "main" }
-pipeline-check = { git = "https://github.com/MetalLegBob/pipeline", branch = "main", default-features = false }
+pipeline-strategy-interface = "0.1"
+pipeline-client = "0.1"
+pipeline-check = { version = "0.1", default-features = false }
 
 [profile.release]
 overflow-checks = true

@@ -51,7 +51,7 @@ import {
     getMintToInstruction,
     TOKEN_PROGRAM_ADDRESS,
 } from '@solana-program/token';
-import * as pipeline from '@pipeline-placeholder/sdk';
+import * as pipeline from '@pipeline-sol/sdk';
 
 // Written by scripts/new-strategy.sh; the same address as `declare_id!`.
 const DEFAULT_PROGRAM_ID = 'MyStrategy111111111111111111111111111111111';

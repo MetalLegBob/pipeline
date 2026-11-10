@@ -4,7 +4,7 @@ Instruction builders, account and event decoders, fee maths, discovery and RPC q
 the Pipeline router (`PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34`). Built on
 [`@solana/kit`](https://github.com/anza-xyz/kit).
 
-> **Placeholder names.** The package name `@pipeline-placeholder/sdk` and the product name
+> **Placeholder names.** The package name `@pipeline-sol/sdk` and the product name
 > are working names and will change before publishing. The package is `private` for now.
 
 Every byte layout mirrors the Rust crates `pipeline-strategy-interface`, `pipeline-client`
@@ -43,13 +43,7 @@ npm run fixtures   # cargo run -p pipeline-client --example ts_fixtures > test/f
 
 ```ts
 import { address } from '@solana/kit';
-import {
-    amountForBudget,
-    associatedTokenAddress,
-    swap,
-    TOKEN_PROGRAM_ADDRESS,
-    TradeMode,
-} from '@pipeline-placeholder/sdk';
+import { amountForBudget, associatedTokenAddress, swap, TOKEN_PROGRAM_ADDRESS, TradeMode } from '@pipeline-sol/sdk';
 
 const trader = address('...');
 const inputMint = address('...');
@@ -101,7 +95,7 @@ import {
     resolveAccounts,
     TOKEN_PROGRAM_ADDRESS,
     TradeMode,
-} from '@pipeline-placeholder/sdk';
+} from '@pipeline-sol/sdk';
 
 const rpc = createSolanaRpc('https://api.devnet.solana.com');
 const [{ address: marketAddress, account }] = await fetchMarkets(rpc);
@@ -131,7 +125,7 @@ The router emits events as self-CPIs. Decode one instruction's data, or pull eve
 out of a transaction fetched with `getTransaction(signature, { encoding: 'json', maxSupportedTransactionVersion: 0 })`:
 
 ```ts
-import { decodeEvent, extractEventsFromInnerInstructions } from '@pipeline-placeholder/sdk';
+import { decodeEvent, extractEventsFromInnerInstructions } from '@pipeline-sol/sdk';
 
 const event = decodeEvent(instructionData); // PipelineEvent | null
 if (event?.type === 'Swap') {
@@ -151,7 +145,7 @@ const events = extractEventsFromInnerInstructions(accountKeys, tx.meta.innerInst
 Identical to the Rust `fees` module. All fees round up.
 
 ```ts
-import { amountForBudget, ceilBps, maxTotalSpend, pipelineFee } from '@pipeline-placeholder/sdk';
+import { amountForBudget, ceilBps, maxTotalSpend, pipelineFee } from '@pipeline-sol/sdk';
 
 pipelineFee(400n); // 1n
 pipelineFee(401n); // 2n
@@ -167,7 +161,7 @@ metadata, OtterSec's verified-builds API and each mint, and return facts plus fl
 are no scores and no safe/unsafe judgements.
 
 ```ts
-import { filterMarkets, inspectMarket } from '@pipeline-placeholder/sdk';
+import { filterMarkets, inspectMarket } from '@pipeline-sol/sdk';
 
 const facts = await inspectMarket(rpc, marketAddress, { cluster: 'devnet' });
 const shown = filterMarkets([facts!], { exclude: ['permanent-delegate', 'transfer-hook'] });

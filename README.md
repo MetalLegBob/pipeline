@@ -19,7 +19,8 @@ chart sites integrate Pipeline once and see every new market without per-market 
 > **Status: live on devnet.** Not on mainnet yet. The router's maths is formally verified
 > ([`docs/VERIFICATION.md`](docs/VERIFICATION.md)) and it has been security-audited
 > ([`docs/SECURITY-AUDIT.md`](docs/SECURITY-AUDIT.md)); there is no external audit.
-> Interfaces may still change, and package names are placeholders.
+> Packages: `@pipeline-sol/sdk` on npm; `pipeline-strategy-interface`, `pipeline-client`,
+> `pipeline-events`, `pipeline-quoter` and `pipeline-check` on crates.io.
 
 ## Live on devnet
 
@@ -61,6 +62,19 @@ devnet in a few minutes.
 | `crates/pipeline-tests` | LiteSVM integration and security tests | Apache-2.0 |
 | `sdk/ts` | TypeScript SDK (`@solana/kit`) | Apache-2.0 |
 | `scripts/devnet` | End-to-end script: create tokens and a market, quote, swap, decode the event | Apache-2.0 |
+
+## Install
+
+```sh
+npm install @pipeline-sol/sdk          # TypeScript: instructions, quotes, metadata, trust flags
+cargo add pipeline-client              # Rust: addresses, instructions, decoders, trust facts
+cargo add pipeline-strategy-interface  # in a strategy program: the interface and fee maths
+cargo add pipeline-quoter              # quote any strategy in an embedded Solana VM
+cargo add pipeline-events              # decode router events for an indexer
+cargo install pipeline-check           # check any market: pipeline-check --url devnet --market <address>
+```
+
+To write a strategy, start from the template: `scripts/new-strategy.sh my-amm ~/code/my-amm`.
 
 ## Build and test
 

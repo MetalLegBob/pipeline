@@ -7,7 +7,7 @@
         "smoke": "node smoke.ts"
     },
     "dependencies": {
-        "@pipeline-placeholder/sdk": "file:../../sdk/ts",
+        "@pipeline-sol/sdk": "file:../../sdk/ts",
         "@solana-program/system": "^0.16.0",
         "@solana-program/token": "^0.18.0",
         "@solana/kit": "^8.4.0"

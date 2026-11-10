@@ -11,7 +11,7 @@ Libraries:
 | `pipeline-quoter` | Rust | Embedded-VM quoting |
 | `sdk/ts` | TypeScript | The same for TypeScript |
 
-All are Apache-2.0; package names are placeholders until first publish. Router program: `PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34`.
+All are Apache-2.0, on crates.io (`cargo add pipeline-client`) and npm (`npm install @pipeline-sol/sdk`). Router program: `PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34`.
 
 ## 1. Discover strategies and markets
 

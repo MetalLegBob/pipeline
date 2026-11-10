@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Wire types, discriminators and fee maths for Pipeline strategy programs"
+repository = "https://github.com/MetalLegBob/pipeline"
+homepage = "https://github.com/MetalLegBob/pipeline"
+readme = "README.md"
+keywords = ["solana", "pipeline", "amm", "defi", "interface"]
+categories = ["cryptography::cryptocurrencies", "encoding"]
 
 [dependencies]
 borsh = { version = "1.5", features = ["derive"] }

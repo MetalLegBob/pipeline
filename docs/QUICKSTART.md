@@ -67,7 +67,6 @@ Pipeline is live on devnet ([`DEVNET.md`](DEVNET.md)):
 3. **Register, create a market and trade** with the project's script:
 
    ```sh
-   (cd <this repository>/sdk/ts && npm install && npm run build)   # once
    cd scripts && npm install
    node deploy-devnet.ts https://<where you published>/metadata.json
    ```
@@ -76,7 +75,7 @@ Pipeline is live on devnet ([`DEVNET.md`](DEVNET.md)):
 4. **Check it** the way integrators will, and publish the report:
 
    ```sh
-   cargo install --path <this repository>/crates/pipeline-check
+   cargo install pipeline-check
    pipeline-check --url devnet --market <market address> --json > report.json
    ```
 

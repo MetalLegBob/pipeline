@@ -76,17 +76,16 @@ tar -C "$TEMPLATE" \
   -cf - . | tar -C "$DEST" -xf -
 mv "$DEST/programs/my-strategy" "$DEST/programs/$NAME"
 
-# Rename everywhere: the crate (my-strategy), the library and module (my_strategy), the
-# program address, and the SDK path, which pointed into this repository.
+# Rename everywhere: the crate (my-strategy), the library and module (my_strategy), and
+# the program address.
 SNAKE="${NAME//-/_}"
-export NAME SNAKE ADDRESS PLACEHOLDER_ID SDK="$ROOT/sdk/ts"
-grep -rlE "my-strategy|my_strategy|$PLACEHOLDER_ID|file:\.\./\.\./\.\./sdk/ts" "$DEST" |
+export NAME SNAKE ADDRESS PLACEHOLDER_ID
+grep -rlE "my-strategy|my_strategy|$PLACEHOLDER_ID" "$DEST" |
   while IFS= read -r file; do
     perl -pi -e '
       s/\Q$ENV{PLACEHOLDER_ID}\E/$ENV{ADDRESS}/g;
       s/my-strategy/$ENV{NAME}/g;
       s/my_strategy/$ENV{SNAKE}/g;
-      s/file:\.\.\/\.\.\/\.\.\/sdk\/ts/file:$ENV{SDK}/g;
     ' "$file"
   done
 
@@ -103,6 +102,4 @@ Next:
   cargo test                     # LiteSVM tests, including pipeline-check
 
 Then change the pricing in programs/$NAME/src/pricing.rs and follow README.md.
-The TypeScript scripts use the SDK at $ROOT/sdk/ts: build it once with
-  (cd $ROOT/sdk/ts && npm install && npm run build)
 EOF

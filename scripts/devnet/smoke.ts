@@ -49,7 +49,7 @@ import {
     getMintToInstruction,
     TOKEN_PROGRAM_ADDRESS,
 } from '@solana-program/token';
-import * as pipeline from '@pipeline-placeholder/sdk';
+import * as pipeline from '@pipeline-sol/sdk';
 
 const CP_PROGRAM = address('yRptCdde1du1JYR2DcNFtLC1fkp5Asd6rE3XSvZoUFx');
 const LISTING_FEE_LAMPORTS = 10_000_000n; // 0.01 SOL, the devnet listing fee

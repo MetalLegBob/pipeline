@@ -1,9 +1,23 @@
 {
-    "name": "@pipeline-placeholder/sdk",
+    "name": "@pipeline-sol/sdk",
     "version": "0.1.0",
-    "private": true,
     "description": "Instruction builders, account and event decoders, fee maths and RPC quoting for the Pipeline router",
     "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/MetalLegBob/pipeline.git",
+        "directory": "sdk/ts"
+    },
+    "homepage": "https://github.com/MetalLegBob/pipeline/tree/main/sdk/ts",
+    "bugs": "https://github.com/MetalLegBob/pipeline/issues",
+    "keywords": [
+        "solana",
+        "pipeline",
+        "amm",
+        "defi",
+        "sdk",
+        "router"
+    ],
     "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -36,5 +50,8 @@
         "prettier": "^3.9.10",
         "typescript": "^7.0.2",
         "vitest": "^5.0.4"
+    },
+    "publishConfig": {
+        "access": "public"
     }
 }
