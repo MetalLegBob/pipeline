@@ -14,8 +14,9 @@ Devnet programs can be upgraded or reset without notice while Pipeline is pre-re
 
 ## 1. Make your first swap (5 minutes)
 
-You need the Solana CLI, Node 20.19 or later, and a devnet wallet with a little SOL (the
-walkthrough spends about 0.02).
+You need the Solana CLI, Node 20.19 to 24, and a devnet wallet with a little SOL (the
+walkthrough spends about 0.02). On Node 26 the fifth and later WebSocket connections to
+public devnet fail, so the script stops at its sixth transaction.
 
 ```sh
 # A wallet and some devnet SOL (or use https://faucet.solana.com)
@@ -107,3 +108,18 @@ which test validators enable by default but devnet and mainnet don't have yet.
 
 To try your own strategy, add `--upgradeable-program <id> <your .so> $ME`, then run your
 project's `scripts/deploy-devnet.ts` with `RPC_URL=http://127.0.0.1:8899`.
+
+The two toolchain installs above change machine-wide defaults: without `--root`,
+cargo-build-sbf lands in `~/.cargo/bin`, which cargo searches before `PATH`, and the Anza
+installer switches the `solana` every project uses. To keep other versions as your
+defaults, install side by side and put both first on `PATH` in the shell you build in:
+
+```sh
+cargo install cargo-build-sbf --version 4.6.0 --locked --root ~/.local/share/cargo-build-sbf-4.6.0
+curl -sSfL https://github.com/anza-xyz/agave/releases/download/v4.4.1/solana-release-$(rustc -vV | sed -n 's/^host: //p').tar.bz2 \
+  | tar -xj -C ~/.local/share
+export PATH="$HOME/.local/share/cargo-build-sbf-4.6.0/bin:$HOME/.local/share/solana-release/bin:$PATH"
+```
+
+Platform tools v1.58 has no Intel macOS build. There, build with
+`SBF_TOOLS_VERSION=v1.57 scripts/build-programs.sh` (same Rust 1.95.0, same sBPF v3).

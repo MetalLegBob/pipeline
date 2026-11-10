@@ -6,6 +6,7 @@
 # this way, the router matches what `solana-verify build` produces for it.
 #
 # Usage: scripts/build-programs.sh [program …]   (default: every workspace member)
+# Set SBF_TOOLS_VERSION to override the workspace's platform tools (v1.57 on Intel Macs).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -22,5 +23,5 @@ fi
 
 for program in "${programs[@]}"; do
   echo "== $program"
-  cargo build-sbf --manifest-path "$program/Cargo.toml"
+  cargo build-sbf --manifest-path "$program/Cargo.toml" ${SBF_TOOLS_VERSION:+--tools-version "$SBF_TOOLS_VERSION"}
 done
