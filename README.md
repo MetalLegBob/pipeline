@@ -74,7 +74,7 @@ cargo add pipeline-events              # decode router events for an indexer
 cargo install pipeline-check           # check any market: pipeline-check --url devnet --market <address>
 ```
 
-To write a strategy, start from the template: `scripts/new-strategy.sh my-amm ~/code/my-amm`.
+`pipeline-quoter` and `pipeline-check` need Rust 1.97 or later (their Solana VM dependencies require it); the other crates build on older toolchains. To write a strategy, start from the template: `scripts/new-strategy.sh my-amm ~/code/my-amm`.
 
 ## Build and test
 
