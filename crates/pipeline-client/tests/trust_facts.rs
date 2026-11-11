@@ -114,3 +114,16 @@ fn metadata_documents_validate_the_same() {
         assert_eq!(json!(warnings), case["warnings"], "{}", case["name"]);
     }
 }
+
+#[test]
+fn conformance_reports_evaluate_the_same() {
+    for case in fixtures()["conformance"].as_array().unwrap() {
+        let facts = facts::evaluate_conformance_report(
+            &bytes(&case["body"]),
+            case["pinned_sha256"].as_str(),
+            &pubkey(&case["program_id"]),
+            case["deployed_sha256"].as_str(),
+        );
+        assert_eq!(facts.to_json(), case["expected"], "{}", case["name"]);
+    }
+}

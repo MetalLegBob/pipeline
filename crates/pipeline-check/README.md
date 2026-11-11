@@ -91,6 +91,22 @@ Pipeline check 0.1.0
 Result: PASS (13 pass, 0 warn, 0 fail, 1 skip)
 ```
 
+## Published results
+
+- **Hosted runs.** The hosted Pipeline API runs these checks on every market, cloned from the
+  cluster exactly as above: as soon as a market is created, as soon as its strategy is
+  upgraded, and every 15 minutes. Each market gets one flag: `checks-passed` (the latest run
+  against the strategy's current code had no Fail; warnings and skips are allowed),
+  `checks-failed` (it had at least one) or `checks-pending` (no run for the current code has
+  completed yet: a pass never carries over to new code). The full latest report is at
+  `GET /v1/markets/{market}/checks`.
+- **Your own report.** Publish `--json` output and link it from your strategy metadata's
+  `conformance` (`{ "report": "<url>", "sha256": "<hex of the file>" }`). The TypeScript SDK
+  and the hosted API compare its `strategy.program_id` and `strategy.executable_sha256` with
+  the deployed program: the strategy gets `conformance-report` when they match and
+  `conformance-stale` when they don't. Run the checks again and republish after every
+  upgrade, or the report goes stale.
+
 ## How the checks trade
 
 - **Directions:** every ordered pair of the market's mints.

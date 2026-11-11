@@ -19,7 +19,13 @@ import {
     TOKEN_PROGRAM_ADDRESS,
 } from './constants.js';
 import { boundedFetch, parseJsonBody, type FetchLike } from './http.js';
-import { fetchStrategyMetadata, type FetchMetadataOptions, type StrategyMetadata } from './metadata.js';
+import {
+    fetchStrategyMetadata,
+    resolveMetadataUri,
+    type FetchMetadataOptions,
+    type MetadataGateways,
+    type StrategyMetadata,
+} from './metadata.js';
 import { strategyPda } from './pda.js';
 
 // ---------------------------------------------------------------------------------------
@@ -46,7 +52,16 @@ export const FLAG_DESCRIPTIONS = {
     'metadata-unreachable':
         'The metadata URI is unsupported, or could not be fetched (network error, timeout, HTTP error, too large).',
     'metadata-invalid': 'The metadata document was fetched but is not valid strategy metadata version 1.',
-    'conformance-report': 'Valid metadata links a conformance report. The SDK does not check the report.',
+    'conformance-report':
+        'Valid metadata links a pipeline-check conformance report for the deployed code: its program id and executable hash match.',
+    'conformance-stale':
+        'Valid metadata links a pipeline-check conformance report for other code: its program id or executable hash differs from what is deployed.',
+    // Hosted checks (set by the hosted API, which runs pipeline-check on every market)
+    'checks-passed':
+        "The hosted checks' latest run against the strategy's current code had no failures (warnings and skips allowed).",
+    'checks-failed': "The hosted checks' latest run against the strategy's current code had at least one failure.",
+    'checks-pending':
+        "No hosted checks result for the strategy's current code yet: never run, or the strategy changed since the last run.",
     // Mints
     'mint-unreadable': 'A market mint account is missing or is not an SPL Token or Token-2022 mint.',
     'token-2022': 'A mint is owned by Token-2022.',
@@ -803,6 +818,161 @@ function mintFlags(mint: MintInspection): Flag[] {
 }
 
 // ---------------------------------------------------------------------------------------
+// Conformance reports
+// ---------------------------------------------------------------------------------------
+
+/** The largest conformance report fetched. */
+export const CONFORMANCE_REPORT_MAX_BYTES = 1024 * 1024;
+/** The `schema` of a `pipeline-check` JSON report. */
+export const CHECK_REPORT_SCHEMA = 'pipeline-check-report/1';
+
+/**
+ * Why a conformance report isn't `current`: `unreachable` (unsupported URL or failed
+ * fetch), `sha256-mismatch` (the body isn't the report `conformance.sha256` pins),
+ * `not-json`, `not-a-report` (no `pipeline-check-report/1` strategy section),
+ * `code-not-hashed` (the deployed code's hash is unknown), `other-program` or `other-code`.
+ */
+export type ConformanceReason =
+    | 'unreachable'
+    | 'sha256-mismatch'
+    | 'not-json'
+    | 'not-a-report'
+    | 'code-not-hashed'
+    | 'other-program'
+    | 'other-code';
+
+/** Whether a strategy's self-published conformance report is about its deployed code. */
+export type ConformanceFacts = {
+    /** `current`: flag `conformance-report`; `stale`: `conformance-stale`; `unverified`: neither. */
+    status: 'current' | 'stale' | 'unverified';
+    reason: ConformanceReason | null;
+    /** The URL fetched (gateway-resolved for `ipfs://` and `ar://`). */
+    url: string | null;
+    /** Lowercase hex SHA-256 of the report as fetched. */
+    reportSha256: string | null;
+    programId: string | null;
+    executableSha256: string | null;
+    /** The report's overall result (`pass`, `warn`, `fail`), as published. */
+    result: string | null;
+    /** Unix seconds when the report was produced, as published. */
+    generatedAt: number | null;
+    /** The fetch error, when `unreachable`. */
+    error?: string;
+};
+
+function noConformance(reason: ConformanceReason, url: string | null, error: string): ConformanceFacts {
+    return {
+        status: 'unverified',
+        reason,
+        url,
+        reportSha256: null,
+        programId: null,
+        executableSha256: null,
+        result: null,
+        generatedAt: null,
+        error,
+    };
+}
+
+/**
+ * Checks a fetched conformance report against the deployed program. `pinnedSha256` is the
+ * metadata's `conformance.sha256`, if any; `deployedSha256` is
+ * {@link ProgramInspection.executableSha256}, if known. Never throws.
+ */
+export async function evaluateConformanceReport(
+    body: Uint8Array,
+    pinnedSha256: string | null,
+    programId: Address,
+    deployedSha256: string | null,
+): Promise<ConformanceFacts> {
+    const reportSha256 = await sha256Hex(body);
+    const facts: ConformanceFacts = {
+        status: 'unverified',
+        reason: null,
+        url: null,
+        reportSha256,
+        programId: null,
+        executableSha256: null,
+        result: null,
+        generatedAt: null,
+    };
+    const withReason = (reason: ConformanceReason): ConformanceFacts => ({ ...facts, reason });
+    if (pinnedSha256 !== null && pinnedSha256.toLowerCase() !== reportSha256) {
+        return withReason('sha256-mismatch');
+    }
+    const report = parseJsonBody(body);
+    if (report === undefined) {
+        return withReason('not-json');
+    }
+    const json = report !== null && typeof report === 'object' ? (report as Record<string, any>) : {};
+    const strategy = json.strategy !== null && typeof json.strategy === 'object' ? json.strategy : {};
+    if (
+        typeof strategy.program_id !== 'string' ||
+        typeof strategy.executable_sha256 !== 'string' ||
+        json.schema !== CHECK_REPORT_SCHEMA
+    ) {
+        return withReason('not-a-report');
+    }
+    facts.programId = strategy.program_id;
+    facts.executableSha256 = strategy.executable_sha256;
+    const result = json.summary !== null && typeof json.summary === 'object' ? json.summary.result : undefined;
+    facts.result = typeof result === 'string' ? result : null;
+    const generatedAt = json.generated_at;
+    facts.generatedAt = Number.isSafeInteger(generatedAt) && generatedAt >= 0 ? generatedAt : null;
+    if (strategy.program_id !== programId) {
+        facts.status = 'stale';
+        return withReason('other-program');
+    }
+    if (deployedSha256 === null) {
+        return withReason('code-not-hashed');
+    }
+    if (strategy.executable_sha256.toLowerCase() !== deployedSha256.toLowerCase()) {
+        facts.status = 'stale';
+        return withReason('other-code');
+    }
+    facts.status = 'current';
+    return facts;
+}
+
+export type FetchConformanceOptions = {
+    fetch?: FetchLike;
+    gateways?: MetadataGateways;
+    /** Defaults to 1 MiB. */
+    maxBytes?: number;
+    /** Defaults to 10 seconds. */
+    timeoutMs?: number;
+    signal?: AbortSignal;
+};
+
+/**
+ * Fetches a conformance report (`https://`, `ipfs://` or `ar://`) with the same rules as
+ * metadata, and checks it with {@link evaluateConformanceReport}. Never throws.
+ */
+export async function fetchConformanceReport(
+    report: string,
+    pinnedSha256: string | null,
+    programId: Address,
+    deployedSha256: string | null,
+    options: FetchConformanceOptions = {},
+): Promise<ConformanceFacts> {
+    const url = resolveMetadataUri(report, options.gateways);
+    if (url === null) {
+        return noConformance('unreachable', null, `unsupported URI "${report}"`);
+    }
+    const response = await boundedFetch(url, {
+        fetch: options.fetch,
+        maxBytes: options.maxBytes ?? CONFORMANCE_REPORT_MAX_BYTES,
+        timeoutMs: options.timeoutMs ?? 10_000,
+        signal: options.signal,
+    });
+    if (!response.ok) {
+        return noConformance('unreachable', url, response.message);
+    }
+    const facts = await evaluateConformanceReport(response.body, pinnedSha256, programId, deployedSha256);
+    return { ...facts, url };
+}
+
+// ---------------------------------------------------------------------------------------
 // Strategies and markets
 // ---------------------------------------------------------------------------------------
 
@@ -822,6 +992,11 @@ export type StrategyInspection = {
     metadata: MetadataFacts;
     /** `null` when not requested. */
     verifiedBuild: VerifiedBuild | null;
+    /**
+     * The conformance report valid metadata links, checked against the deployed code.
+     * `null` when there is none, or it was not fetched.
+     */
+    conformance: ConformanceFacts | null;
     flags: Flag[];
 };
 
@@ -841,6 +1016,11 @@ export type InspectStrategyOptions = InspectProgramOptions & {
     metadata?: boolean | FetchMetadataOptions;
     /** Ask OtterSec's verified-builds API. Defaults to `true`. */
     verifiedBuild?: boolean | VerifiedBuildOptions;
+    /**
+     * Fetch the conformance report valid metadata links and check it against the deployed
+     * code. Defaults to `true`. Without it neither conformance flag is set.
+     */
+    conformanceReport?: boolean | FetchConformanceOptions;
 };
 
 function enabled<T extends object>(option: boolean | T | undefined, fetch: FetchLike | undefined): T | null {
@@ -894,6 +1074,19 @@ export async function inspectStrategy(
         }
     }
 
+    let conformance: ConformanceFacts | null = null;
+    const conformanceOptions = enabled<FetchConformanceOptions>(options.conformanceReport, options.fetch);
+    if (metadata.status === 'valid' && metadata.value.conformance && conformanceOptions) {
+        const linked = metadata.value.conformance;
+        conformance = await fetchConformanceReport(
+            linked.report,
+            linked.sha256 ?? null,
+            programId,
+            program.deployed ? program.executableSha256 : null,
+            { gateways: metadataOptions?.gateways, ...conformanceOptions },
+        );
+    }
+
     const flags: Flag[] = [...program.flags];
     if (!registration) {
         flags.push('unregistered');
@@ -902,7 +1095,8 @@ export async function inspectStrategy(
     }
     if (metadata.status === 'unreachable') flags.push('metadata-unreachable');
     if (metadata.status === 'invalid') flags.push('metadata-invalid');
-    if (metadata.status === 'valid' && metadata.value.conformance) flags.push('conformance-report');
+    if (metadata.status === 'valid' && conformance?.status === 'current') flags.push('conformance-report');
+    if (metadata.status === 'valid' && conformance?.status === 'stale') flags.push('conformance-stale');
     // Build flags need our own hash of the deployed code: OtterSec's record can be stale
     // (the program upgraded since), so its hash must equal what is deployed now. Without
     // a hash (`hashExecutable: false`) neither flag is set.
@@ -918,6 +1112,7 @@ export async function inspectStrategy(
         program,
         metadata,
         verifiedBuild,
+        conformance,
         flags: orderedFlags(flags),
     };
 }

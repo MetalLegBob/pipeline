@@ -30,12 +30,13 @@ Going over a limit returns `429` with a `retry-after` header.
 
 | Endpoint | Returns |
 |---|---|
-| `GET /health` | Router address, `cluster`, the cluster's finalized slot, and the slot and time of the last indexed router transaction |
+| `GET /health` | Router address, `cluster`, the cluster's finalized slot, the slot and time of the last indexed router transaction, ingest status, and `checks` (the checker's settings and counts of runs, failed runs and errors, and the RPC requests and time runs take) |
 | `GET /v1/flags` | Every trust flag with its meaning (see [Trust facts and flags](#trust-facts-and-flags)) |
 | `GET /v1/strategies?exclude=&require=` | Registered strategies: program ID, metadata URL, fetched metadata and its status, listing fee paid, registration time, market count, upgrade authority (`upgradeable: false` means frozen), last deploy slot, program facts, code hash, verified-build record and `flags`. `exclude` and `require` filter on flags as for markets |
 | `GET /v1/strategies/{program}` | One strategy |
-| `GET /v1/markets?mint=&strategy=&sort=&limit=&offset=&exclude=&require=` | Markets, each with its strategy, mints, vaults, vault balances and `flags`. Every mint lists its decimals, token program, mint and freeze authorities, supply, Token-2022 extensions and flags. Each market also has 24-hour stats: trade count, volume per input mint and last trade time. `sort` is `trades_24h` (default) or `newest`. `limit` is at most 500. `exclude` and `require` are comma-separated flags: only markets with none of the `exclude` flags and all of the `require` flags are listed. Unknown flags are refused with 400, listing the valid ones |
+| `GET /v1/markets?mint=&strategy=&sort=&limit=&offset=&exclude=&require=` | Markets, each with its strategy, mints, vaults, vault balances, `flags` and `checks` (see [Hosted checks](#hosted-checks)). Every mint lists its decimals, token program, mint and freeze authorities, supply, Token-2022 extensions and flags. Each market also has 24-hour stats: trade count, volume per input mint and last trade time. `sort` is `trades_24h` (default) or `newest`. `limit` is at most 500. `exclude` and `require` are comma-separated flags: only markets with none of the `exclude` flags and all of the `require` flags are listed. Unknown flags are refused with 400, listing the valid ones |
 | `GET /v1/markets/{market}` | One market, with its strategy, fee authority and fee accounts |
+| `GET /v1/markets/{market}/checks` | The market's hosted checks status and its latest full `pipeline-check` report (see [Hosted checks](#hosted-checks)) |
 | `GET /v1/markets/{market}/trades?before_slot=&limit=` | Swaps, newest first (`limit` at most 1000). To page back, pass the oldest `slot` you have as `before_slot` |
 | `GET /v1/traders/{address}/trades?before_slot=&limit=` | One trader's swaps on every market, newest first, each with its `market`. Paged like market trades |
 | `GET /v1/markets/{market}/candles?interval=&from=&to=&base=&quote=` | OHLCV candles built from swaps. Intervals are `1m`, `5m`, `15m`, `1h` (default), `4h` and `1d`. The default range is the last 500 intervals, and the most is 5000. Prices are in `quote` per `base`, after decimals. `base` defaults to the market's first mint, and `quote` to the other mint of a two-mint market |
@@ -52,12 +53,31 @@ Pipeline admits any strategy, so the API shows neutral facts and never judges, s
 
 - **Strategy** (`flags` on each strategy):
   - program: `upgradeable`, `frozen`, `program-missing`. `program` holds the loader, whether code is deployed, the upgrade authority, ProgramData address and last deploy slot. `executable_sha256` is the SHA-256 of the deployed code with trailing zeros removed, as `solana-verify get-program-hash` prints it;
-  - metadata: `metadata-missing` (empty URI), `metadata-unreachable` (unsupported URI, network error, timeout, HTTP error or over 64 KiB), `metadata-invalid` (not JSON, or not valid [strategy metadata version 1](STRATEGY-GUIDE.md)), `conformance-report` (valid metadata linking a conformance report, which the API does not check). `metadata_status` is `missing`, `not-fetched`, `unreachable`, `invalid` or `valid`, with `metadata_errors`, `metadata_warnings` and `metadata_url` (the URL fetched). `metadata` is the document as published, valid or not;
+  - metadata: `metadata-missing` (empty URI), `metadata-unreachable` (unsupported URI, network error, timeout, HTTP error or over 64 KiB), `metadata-invalid` (not JSON, or not valid [strategy metadata version 1](STRATEGY-GUIDE.md)), `conformance-report` (valid metadata links a `pipeline-check` conformance report for the deployed code) or `conformance-stale` (the report is for another program, or other code than is deployed). The API fetches the report with the same rules as metadata, up to 1 MiB, checks it against `conformance.sha256` if the metadata pins one, and compares its `strategy.program_id` and `strategy.executable_sha256` with the deployed program on every refresh, so an upgrade makes it stale at once. `conformance` holds `status` (`current`, `stale` or `unverified`), `reason`, the `url` fetched, what the report says (`program_id`, `executable_sha256`, `result`, `generated_at`, `report_sha256`) and any fetch `error`; an unreachable or unreadable report sets neither flag. `metadata_status` is `missing`, `not-fetched`, `unreachable`, `invalid` or `valid`, with `metadata_errors`, `metadata_warnings` and `metadata_url` (the URL fetched). `metadata` is the document as published, valid or not;
   - verified build (mainnet only): `verified-build` when OtterSec's verified-builds API reports the program verified and its `on_chain_hash` equals our `executable_sha256`; otherwise `unverified-build`. Neither is set when the API can't be reached or off mainnet, where `verified_build.status` is `not-applicable`.
 - **Mint** (`flags` on each mint): `token-2022`, `mint-authority`, `freeze-authority`, `transfer-hook`, `transfer-hook-authority`, `transfer-fee` (a non-zero fee in force at the current epoch, or scheduled), `transfer-fee-authority`, `permanent-delegate`, `non-transferable`, `default-frozen`, `pausable`, `paused`, `closable-mint`, `interest-bearing`, `scaled-ui-amount`, `confidential-transfers`, `permissioned-burn`, `unknown-extension`, and `mint-unreadable` for an account that is missing or not a mint (`readable: false`). `extensions` holds the decoded Token-2022 extensions by name (transfer fee schedule, hook program, token metadata name, symbol and URI, and so on) and `extension_types` their type numbers.
-- **Market**: its strategy's flags plus every mint's. A market whose facts haven't been read yet (for up to one refresh cycle after it is created) has none, and a mint not read yet has `flags: null`.
+- **Market**: its strategy's flags, every mint's, and one of `checks-passed`, `checks-failed` and `checks-pending` (see [Hosted checks](#hosted-checks)). A new market's facts are read as soon as it is indexed; until then it has only `checks-pending`, and a mint not read yet has `flags: null`.
 
 For example, `/v1/markets?exclude=permanent-delegate,freeze-authority` lists markets where no mint has a permanent delegate or freeze authority, and `/v1/markets?require=frozen` only markets whose strategy can no longer be upgraded.
+
+### Hosted checks
+
+The API runs [`pipeline-check`](https://github.com/MetalLegBob/pipeline/tree/main/crates/pipeline-check) on every market. Each run clones the market from the cluster with read-only RPC calls into a local VM and quotes and trades it through the real router, exactly as `pipeline-check --url <cluster> --market <market>` does. Nothing is ever sent to the cluster. The results are a published signal, never an admission gate.
+
+- **When:** as soon as a market is indexed; as soon as its strategy is upgraded (the API watches every strategy's ProgramData account, so within seconds); and then every 15 minutes, spread evenly over the interval. At most two run at once.
+- **Status.** Each market has a `checks` object and exactly one of three flags:
+
+  | `status` | Flag | When |
+  |---|---|---|
+  | `passed` | `checks-passed` | The latest run against the strategy's current code had no Fail. Warn and Skip are allowed: a market that refuses every quote (closed, or not open yet) only warns |
+  | `failed` | `checks-failed` | The latest run against the strategy's current code had at least one Fail |
+  | `pending` | `checks-pending` | No run has completed yet, or the strategy's code changed since the last run |
+
+  A result never carries over to new code. An upgrade makes the market `pending` the moment the API sees the new code hash, until the re-run completes. A periodic re-run of unchanged code keeps showing the previous result until it finishes.
+- **`checks` fields:** `status`; `pending_reason` (`never-run`, `code-changed`, or `code-unknown` while the API hasn't read the strategy's code yet); `running`; and, for the latest completed run, `run_at`, `slot` (the slot the market was cloned at), `strategy_executable_sha256` and `router_executable_sha256` (the code it checked), `checker_version`, `result` (the report's overall `pass`, `warn`, `fail` or `skip`), `summary` (`pass`, `warn`, `fail` and `skip` counts) and `failed_checks` (the ids of failing checks). `last_error` is the latest attempt that could not produce a report (a clone error or a timeout), if it is newer than the last run.
+- **`GET /v1/markets/{market}/checks`** returns `checks`, the full latest report (`report`, in the [`pipeline-check-report/1`](https://github.com/MetalLegBob/pipeline/tree/main/crates/pipeline-check#report-json-pipeline-check-report1) layout) and `report_current` (whether the report is for the strategy's current code; a report for older code is still returned, for reference).
+
+For example, `/v1/markets?require=checks-passed` lists only markets whose current code passed, and `/v1/markets?exclude=checks-failed` hides markets whose current code failed.
 
 ### Quotes
 
@@ -136,6 +156,6 @@ For example, `/v1/stream?types=swap&mints=<mint>` streams every trade of a token
 
 ## Freshness
 
-New router transactions are indexed within a few seconds of finality. Vault balances refresh every 30 seconds; mint facts and strategy program facts every 5 minutes; strategy metadata every hour (every 5 minutes while unreachable, and soon after its URI changes). A market created in the last few minutes may not have its flags yet.
+New router transactions are indexed within about a second of finality. Vault balances and mint facts update as the accounts change, and strategy upgrades are seen within seconds; strategy metadata and conformance reports are fetched every hour (every 5 minutes while unreachable, and soon after the URI changes). Hosted checks run when a market is created, when its strategy is upgraded, and every 15 minutes.
 
 Metadata is fetched over https only (`ipfs://` and `ar://` through public gateways), with a 64 KiB cap and a timeout, and only from public internet addresses. It is shown as published, unvetted.

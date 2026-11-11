@@ -1,6 +1,6 @@
 [package]
 name = "pipeline-check"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "Self-service quality checks for Pipeline strategy markets, run in a local Solana VM"
@@ -26,7 +26,7 @@ base64 = { version = "0.22", optional = true }
 bincode = "1"
 borsh = { version = "1.5", features = ["derive"] }
 litesvm = "0.18.2"
-pipeline-client = { path = "../pipeline-client", version = "0.1.0" }
+pipeline-client = { path = "../pipeline-client", version = "0.1.1" }
 pipeline-quoter = { path = "../pipeline-quoter", version = "0.1.0" }
 pipeline-strategy-interface = { path = "../../programs/pipeline-strategy-interface", version = "0.1.0" }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"], optional = true }

@@ -169,12 +169,20 @@ const shown = filterMarkets([facts!], { exclude: ['permanent-delegate', 'transfe
 
 OtterSec only covers mainnet. Pass `cluster` so the lookup is skipped elsewhere
 (`verifiedBuild.status` is then `not-applicable` and neither build flag is set).
+
+When valid metadata links a conformance report, `inspectStrategy` fetches it (1 MiB at most,
+with the same rules as metadata), checks it against `conformance.sha256` if given, and
+compares its `strategy.program_id` and `strategy.executable_sha256` with the deployed program
+(`conformance`: `current`, `stale` or `unverified`, with a `reason`). Pass
+`conformanceReport: false` to skip it; neither conformance flag is then set.
+`evaluateConformanceReport` does the comparison on a report you already have.
 `FLAG_DESCRIPTIONS` holds each flag's exact meaning:
 
 | Group    | Flags                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Program  | `upgradeable`, `frozen`, `program-missing`, `verified-build`, `unverified-build`                                                                                                                                                                                                                                                                                                                                                                     |
-| Registry | `unregistered`, `metadata-missing`, `metadata-unreachable`, `metadata-invalid`, `conformance-report`                                                                                                                                                                                                                                                                                                                                                 |
+| Registry | `unregistered`, `metadata-missing`, `metadata-unreachable`, `metadata-invalid`, `conformance-report` (the linked report is for the deployed code), `conformance-stale` (it is for other code)                                                                                                                                                                                                                                                        |
+| Checks   | `checks-passed`, `checks-failed`, `checks-pending`: set by the hosted API from its `pipeline-check` runs, never by the SDK                                                                                                                                                                                                                                                                                                                           |
 | Mints    | `mint-unreadable`, `token-2022`, `mint-authority`, `freeze-authority`, `transfer-hook` (a hook is set), `transfer-hook-authority` (can set one), `transfer-fee` (non-zero now or scheduled), `transfer-fee-authority` (can change it), `permanent-delegate`, `non-transferable`, `default-frozen`, `pausable`, `paused`, `closable-mint`, `interest-bearing`, `scaled-ui-amount`, `confidential-transfers`, `permissioned-burn`, `unknown-extension` |
 
 ### Strategy metadata and custom actions

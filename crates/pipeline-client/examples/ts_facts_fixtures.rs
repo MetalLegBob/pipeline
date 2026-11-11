@@ -1221,6 +1221,129 @@ fn metadata_json((name, document, ok): (&str, Value, bool)) -> Value {
     })
 }
 
+// ---------------------------------------------------------------------------------------
+// Conformance reports
+// ---------------------------------------------------------------------------------------
+
+/// (name, report body, `conformance.sha256`, deployed hash, expected status and reason).
+type ConformanceCase = (
+    &'static str,
+    Vec<u8>,
+    Option<String>,
+    Option<&'static str>,
+    (facts::ConformanceStatus, Option<&'static str>),
+);
+
+fn conformance_cases() -> Vec<ConformanceCase> {
+    use facts::ConformanceStatus::*;
+    let program = key(69).to_string();
+    let deployed = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+    let report = |id: &str, hash: &str| {
+        serde_json::to_vec_pretty(&json!({
+            "schema": "pipeline-check-report/1",
+            "checker_version": "0.1.0",
+            "generated_at": 1_794_000_000u64,
+            "strategy": { "program_id": id, "executable_sha256": hash, "loader": "bpf-loader-upgradeable" },
+            "summary": { "result": "warn", "pass": 12, "warn": 1, "fail": 0, "skip": 1 },
+            "checks": [],
+        }))
+        .unwrap()
+    };
+    let current = report(&program, deployed);
+    let current_sha = facts::evaluate_conformance_report(&current, None, &key(69), None)
+        .report_sha256
+        .unwrap();
+    let mut with_bom = b"\xEF\xBB\xBF".to_vec();
+    with_bom.extend_from_slice(&current);
+    vec![
+        (
+            "current",
+            current.clone(),
+            None,
+            Some(deployed),
+            (Current, None),
+        ),
+        (
+            "current-pinned",
+            current.clone(),
+            Some(current_sha.to_uppercase()),
+            Some(deployed),
+            (Current, None),
+        ),
+        (
+            "current-with-bom",
+            with_bom,
+            None,
+            Some(deployed),
+            (Current, None),
+        ),
+        (
+            "pinned-other-body",
+            current.clone(),
+            Some("0".repeat(64)),
+            Some(deployed),
+            (Unverified, Some("sha256-mismatch")),
+        ),
+        (
+            "older-code",
+            report(&program, &"1".repeat(64)),
+            None,
+            Some(deployed),
+            (Stale, Some("other-code")),
+        ),
+        (
+            "other-program",
+            report(&key(70).to_string(), deployed),
+            None,
+            Some(deployed),
+            (Stale, Some("other-program")),
+        ),
+        (
+            "deployed-not-hashed",
+            current,
+            None,
+            None,
+            (Unverified, Some("code-not-hashed")),
+        ),
+        (
+            "not-json",
+            b"<html>not a report</html>".to_vec(),
+            None,
+            Some(deployed),
+            (Unverified, Some("not-json")),
+        ),
+        (
+            "wrong-schema",
+            br#"{"schema":"other/1","strategy":{"program_id":"x","executable_sha256":"y"}}"#
+                .to_vec(),
+            None,
+            Some(deployed),
+            (Unverified, Some("not-a-report")),
+        ),
+        (
+            "no-strategy",
+            br#"{"schema":"pipeline-check-report/1"}"#.to_vec(),
+            None,
+            Some(deployed),
+            (Unverified, Some("not-a-report")),
+        ),
+    ]
+}
+
+fn conformance_json((name, body, pinned, deployed, expected): ConformanceCase) -> Value {
+    let program = key(69);
+    let facts = facts::evaluate_conformance_report(&body, pinned.as_deref(), &program, deployed);
+    assert_eq!((facts.status, facts.reason), expected, "{name}");
+    json!({
+        "name": name,
+        "body": b64(&body),
+        "pinned_sha256": pinned,
+        "program_id": program.to_string(),
+        "deployed_sha256": deployed,
+        "expected": facts.to_json(),
+    })
+}
+
 fn main() {
     let flags: Vec<Value> = facts::FLAGS
         .iter()
@@ -1231,6 +1354,7 @@ fn main() {
         "mints": mint_cases().iter().map(mint_json).collect::<Vec<_>>(),
         "programs": program_cases().iter().map(program_json).collect::<Vec<_>>(),
         "metadata": metadata_cases().into_iter().map(metadata_json).collect::<Vec<_>>(),
+        "conformance": conformance_cases().into_iter().map(conformance_json).collect::<Vec<_>>(),
     });
     println!("{}", serde_json::to_string_pretty(&fixtures).unwrap());
 }

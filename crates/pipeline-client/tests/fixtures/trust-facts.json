@@ -1,4 +1,166 @@
 {
+  "conformance": [
+    {
+      "body": "ewogICJjaGVja2VyX3ZlcnNpb24iOiAiMC4xLjAiLAogICJjaGVja3MiOiBbXSwKICAiZ2VuZXJhdGVkX2F0IjogMTc5NDAwMDAwMCwKICAic2NoZW1hIjogInBpcGVsaW5lLWNoZWNrLXJlcG9ydC8xIiwKICAic3RyYXRlZ3kiOiB7CiAgICAiZXhlY3V0YWJsZV9zaGEyNTYiOiAiOWY4NmQwODE4ODRjN2Q2NTlhMmZlYWEwYzU1YWQwMTVhM2JmNGYxYjJiMGI4MjJjZDE1ZDZjMTViMGYwMGEwOCIsCiAgICAibG9hZGVyIjogImJwZi1sb2FkZXItdXBncmFkZWFibGUiLAogICAgInByb2dyYW1faWQiOiAiNWZRUHNuOGhvYVZkZEZHMjZjV1E1UUZkcXhXdFVQTmFaOXpIMkU2TFl6Rm4iCiAgfSwKICAic3VtbWFyeSI6IHsKICAgICJmYWlsIjogMCwKICAgICJwYXNzIjogMTIsCiAgICAicmVzdWx0IjogIndhcm4iLAogICAgInNraXAiOiAxLAogICAgIndhcm4iOiAxCiAgfQp9",
+      "deployed_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "expected": {
+        "executable_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "generated_at": 1794000000,
+        "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn",
+        "reason": null,
+        "report_sha256": "63648d427271ef16346388dd7eb746a9375f59956d589a2e65180371d62f959f",
+        "result": "warn",
+        "status": "current"
+      },
+      "name": "current",
+      "pinned_sha256": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "body": "ewogICJjaGVja2VyX3ZlcnNpb24iOiAiMC4xLjAiLAogICJjaGVja3MiOiBbXSwKICAiZ2VuZXJhdGVkX2F0IjogMTc5NDAwMDAwMCwKICAic2NoZW1hIjogInBpcGVsaW5lLWNoZWNrLXJlcG9ydC8xIiwKICAic3RyYXRlZ3kiOiB7CiAgICAiZXhlY3V0YWJsZV9zaGEyNTYiOiAiOWY4NmQwODE4ODRjN2Q2NTlhMmZlYWEwYzU1YWQwMTVhM2JmNGYxYjJiMGI4MjJjZDE1ZDZjMTViMGYwMGEwOCIsCiAgICAibG9hZGVyIjogImJwZi1sb2FkZXItdXBncmFkZWFibGUiLAogICAgInByb2dyYW1faWQiOiAiNWZRUHNuOGhvYVZkZEZHMjZjV1E1UUZkcXhXdFVQTmFaOXpIMkU2TFl6Rm4iCiAgfSwKICAic3VtbWFyeSI6IHsKICAgICJmYWlsIjogMCwKICAgICJwYXNzIjogMTIsCiAgICAicmVzdWx0IjogIndhcm4iLAogICAgInNraXAiOiAxLAogICAgIndhcm4iOiAxCiAgfQp9",
+      "deployed_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "expected": {
+        "executable_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "generated_at": 1794000000,
+        "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn",
+        "reason": null,
+        "report_sha256": "63648d427271ef16346388dd7eb746a9375f59956d589a2e65180371d62f959f",
+        "result": "warn",
+        "status": "current"
+      },
+      "name": "current-pinned",
+      "pinned_sha256": "63648D427271EF16346388DD7EB746A9375F59956D589A2E65180371D62F959F",
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "body": "77u/ewogICJjaGVja2VyX3ZlcnNpb24iOiAiMC4xLjAiLAogICJjaGVja3MiOiBbXSwKICAiZ2VuZXJhdGVkX2F0IjogMTc5NDAwMDAwMCwKICAic2NoZW1hIjogInBpcGVsaW5lLWNoZWNrLXJlcG9ydC8xIiwKICAic3RyYXRlZ3kiOiB7CiAgICAiZXhlY3V0YWJsZV9zaGEyNTYiOiAiOWY4NmQwODE4ODRjN2Q2NTlhMmZlYWEwYzU1YWQwMTVhM2JmNGYxYjJiMGI4MjJjZDE1ZDZjMTViMGYwMGEwOCIsCiAgICAibG9hZGVyIjogImJwZi1sb2FkZXItdXBncmFkZWFibGUiLAogICAgInByb2dyYW1faWQiOiAiNWZRUHNuOGhvYVZkZEZHMjZjV1E1UUZkcXhXdFVQTmFaOXpIMkU2TFl6Rm4iCiAgfSwKICAic3VtbWFyeSI6IHsKICAgICJmYWlsIjogMCwKICAgICJwYXNzIjogMTIsCiAgICAicmVzdWx0IjogIndhcm4iLAogICAgInNraXAiOiAxLAogICAgIndhcm4iOiAxCiAgfQp9",
+      "deployed_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "expected": {
+        "executable_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "generated_at": 1794000000,
+        "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn",
+        "reason": null,
+        "report_sha256": "a5e3ebb795aa34da84df4d1d34aad0d398b4652053f62d87c970e825ca000d04",
+        "result": "warn",
+        "status": "current"
+      },
+      "name": "current-with-bom",
+      "pinned_sha256": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "body": "ewogICJjaGVja2VyX3ZlcnNpb24iOiAiMC4xLjAiLAogICJjaGVja3MiOiBbXSwKICAiZ2VuZXJhdGVkX2F0IjogMTc5NDAwMDAwMCwKICAic2NoZW1hIjogInBpcGVsaW5lLWNoZWNrLXJlcG9ydC8xIiwKICAic3RyYXRlZ3kiOiB7CiAgICAiZXhlY3V0YWJsZV9zaGEyNTYiOiAiOWY4NmQwODE4ODRjN2Q2NTlhMmZlYWEwYzU1YWQwMTVhM2JmNGYxYjJiMGI4MjJjZDE1ZDZjMTViMGYwMGEwOCIsCiAgICAibG9hZGVyIjogImJwZi1sb2FkZXItdXBncmFkZWFibGUiLAogICAgInByb2dyYW1faWQiOiAiNWZRUHNuOGhvYVZkZEZHMjZjV1E1UUZkcXhXdFVQTmFaOXpIMkU2TFl6Rm4iCiAgfSwKICAic3VtbWFyeSI6IHsKICAgICJmYWlsIjogMCwKICAgICJwYXNzIjogMTIsCiAgICAicmVzdWx0IjogIndhcm4iLAogICAgInNraXAiOiAxLAogICAgIndhcm4iOiAxCiAgfQp9",
+      "deployed_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "expected": {
+        "executable_sha256": null,
+        "generated_at": null,
+        "program_id": null,
+        "reason": "sha256-mismatch",
+        "report_sha256": "63648d427271ef16346388dd7eb746a9375f59956d589a2e65180371d62f959f",
+        "result": null,
+        "status": "unverified"
+      },
+      "name": "pinned-other-body",
+      "pinned_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "body": "ewogICJjaGVja2VyX3ZlcnNpb24iOiAiMC4xLjAiLAogICJjaGVja3MiOiBbXSwKICAiZ2VuZXJhdGVkX2F0IjogMTc5NDAwMDAwMCwKICAic2NoZW1hIjogInBpcGVsaW5lLWNoZWNrLXJlcG9ydC8xIiwKICAic3RyYXRlZ3kiOiB7CiAgICAiZXhlY3V0YWJsZV9zaGEyNTYiOiAiMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMSIsCiAgICAibG9hZGVyIjogImJwZi1sb2FkZXItdXBncmFkZWFibGUiLAogICAgInByb2dyYW1faWQiOiAiNWZRUHNuOGhvYVZkZEZHMjZjV1E1UUZkcXhXdFVQTmFaOXpIMkU2TFl6Rm4iCiAgfSwKICAic3VtbWFyeSI6IHsKICAgICJmYWlsIjogMCwKICAgICJwYXNzIjogMTIsCiAgICAicmVzdWx0IjogIndhcm4iLAogICAgInNraXAiOiAxLAogICAgIndhcm4iOiAxCiAgfQp9",
+      "deployed_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "expected": {
+        "executable_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "generated_at": 1794000000,
+        "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn",
+        "reason": "other-code",
+        "report_sha256": "c1235869fd1d300f3d72dfc41f5cd9d9674bbbbd2ebfc004336bbe7352fd8df9",
+        "result": "warn",
+        "status": "stale"
+      },
+      "name": "older-code",
+      "pinned_sha256": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "body": "ewogICJjaGVja2VyX3ZlcnNpb24iOiAiMC4xLjAiLAogICJjaGVja3MiOiBbXSwKICAiZ2VuZXJhdGVkX2F0IjogMTc5NDAwMDAwMCwKICAic2NoZW1hIjogInBpcGVsaW5lLWNoZWNrLXJlcG9ydC8xIiwKICAic3RyYXRlZ3kiOiB7CiAgICAiZXhlY3V0YWJsZV9zaGEyNTYiOiAiOWY4NmQwODE4ODRjN2Q2NTlhMmZlYWEwYzU1YWQwMTVhM2JmNGYxYjJiMGI4MjJjZDE1ZDZjMTViMGYwMGEwOCIsCiAgICAibG9hZGVyIjogImJwZi1sb2FkZXItdXBncmFkZWFibGUiLAogICAgInByb2dyYW1faWQiOiAiNWpLaDI1YmlQc25ybUxXWFh1cUtOSDJRNjdqNjlUNFE3WmV3NWM4d0pLYVYiCiAgfSwKICAic3VtbWFyeSI6IHsKICAgICJmYWlsIjogMCwKICAgICJwYXNzIjogMTIsCiAgICAicmVzdWx0IjogIndhcm4iLAogICAgInNraXAiOiAxLAogICAgIndhcm4iOiAxCiAgfQp9",
+      "deployed_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "expected": {
+        "executable_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "generated_at": 1794000000,
+        "program_id": "5jKh25biPsnrmLWXXuqKNH2Q67j69T4Q7Zew5c8wJKaV",
+        "reason": "other-program",
+        "report_sha256": "e807c1bc14db5d2ffa6af167c20352d33f183c4b3b566b8d92e59f84860798f1",
+        "result": "warn",
+        "status": "stale"
+      },
+      "name": "other-program",
+      "pinned_sha256": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "body": "ewogICJjaGVja2VyX3ZlcnNpb24iOiAiMC4xLjAiLAogICJjaGVja3MiOiBbXSwKICAiZ2VuZXJhdGVkX2F0IjogMTc5NDAwMDAwMCwKICAic2NoZW1hIjogInBpcGVsaW5lLWNoZWNrLXJlcG9ydC8xIiwKICAic3RyYXRlZ3kiOiB7CiAgICAiZXhlY3V0YWJsZV9zaGEyNTYiOiAiOWY4NmQwODE4ODRjN2Q2NTlhMmZlYWEwYzU1YWQwMTVhM2JmNGYxYjJiMGI4MjJjZDE1ZDZjMTViMGYwMGEwOCIsCiAgICAibG9hZGVyIjogImJwZi1sb2FkZXItdXBncmFkZWFibGUiLAogICAgInByb2dyYW1faWQiOiAiNWZRUHNuOGhvYVZkZEZHMjZjV1E1UUZkcXhXdFVQTmFaOXpIMkU2TFl6Rm4iCiAgfSwKICAic3VtbWFyeSI6IHsKICAgICJmYWlsIjogMCwKICAgICJwYXNzIjogMTIsCiAgICAicmVzdWx0IjogIndhcm4iLAogICAgInNraXAiOiAxLAogICAgIndhcm4iOiAxCiAgfQp9",
+      "deployed_sha256": null,
+      "expected": {
+        "executable_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "generated_at": 1794000000,
+        "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn",
+        "reason": "code-not-hashed",
+        "report_sha256": "63648d427271ef16346388dd7eb746a9375f59956d589a2e65180371d62f959f",
+        "result": "warn",
+        "status": "unverified"
+      },
+      "name": "deployed-not-hashed",
+      "pinned_sha256": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "body": "PGh0bWw+bm90IGEgcmVwb3J0PC9odG1sPg==",
+      "deployed_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "expected": {
+        "executable_sha256": null,
+        "generated_at": null,
+        "program_id": null,
+        "reason": "not-json",
+        "report_sha256": "d577270b97e07eb53cb291072127c5da0a63b25d95cf3ba3347021804b35073a",
+        "result": null,
+        "status": "unverified"
+      },
+      "name": "not-json",
+      "pinned_sha256": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "body": "eyJzY2hlbWEiOiJvdGhlci8xIiwic3RyYXRlZ3kiOnsicHJvZ3JhbV9pZCI6IngiLCJleGVjdXRhYmxlX3NoYTI1NiI6InkifX0=",
+      "deployed_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "expected": {
+        "executable_sha256": null,
+        "generated_at": null,
+        "program_id": null,
+        "reason": "not-a-report",
+        "report_sha256": "b9b61caaee159562781e12417da42ee7078a94c64d3271a7093d4eeeef745e43",
+        "result": null,
+        "status": "unverified"
+      },
+      "name": "wrong-schema",
+      "pinned_sha256": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    },
+    {
+      "body": "eyJzY2hlbWEiOiJwaXBlbGluZS1jaGVjay1yZXBvcnQvMSJ9",
+      "deployed_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "expected": {
+        "executable_sha256": null,
+        "generated_at": null,
+        "program_id": null,
+        "reason": "not-a-report",
+        "report_sha256": "fd9f6393db3d3ef0c3fa4eac95793bff7b1b40bb852b0706b84c7e0fe60a756b",
+        "result": null,
+        "status": "unverified"
+      },
+      "name": "no-strategy",
+      "pinned_sha256": null,
+      "program_id": "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn"
+    }
+  ],
   "flags": [
     [
       "upgradeable",
@@ -38,7 +200,23 @@
     ],
     [
       "conformance-report",
-      "Valid metadata links a conformance report. The SDK does not check the report."
+      "Valid metadata links a pipeline-check conformance report for the deployed code: its program id and executable hash match."
+    ],
+    [
+      "conformance-stale",
+      "Valid metadata links a pipeline-check conformance report for other code: its program id or executable hash differs from what is deployed."
+    ],
+    [
+      "checks-passed",
+      "The hosted checks' latest run against the strategy's current code had no failures (warnings and skips allowed)."
+    ],
+    [
+      "checks-failed",
+      "The hosted checks' latest run against the strategy's current code had at least one failure."
+    ],
+    [
+      "checks-pending",
+      "No hosted checks result for the strategy's current code yet: never run, or the strategy changed since the last run."
     ],
     [
       "mint-unreadable",

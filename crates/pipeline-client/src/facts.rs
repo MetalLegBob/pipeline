@@ -59,7 +59,24 @@ pub const FLAGS: &[(&str, &str)] = &[
     ),
     (
         "conformance-report",
-        "Valid metadata links a conformance report. The SDK does not check the report.",
+        "Valid metadata links a pipeline-check conformance report for the deployed code: its program id and executable hash match.",
+    ),
+    (
+        "conformance-stale",
+        "Valid metadata links a pipeline-check conformance report for other code: its program id or executable hash differs from what is deployed.",
+    ),
+    // Hosted checks (set by the hosted API, which runs pipeline-check on every market)
+    (
+        "checks-passed",
+        "The hosted checks' latest run against the strategy's current code had no failures (warnings and skips allowed).",
+    ),
+    (
+        "checks-failed",
+        "The hosted checks' latest run against the strategy's current code had at least one failure.",
+    ),
+    (
+        "checks-pending",
+        "No hosted checks result for the strategy's current code yet: never run, or the strategy changed since the last run.",
     ),
     // Mints
     (
@@ -626,6 +643,189 @@ impl MetadataStatus {
     }
 }
 
+// ---------------------------------------------------------------------------------------
+// Conformance reports
+// ---------------------------------------------------------------------------------------
+
+/// The largest conformance report fetched.
+pub const CONFORMANCE_REPORT_MAX_BYTES: usize = 1024 * 1024;
+/// The `schema` of a `pipeline-check` JSON report.
+pub const CHECK_REPORT_SCHEMA: &str = "pipeline-check-report/1";
+
+/// Whether a strategy's self-published conformance report is about its deployed code.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConformanceStatus {
+    /// The report's strategy program id and executable hash match the deployed program.
+    Current,
+    /// The report is about another program, or other code than is deployed.
+    Stale,
+    /// The report could not be checked; `reason` says why. Neither flag is set.
+    Unverified,
+}
+
+impl ConformanceStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ConformanceStatus::Current => "current",
+            ConformanceStatus::Stale => "stale",
+            ConformanceStatus::Unverified => "unverified",
+        }
+    }
+}
+
+/// What a conformance report says, and whether it matches the deployed program.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConformanceFacts {
+    pub status: ConformanceStatus,
+    /// Why the status isn't `Current`: `unreachable` (set by the fetcher),
+    /// `sha256-mismatch` (the body isn't the report `conformance.sha256` pins),
+    /// `not-json`, `not-a-report` (no `pipeline-check-report/1` strategy section),
+    /// `code-not-hashed` (the deployed code's hash is unknown), `other-program` or
+    /// `other-code`.
+    pub reason: Option<&'static str>,
+    /// Lowercase hex SHA-256 of the report as fetched.
+    pub report_sha256: Option<String>,
+    pub program_id: Option<String>,
+    pub executable_sha256: Option<String>,
+    /// The report's overall result (`pass`, `warn`, `fail`), as published.
+    pub result: Option<String>,
+    /// Unix seconds when the report was produced, as published.
+    pub generated_at: Option<u64>,
+}
+
+impl ConformanceFacts {
+    /// A report that could not be fetched.
+    pub fn unreachable() -> Self {
+        ConformanceFacts {
+            status: ConformanceStatus::Unverified,
+            reason: Some("unreachable"),
+            report_sha256: None,
+            program_id: None,
+            executable_sha256: None,
+            result: None,
+            generated_at: None,
+        }
+    }
+
+    pub fn to_json(&self) -> Value {
+        json!({
+            "status": self.status.as_str(),
+            "reason": self.reason,
+            "report_sha256": self.report_sha256,
+            "program_id": self.program_id,
+            "executable_sha256": self.executable_sha256,
+            "result": self.result,
+            "generated_at": self.generated_at,
+        })
+    }
+}
+
+/// Checks a fetched conformance report against the deployed program, as the SDK's
+/// `evaluateConformanceReport` does. `pinned_sha256` is the metadata's
+/// `conformance.sha256`, if any; `deployed_sha256` is [`executable_sha256`] of the
+/// deployed code, if known.
+pub fn evaluate_conformance_report(
+    body: &[u8],
+    pinned_sha256: Option<&str>,
+    program_id: &Pubkey,
+    deployed_sha256: Option<&str>,
+) -> ConformanceFacts {
+    let report_sha256 = hex(&Sha256::digest(body));
+    let mut facts = ConformanceFacts {
+        status: ConformanceStatus::Unverified,
+        reason: None,
+        report_sha256: Some(report_sha256.clone()),
+        program_id: None,
+        executable_sha256: None,
+        result: None,
+        generated_at: None,
+    };
+    let with_reason = |mut facts: ConformanceFacts, reason| {
+        facts.reason = Some(reason);
+        facts
+    };
+    if pinned_sha256.is_some_and(|pinned| !pinned.eq_ignore_ascii_case(&report_sha256)) {
+        return with_reason(facts, "sha256-mismatch");
+    }
+    // A leading byte-order mark is skipped, as `TextDecoder` does.
+    let text = body.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(body);
+    let Ok(report) = serde_json::from_slice::<Value>(text) else {
+        return with_reason(facts, "not-json");
+    };
+    let strategy = &report["strategy"];
+    let (Some(id), Some(hash)) = (
+        strategy["program_id"].as_str(),
+        strategy["executable_sha256"].as_str(),
+    ) else {
+        return with_reason(facts, "not-a-report");
+    };
+    if report["schema"].as_str() != Some(CHECK_REPORT_SCHEMA) {
+        return with_reason(facts, "not-a-report");
+    }
+    facts.program_id = Some(id.to_string());
+    facts.executable_sha256 = Some(hash.to_string());
+    facts.result = report["summary"]["result"].as_str().map(String::from);
+    facts.generated_at = report["generated_at"].as_u64();
+    facts.recheck(program_id, deployed_sha256);
+    facts
+}
+
+impl ConformanceFacts {
+    /// Compares a readable report with the deployed program again, for example after an
+    /// upgrade, without fetching it again. Reports that could not be read stay as they are.
+    pub fn recheck(&mut self, program_id: &Pubkey, deployed_sha256: Option<&str>) {
+        let (Some(id), Some(hash)) = (&self.program_id, &self.executable_sha256) else {
+            return;
+        };
+        let (status, reason) = if *id != program_id.to_string() {
+            (ConformanceStatus::Stale, Some("other-program"))
+        } else {
+            match deployed_sha256 {
+                None => (ConformanceStatus::Unverified, Some("code-not-hashed")),
+                Some(deployed) if !hash.eq_ignore_ascii_case(deployed) => {
+                    (ConformanceStatus::Stale, Some("other-code"))
+                }
+                Some(_) => (ConformanceStatus::Current, None),
+            }
+        };
+        self.status = status;
+        self.reason = reason;
+    }
+
+    /// Reads back [`ConformanceFacts::to_json`].
+    pub fn from_json(value: &Value) -> Option<Self> {
+        let status = match value["status"].as_str()? {
+            "current" => ConformanceStatus::Current,
+            "stale" => ConformanceStatus::Stale,
+            "unverified" => ConformanceStatus::Unverified,
+            _ => return None,
+        };
+        const REASONS: [&str; 7] = [
+            "unreachable",
+            "sha256-mismatch",
+            "not-json",
+            "not-a-report",
+            "code-not-hashed",
+            "other-program",
+            "other-code",
+        ];
+        let reason = match value["reason"].as_str() {
+            Some(text) => Some(*REASONS.iter().find(|r| **r == text)?),
+            None => None,
+        };
+        let text = |key: &str| value[key].as_str().map(String::from);
+        Some(ConformanceFacts {
+            status,
+            reason,
+            report_sha256: text("report_sha256"),
+            program_id: text("program_id"),
+            executable_sha256: text("executable_sha256"),
+            result: text("result"),
+            generated_at: value["generated_at"].as_u64(),
+        })
+    }
+}
+
 /// A strategy's flags, as the SDK's `inspectStrategy` sets them.
 ///
 /// - `has_conformance`: the metadata is valid and has a `conformance` entry.
@@ -636,7 +836,7 @@ pub fn strategy_flags(
     program: &ProgramFacts,
     registered: bool,
     metadata: MetadataStatus,
-    has_conformance: bool,
+    conformance: Option<ConformanceStatus>,
     verified_build: Option<&VerifiedBuild>,
 ) -> Vec<&'static str> {
     let mut flags = program.flags.clone();
@@ -648,7 +848,11 @@ pub fn strategy_flags(
     match metadata {
         MetadataStatus::Unreachable => flags.push("metadata-unreachable"),
         MetadataStatus::Invalid => flags.push("metadata-invalid"),
-        MetadataStatus::Valid if has_conformance => flags.push("conformance-report"),
+        MetadataStatus::Valid => match conformance {
+            Some(ConformanceStatus::Current) => flags.push("conformance-report"),
+            Some(ConformanceStatus::Stale) => flags.push("conformance-stale"),
+            Some(ConformanceStatus::Unverified) | None => {}
+        },
         _ => {}
     }
     if let Some(build) = verified_build {
@@ -1412,7 +1616,13 @@ mod tests {
         assert_eq!(verified.commit, None);
         assert_eq!(verified.repository, None);
         let flags = |program: &ProgramFacts, build: &VerifiedBuild| {
-            strategy_flags(program, true, MetadataStatus::Valid, true, Some(build))
+            strategy_flags(
+                program,
+                true,
+                MetadataStatus::Valid,
+                Some(ConformanceStatus::Current),
+                Some(build),
+            )
         };
         assert_eq!(
             flags(&program, &verified),
@@ -1432,15 +1642,99 @@ mod tests {
                 &program,
                 true,
                 MetadataStatus::Missing,
-                false,
+                None,
                 Some(&unknown)
             ),
             ["frozen", "metadata-missing"]
         );
         assert_eq!(
-            strategy_flags(&program, false, MetadataStatus::Missing, false, None),
+            strategy_flags(&program, false, MetadataStatus::Missing, None, None),
             ["frozen", "unregistered"]
         );
+    }
+
+    #[test]
+    fn conformance_reports_must_match_the_deployed_code() {
+        let program = key(1);
+        let report = |id: &str, hash: &str| {
+            json!({
+                "schema": CHECK_REPORT_SCHEMA,
+                "generated_at": 7,
+                "strategy": { "program_id": id, "executable_sha256": hash },
+                "summary": { "result": "warn" },
+            })
+            .to_string()
+            .into_bytes()
+        };
+        let body = report(&program.to_string(), "AB");
+        let current = evaluate_conformance_report(&body, None, &program, Some("ab"));
+        assert_eq!(
+            (current.status, current.reason),
+            (ConformanceStatus::Current, None)
+        );
+        assert_eq!(current.result.as_deref(), Some("warn"));
+        let pinned = current.report_sha256.clone().unwrap().to_uppercase();
+        let check = |body: &[u8], pinned: Option<&str>, deployed: Option<&str>| {
+            let facts = evaluate_conformance_report(body, pinned, &program, deployed);
+            (facts.status, facts.reason)
+        };
+        assert_eq!(
+            check(&body, Some(&pinned), Some("ab")).0,
+            ConformanceStatus::Current
+        );
+        assert_eq!(
+            check(&body, Some(&"0".repeat(64)), Some("ab")),
+            (ConformanceStatus::Unverified, Some("sha256-mismatch"))
+        );
+        assert_eq!(
+            check(&body, None, Some("cd")),
+            (ConformanceStatus::Stale, Some("other-code"))
+        );
+        assert_eq!(
+            check(&body, None, None),
+            (ConformanceStatus::Unverified, Some("code-not-hashed"))
+        );
+        assert_eq!(
+            check(&report(&key(2).to_string(), "ab"), None, Some("ab")),
+            (ConformanceStatus::Stale, Some("other-program"))
+        );
+        assert_eq!(
+            check(b"<html>", None, Some("ab")),
+            (ConformanceStatus::Unverified, Some("not-json"))
+        );
+        assert_eq!(
+            check(b"{\"schema\":\"x\"}", None, Some("ab")),
+            (ConformanceStatus::Unverified, Some("not-a-report"))
+        );
+        // After an upgrade the same report is stale; reading it back changes nothing.
+        let mut upgraded = current.clone();
+        upgraded.recheck(&program, Some("cd"));
+        assert_eq!(upgraded.status, ConformanceStatus::Stale);
+        assert_eq!(
+            ConformanceFacts::from_json(&upgraded.to_json()),
+            Some(upgraded)
+        );
+        let mut unreadable = evaluate_conformance_report(b"x", None, &program, Some("ab"));
+        unreadable.recheck(&program, Some("ab"));
+        assert_eq!(unreadable.reason, Some("not-json"));
+        let flags = |status| {
+            strategy_flags(
+                &inspect_program(None, None, false),
+                true,
+                MetadataStatus::Valid,
+                Some(status),
+                None,
+            )
+        };
+        assert_eq!(
+            flags(ConformanceStatus::Current),
+            ["program-missing", "conformance-report"]
+        );
+        assert_eq!(
+            flags(ConformanceStatus::Stale),
+            ["program-missing", "conformance-stale"]
+        );
+        assert_eq!(flags(ConformanceStatus::Unverified), ["program-missing"]);
     }
 
     #[test]

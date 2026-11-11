@@ -209,6 +209,21 @@ function richMint() {
     ]);
 }
 
+/** A minimal `pipeline-check` JSON report for `programId` and code hash `hash`. */
+function checkReport(programId: string, hash: string): string {
+    return JSON.stringify({
+        schema: 'pipeline-check-report/1',
+        generated_at: 1_794_000_000,
+        strategy: { program_id: programId, executable_sha256: hash },
+        summary: { result: 'pass', pass: 13, warn: 0, fail: 0, skip: 1 },
+        checks: [],
+    });
+}
+
+function sha256(text: string): string {
+    return createHash('sha256').update(text).digest('hex');
+}
+
 function fetchFor(routes: Record<string, () => Response>) {
     const urls: string[] = [];
     const fetch: FetchLike = async (url) => {
@@ -585,8 +600,12 @@ async function world(metadataUri: string) {
 describe('inspectStrategy', () => {
     it('combines registration, program, metadata and a matching verified build', async () => {
         const { programId, accounts } = await world('ipfs://bafy/m.json');
+        const report = checkReport(programId, expectedHash());
+        const metadata = sampleMetadata();
+        metadata.conformance = { report: 'https://example.com/report.json', sha256: sha256(report) };
         const { fetch, urls } = fetchFor({
-            'https://ipfs.io/ipfs/bafy/m.json': () => Response.json(sampleMetadata()),
+            'https://ipfs.io/ipfs/bafy/m.json': () => Response.json(metadata),
+            'https://example.com/report.json': () => new Response(report),
             [`https://verify.osec.io/status/${programId}`]: () => Response.json(osecVerified(expectedHash())),
         });
         const result = await inspectStrategy(fakeRpc(accounts).rpc, programId, { fetch });
@@ -598,7 +617,50 @@ describe('inspectStrategy', () => {
         expect(result.metadata.status).toBe('valid');
         expect(result.verifiedBuild?.status).toBe('verified');
         expect(result.flags).toEqual(['frozen', 'verified-build', 'conformance-report']);
-        expect(urls.sort()).toEqual(['https://ipfs.io/ipfs/bafy/m.json', `https://verify.osec.io/status/${programId}`]);
+        expect(result.conformance).toMatchObject({ status: 'current', reason: null, result: 'pass' });
+        expect(urls.sort()).toEqual([
+            'https://example.com/report.json',
+            'https://ipfs.io/ipfs/bafy/m.json',
+            `https://verify.osec.io/status/${programId}`,
+        ]);
+    });
+
+    it('flags a conformance report for other code as stale, and checks nothing it cannot fetch', async () => {
+        const { programId, accounts } = await world('https://x.example/m.json');
+        const metadata = sampleMetadata();
+        metadata.conformance = { report: 'https://x.example/report.json' };
+        const inspect = (routes: Record<string, () => Response>, options = {}) =>
+            inspectStrategy(fakeRpc(accounts).rpc, programId, {
+                fetch: fetchFor({ 'https://x.example/m.json': () => Response.json(metadata), ...routes }).fetch,
+                verifiedBuild: false,
+                ...options,
+            });
+
+        const stale = await inspect({
+            'https://x.example/report.json': () => new Response(checkReport(programId, '11'.repeat(32))),
+        });
+        expect(stale.flags).toEqual(['frozen', 'conformance-stale']);
+        expect(stale.conformance).toMatchObject({ status: 'stale', reason: 'other-code' });
+
+        const missing = await inspect({});
+        expect(missing.flags).toEqual(['frozen']);
+        expect(missing.conformance).toMatchObject({ status: 'unverified', reason: 'unreachable' });
+
+        const tooLarge = await inspect({
+            'https://x.example/report.json': () => new Response('x'.repeat(1024 * 1024 + 1)),
+        });
+        expect(tooLarge.conformance).toMatchObject({ status: 'unverified', reason: 'unreachable' });
+
+        const unhashed = await inspect(
+            { 'https://x.example/report.json': () => new Response(checkReport(programId, expectedHash())) },
+            { hashExecutable: false },
+        );
+        expect(unhashed.flags).toEqual(['frozen']);
+        expect(unhashed.conformance?.reason).toBe('code-not-hashed');
+
+        const skipped = await inspect({}, { conformanceReport: false });
+        expect(skipped.conformance).toBeNull();
+        expect(skipped.flags).toEqual(['frozen']);
     });
 
     it('treats a verification of different code as unverified', async () => {

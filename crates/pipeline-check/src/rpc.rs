@@ -72,7 +72,8 @@ impl RpcSource {
             let response = match self.http.post(&self.url).json(&body).send() {
                 Ok(response) => response,
                 Err(error) => {
-                    last_error = error.to_string();
+                    // Without the URL: RPC URLs often carry an API key.
+                    last_error = error.without_url().to_string();
                     continue;
                 }
             };
@@ -83,7 +84,7 @@ impl RpcSource {
             }
             let value: Value = response
                 .json()
-                .map_err(|e| format!("{method}: unreadable response: {e}"))?;
+                .map_err(|e| format!("{method}: unreadable response: {}", e.without_url()))?;
             if let Some(error) = value.get("error") {
                 return Err(format!("{method}: {error}"));
             }
@@ -232,6 +233,13 @@ mod tests {
         assert_eq!(account.owner, client::TOKEN_PROGRAM_ID);
         assert_eq!(account.rent_epoch, u64::MAX);
         assert_eq!(parse_account(&Value::Null).unwrap(), None);
+    }
+
+    #[test]
+    fn transport_errors_do_not_reveal_the_url() {
+        let mut source = RpcSource::new("http://127.0.0.1:1/?api-key=secret-key").unwrap();
+        let error = source.cluster_info().unwrap_err();
+        assert!(!error.contains("secret-key"), "{error}");
     }
 
     #[test]

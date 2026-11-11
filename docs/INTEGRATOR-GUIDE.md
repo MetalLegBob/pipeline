@@ -96,11 +96,27 @@ const shown = filterMarkets(markets, { exclude: ['permanent-delegate', 'freeze-a
 |---|---|---|
 | The strategy program: upgradeable or frozen, upgrade authority, last deploy, code hash | `inspectProgram` | `upgradeable`, `frozen` |
 | Verified build: OtterSec's record matches the deployed code (mainnet only) | `fetchVerifiedBuild` | `verified-build`, `unverified-build` |
-| The strategy's metadata: present, reachable, valid; conformance report linked | `inspectStrategy` | `metadata-missing`, `metadata-invalid`, `conformance-report` |
+| The strategy's metadata: present, reachable, valid; whether its linked conformance report is for the deployed code | `inspectStrategy` | `metadata-missing`, `metadata-invalid`, `conformance-report`, `conformance-stale` |
 | Each mint: authorities and Token-2022 extensions | `inspectMint` | `mint-authority`, `freeze-authority`, `transfer-hook`, `transfer-fee`, `permanent-delegate`, `non-transferable`, `default-frozen`, `pausable` |
+| Hosted checks: the latest `pipeline-check` run against the strategy's current code | The hosted API's `checks` on each market, and `/v1/markets/{market}/checks` for the report | `checks-passed`, `checks-failed`, `checks-pending` |
 
-A market's flags are its strategy's flags plus every mint's. The full list, with exact
-meanings, is `FLAGS` and `FLAG_DESCRIPTIONS` in the SDK. Also worth showing: liquidity
+A market's flags are its strategy's flags plus every mint's; the hosted API adds exactly one
+`checks-*` flag. The full list, with exact meanings, is `FLAGS` and `FLAG_DESCRIPTIONS` in
+the SDK.
+
+**Hosted checks.** The hosted API runs `pipeline-check` on every market: when the market is
+created, as soon as its strategy is upgraded, and every 15 minutes. `checks-passed` means the
+latest run against the strategy's current code had no Fail (warnings, such as a closed market
+refusing quotes, are allowed); `checks-failed` that it had at least one; `checks-pending` that
+no run has completed for the current code yet. A pass never carries over to new code: an
+upgrade makes the market pending at once. Filter with `/v1/markets?require=checks-passed`.
+
+**Conformance reports.** A strategy can publish its own `pipeline-check` report and link it
+from its metadata (`conformance`). The SDK and the hosted API fetch it (1 MiB at most, checked
+against `conformance.sha256` when given) and compare its `strategy.program_id` and
+`strategy.executable_sha256` with the deployed program: `conformance-report` when they match,
+`conformance-stale` when the report is for other code (after an upgrade, say). A report that
+can't be fetched or read sets neither, and `conformance.reason` says why. Also worth showing: liquidity
 (vault balances), market age and volume.
 
 `inspectProgram` downloads the program's code to hash it (up to a few MB); cache results per

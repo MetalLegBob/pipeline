@@ -8,7 +8,14 @@ import { readFileSync } from 'node:fs';
 import { getBase64Encoder, type Address } from '@solana/kit';
 import { describe, expect, it } from 'vitest';
 
-import { decodeMint, FLAG_DESCRIPTIONS, FLAGS, inspectProgram, parseStrategyMetadata } from '../src/index.js';
+import {
+    decodeMint,
+    evaluateConformanceReport,
+    FLAG_DESCRIPTIONS,
+    FLAGS,
+    inspectProgram,
+    parseStrategyMetadata,
+} from '../src/index.js';
 
 type FixtureAccount = { owner: string; executable: boolean; data: string } | null;
 
@@ -23,6 +30,14 @@ type TrustFacts = {
         expected: Record<string, unknown>;
     }[];
     metadata: { name: string; document: unknown; ok: boolean; errors: string[]; warnings: string[] }[];
+    conformance: {
+        name: string;
+        body: string;
+        pinned_sha256: string | null;
+        program_id: string;
+        deployed_sha256: string | null;
+        expected: Record<string, unknown>;
+    }[];
 };
 
 const fixtures: TrustFacts = JSON.parse(
@@ -107,6 +122,26 @@ describe('shared trust-facts vectors', () => {
             expect(result.ok).toBe(fixture.ok);
             expect(result.ok ? [] : [...result.errors].sort()).toEqual(fixture.errors);
             expect(result.ok ? [...result.warnings].sort() : []).toEqual(fixture.warnings);
+        });
+    }
+
+    for (const fixture of fixtures.conformance) {
+        it(`evaluates conformance report ${fixture.name}`, async () => {
+            const facts = await evaluateConformanceReport(
+                bytes(fixture.body),
+                fixture.pinned_sha256,
+                fixture.program_id as Address,
+                fixture.deployed_sha256,
+            );
+            expect({
+                status: facts.status,
+                reason: facts.reason,
+                report_sha256: facts.reportSha256,
+                program_id: facts.programId,
+                executable_sha256: facts.executableSha256,
+                result: facts.result,
+                generated_at: facts.generatedAt,
+            }).toEqual(fixture.expected);
         });
     }
 });
