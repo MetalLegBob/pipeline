@@ -1,0 +1,16 @@
+[package]
+name = "test-strategy-script"
+version = "0.1.0"
+publish = false
+edition = "2021"
+license = "Apache-2.0"
+description = "Scriptable hostile strategy driven by the Pipeline router fuzzer"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "test_strategy_script"
+
+[dependencies]
+borsh = "1.5"
+pipeline-strategy-interface = { path = "../pipeline-strategy-interface" }
+solana-program = "3"

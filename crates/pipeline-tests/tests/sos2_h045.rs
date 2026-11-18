@@ -65,7 +65,7 @@ fn h045_upgrade_authority_initializes_config_once() {
         .expect("initialize_config by upgrade authority");
     let config = client::decode_config(&env.account_data(&pda::config())).expect("config");
     assert_eq!(config.admin, env.admin.pubkey());
-    assert!(!config.paused);
+    assert_eq!(config.reserved, 0);
 }
 
 /// A router frozen before its config is initialised can never have one: init needs the

@@ -53,7 +53,7 @@ devnet in a few minutes.
 | `programs/pipeline` | The router program (Anchor) | BSL 1.1, becomes GPL-2.0-or-later on 2028-11-08 |
 | `templates/strategy` | Strategy template: a constant-product pool with LiteSVM tests, metadata and a devnet script. Start here (`scripts/new-strategy.sh`) | Apache-2.0 |
 | `programs/test-strategy-cp` | Example strategy: a constant-product pool, with optional extras such as `pipeline_seed_liquidity` | Apache-2.0 |
-| `programs/test-strategy-evil`, `test-hook`, `test-hook-refill` | Hostile strategy and transfer hooks used by the router's security tests | Apache-2.0 |
+| `programs/test-strategy-evil`, `test-strategy-script`, `test-hook`, `test-hook-refill` | Hostile strategies (one scriptable, driven by the router fuzzer) and transfer hooks used by the router's security tests | Apache-2.0 |
 | `programs/pipeline-strategy-interface` | The strategy interface: types, discriminators, account layouts, fee maths | Apache-2.0 |
 | `crates/pipeline-client` | Rust addresses, instruction builders and account decoders | Apache-2.0 |
 | `crates/pipeline-events` | Event decoding for indexers | Apache-2.0 |

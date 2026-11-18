@@ -41,7 +41,7 @@ pub mod pipeline {
         check_listing_fee(args.listing_fee_lamports)?;
         let config = &mut ctx.accounts.config;
         config.admin = ctx.accounts.admin.key();
-        config.paused = false;
+        config.reserved = 0;
         config.listing_fee_lamports = args.listing_fee_lamports;
         config.listing_fee_recipient = args.listing_fee_recipient;
         config.treasury_owner = args.treasury_owner;
@@ -50,22 +50,10 @@ pub mod pipeline {
     }
 
     /// Changes admin settings. Every field is optional.
-    ///
-    /// Pausing needs the router to still be upgradeable: once it is frozen, the pause
-    /// power ends, and `lift_pause` lets anyone clear a pause left in place.
     pub fn update_config(ctx: Context<UpdateConfig>, args: UpdateConfigArgs) -> Result<()> {
-        if args.paused == Some(true) {
-            require!(
-                ctx.accounts.router_data.upgrade_authority_address.is_some(),
-                PipelineError::FrozenRouterCannotPause
-            );
-        }
         let config = &mut ctx.accounts.config;
         if let Some(admin) = args.admin {
             config.admin = admin;
-        }
-        if let Some(paused) = args.paused {
-            config.paused = paused;
         }
         if let Some(fee) = args.listing_fee_lamports {
             check_listing_fee(fee)?;
@@ -79,26 +67,6 @@ pub mod pipeline {
         }
         emit_cpi!(ConfigChanged {
             admin: config.admin,
-            paused: config.paused,
-            listing_fee_lamports: config.listing_fee_lamports,
-            listing_fee_recipient: config.listing_fee_recipient,
-            treasury_owner: config.treasury_owner,
-        });
-        Ok(())
-    }
-
-    /// Clears the pause once the router is frozen. Anyone can call it, so a pause can't
-    /// outlive the router's upgradeability even if the admin key is lost.
-    pub fn lift_pause(ctx: Context<LiftPause>) -> Result<()> {
-        require!(
-            ctx.accounts.router_data.upgrade_authority_address.is_none(),
-            PipelineError::RouterNotFrozen
-        );
-        let config = &mut ctx.accounts.config;
-        config.paused = false;
-        emit_cpi!(ConfigChanged {
-            admin: config.admin,
-            paused: config.paused,
             listing_fee_lamports: config.listing_fee_lamports,
             listing_fee_recipient: config.listing_fee_recipient,
             treasury_owner: config.treasury_owner,
@@ -119,7 +87,6 @@ pub mod pipeline {
         max_listing_fee_lamports: u64,
     ) -> Result<()> {
         let config = &ctx.accounts.config;
-        require!(!config.paused, PipelineError::Paused);
         require!(
             config.listing_fee_lamports <= max_listing_fee_lamports,
             PipelineError::ListingFeeAboveMaximum
@@ -212,7 +179,6 @@ pub mod pipeline {
         init_data: Vec<u8>,
         max_creator_lamports: u64,
     ) -> Result<()> {
-        require!(!ctx.accounts.config.paused, PipelineError::Paused);
         let strategy_program = ctx.accounts.strategy_program.key();
         let market_state = ctx.accounts.market_state.key();
         let market_key = ctx.accounts.market.key();
@@ -332,7 +298,6 @@ pub mod pipeline {
     pub fn register_existing_market<'info>(
         ctx: Context<'info, RegisterExistingMarket<'info>>,
     ) -> Result<()> {
-        require!(!ctx.accounts.config.paused, PipelineError::Paused);
         let info = fetch_market_info(
             &ctx.accounts.strategy_program,
             &ctx.accounts.market_state,
@@ -385,7 +350,6 @@ pub mod pipeline {
     /// `input_hook_accounts` accounts that the input mint's transfer hook needs. The
     /// strategy receives all of them, without signer privileges.
     pub fn swap<'info>(ctx: Context<'info, Swap<'info>>, args: SwapArgs) -> Result<()> {
-        require!(!ctx.accounts.config.paused, PipelineError::Paused);
         let accounts = &ctx.accounts;
         let market = &accounts.market;
 
@@ -908,7 +872,9 @@ fn upgrade_authority(data: &[u8]) -> Option<Option<Pubkey>> {
 #[derive(InitSpace)]
 pub struct Config {
     pub admin: Pubkey,
-    pub paused: bool,
+    /// Unused, always 0. Holds the place of a pause flag the router once had, so configs
+    /// created before it was removed keep their layout.
+    pub reserved: u8,
     pub listing_fee_lamports: u64,
     /// Receives listing fees.
     pub listing_fee_recipient: Pubkey,
@@ -956,7 +922,6 @@ pub struct ConfigArgs {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
 pub struct UpdateConfigArgs {
     pub admin: Option<Pubkey>,
-    pub paused: Option<bool>,
     pub listing_fee_lamports: Option<u64>,
     pub listing_fee_recipient: Option<Pubkey>,
     pub treasury_owner: Option<Pubkey>,
@@ -1012,23 +977,6 @@ pub struct UpdateConfig<'info> {
     pub admin: Signer<'info>,
     #[account(mut, seeds = [seeds::CONFIG], bump = config.bump, has_one = admin @ PipelineError::NotAdmin)]
     pub config: Account<'info, Config>,
-    /// The router itself and its ProgramData, to tell whether it is still upgradeable.
-    /// (`#[event_cpi]` already adds a `program` field.)
-    #[account(constraint = router.programdata_address()? == Some(router_data.key()))]
-    pub router: Program<'info, crate::program::Pipeline>,
-    pub router_data: Account<'info, ProgramData>,
-}
-
-#[event_cpi]
-#[derive(Accounts)]
-pub struct LiftPause<'info> {
-    #[account(mut, seeds = [seeds::CONFIG], bump = config.bump)]
-    pub config: Account<'info, Config>,
-    /// The router itself and its ProgramData, to tell whether it is still upgradeable.
-    /// (`#[event_cpi]` already adds a `program` field.)
-    #[account(constraint = router.programdata_address()? == Some(router_data.key()))]
-    pub router: Program<'info, crate::program::Pipeline>,
-    pub router_data: Account<'info, ProgramData>,
 }
 
 #[event_cpi]
@@ -1074,8 +1022,6 @@ pub struct UpdateMetadata<'info> {
 pub struct CreateMarket<'info> {
     #[account(mut)]
     pub creator: Signer<'info>,
-    #[account(seeds = [seeds::CONFIG], bump = config.bump)]
-    pub config: Account<'info, Config>,
     #[account(mut, seeds = [seeds::STRATEGY, strategy_program.key().as_ref()], bump = strategy.bump)]
     pub strategy: Account<'info, Strategy>,
     /// CHECK: the registered strategy program (enforced by the `strategy` seeds).
@@ -1103,8 +1049,6 @@ pub struct CreateMarket<'info> {
 pub struct RegisterExistingMarket<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
-    #[account(seeds = [seeds::CONFIG], bump = config.bump)]
-    pub config: Account<'info, Config>,
     #[account(mut, seeds = [seeds::STRATEGY, strategy_program.key().as_ref()], bump = strategy.bump)]
     pub strategy: Account<'info, Strategy>,
     /// CHECK: the registered strategy program (enforced by the `strategy` seeds).
@@ -1149,8 +1093,6 @@ pub struct InitFeeAccount<'info> {
 #[derive(Accounts)]
 pub struct Swap<'info> {
     pub trader: Signer<'info>,
-    #[account(seeds = [seeds::CONFIG], bump = config.bump)]
-    pub config: Account<'info, Config>,
     /// CHECK: the market's strategy program (enforced by the `market` seeds).
     #[account(executable)]
     pub strategy_program: UncheckedAccount<'info>,
@@ -1271,7 +1213,6 @@ pub struct FeesSwept {
 #[event]
 pub struct ConfigChanged {
     pub admin: Pubkey,
-    pub paused: bool,
     pub listing_fee_lamports: u64,
     pub listing_fee_recipient: Pubkey,
     pub treasury_owner: Pubkey,
@@ -1279,8 +1220,6 @@ pub struct ConfigChanged {
 
 #[error_code]
 pub enum PipelineError {
-    #[msg("Pipeline is paused")]
-    Paused,
     #[msg("Signer is not the admin")]
     NotAdmin,
     #[msg("Listing fee exceeds the hard maximum")]
@@ -1331,10 +1270,6 @@ pub enum PipelineError {
     SetupPayerMisused,
     #[msg("Arithmetic overflow")]
     MathOverflow,
-    #[msg("The router is frozen, so it can no longer be paused")]
-    FrozenRouterCannotPause,
-    #[msg("Only a frozen router's pause can be lifted by anyone")]
-    RouterNotFrozen,
     #[msg("The listing fee is above the maximum the registration accepts")]
     ListingFeeAboveMaximum,
     #[msg("A fee account can't be the trader's input account")]

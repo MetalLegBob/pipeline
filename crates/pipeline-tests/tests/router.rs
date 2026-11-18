@@ -3,7 +3,7 @@
 mod common;
 
 use common::*;
-use pipeline_client::{self as client, pda, Pubkey};
+use pipeline_client::{self as client, pda, AccountMeta, Pubkey};
 use pipeline_events::PipelineEvent;
 use pipeline_strategy_interface::{fees, TradeMode};
 use solana_keypair::Keypair;
@@ -17,7 +17,7 @@ fn config_can_only_be_initialised_by_the_upgrade_authority() {
     let config = client::decode_config(&env.account_data(&pda::config())).unwrap();
     assert_eq!(config.admin, env.admin.pubkey());
     assert_eq!(config.listing_fee_lamports, LISTING_FEE);
-    assert!(!config.paused);
+    assert_eq!(config.reserved, 0);
 
     // A second initialisation fails because the account exists; a stranger also fails.
     let stranger = env.funded_keypair();
@@ -39,7 +39,7 @@ fn only_admin_updates_config_and_fee_is_capped() {
     let ix = client::update_config(
         &stranger.pubkey(),
         &client::UpdateConfigArgs {
-            paused: Some(true),
+            listing_fee_lamports: Some(0),
             ..Default::default()
         },
     );
@@ -80,38 +80,119 @@ fn only_admin_updates_config_and_fee_is_capped() {
     }
 }
 
-/// The pause power ends when the router is frozen. A frozen router can't be
-/// paused, and anyone can lift a pause left in place, so a lost admin key can't freeze
-/// every market for good.
+/// Freezing the router (dropping its upgrade authority) changes nothing about trading or
+/// the config: swaps and market creation go on, and the admin still sets the fee.
 #[test]
-fn the_pause_power_ends_when_the_router_is_frozen() {
+fn a_frozen_router_keeps_trading_and_its_config_admin() {
     let mut env = Env::new();
-    let admin = env.admin.pubkey();
-    let pause = |paused| {
-        client::update_config(
-            &admin,
-            &client::UpdateConfigArgs {
-                paused: Some(paused),
-                ..Default::default()
-            },
-        )
-    };
-    // While upgradeable: the admin pauses, and `lift_pause` (which needs no signer) is
-    // refused.
-    env.send(&[pause(true)], &[]).expect("pause");
-    assert_fails_with(env.send(&[client::lift_pause()], &[]), "RouterNotFrozen");
-
-    // Frozen with the pause still on: anyone can lift it.
+    let market = setup_cp_market(&mut env, TOKEN, TOKEN, 1_000_000_000, 2_000_000_000, 30);
+    let (trader, trader_a) = env.trader_with(&market.mint_a, &TOKEN, 10_000_000);
+    let trader_b = env.create_ata(&trader.pubkey(), &market.mint_b, &TOKEN);
     set_upgrade_authority(&mut env.svm, &client::PROGRAM_ID, None);
-    env.send(&[client::lift_pause()], &[])
-        .expect("lift the pause");
-    let config = client::decode_config(&env.account_data(&client::pda::config())).unwrap();
-    assert!(!config.paused);
 
-    // And the admin can no longer pause; other settings still work.
-    assert_fails_with(env.send(&[pause(true)], &[]), "FrozenRouterCannotPause");
-    env.send(&[pause(false)], &[])
-        .expect("unpausing is always allowed");
+    let accounts = cp_swap_accounts(
+        &market,
+        &trader.pubkey(),
+        &market.mint_a,
+        &trader_a,
+        &market.mint_b,
+        &trader_b,
+    );
+    env.send(&[client::swap(&accounts, &exact_in(1_000, 0))], &[&trader])
+        .expect("swap on a frozen router");
+
+    let mint_c = env.create_mint(&TOKEN, 6, None, None);
+    let creator = env.funded_keypair();
+    let create = cp_create_market_ix(
+        &creator.pubkey(),
+        &market.mint_a,
+        &TOKEN,
+        &mint_c,
+        &TOKEN,
+        30,
+    );
+    env.send(&[create], &[&creator])
+        .expect("create_market on a frozen router");
+
+    let admin = env.admin.pubkey();
+    let update = client::update_config(
+        &admin,
+        &client::UpdateConfigArgs {
+            listing_fee_lamports: Some(0),
+            ..Default::default()
+        },
+    );
+    env.send(&[update], &[])
+        .expect("update_config on a frozen router");
+    let config = client::decode_config(&env.account_data(&client::pda::config())).unwrap();
+    assert_eq!(config.listing_fee_lamports, 0);
+}
+
+/// Before the pause was removed, `swap`, `create_market` and `register_existing_market`
+/// took the config account second, and `update_config` took the router and its
+/// ProgramData. Transactions still built that way must fail cleanly, with nothing moved,
+/// and must not be read as something else.
+#[test]
+fn instructions_in_the_old_account_layout_fail_and_move_nothing() {
+    let mut env = Env::new();
+    let market = setup_cp_market(&mut env, TOKEN, TOKEN, 1_000_000_000, 2_000_000_000, 30);
+    let (trader, trader_a) = env.trader_with(&market.mint_a, &TOKEN, 10_000_000);
+    let trader_b = env.create_ata(&trader.pubkey(), &market.mint_b, &TOKEN);
+    let config = AccountMeta::new_readonly(client::pda::config(), false);
+
+    let accounts = cp_swap_accounts(
+        &market,
+        &trader.pubkey(),
+        &market.mint_a,
+        &trader_a,
+        &market.mint_b,
+        &trader_b,
+    );
+    let mut swap = client::swap(&accounts, &exact_in(1_000, 0));
+    swap.accounts.insert(1, config.clone());
+    // The strategy program lands in the market's slot, which the router must own.
+    assert_fails_with(env.send(&[swap], &[&trader]), "AccountOwnedByWrongProgram");
+    assert_eq!(env.token_balance(&trader_a), 10_000_000);
+    assert_eq!(env.token_balance(&trader_b), 0);
+
+    let mint_c = env.create_mint(&TOKEN, 6, None, None);
+    let creator = env.funded_keypair();
+    let creator_before = env.lamports(&creator.pubkey());
+    let mut create = cp_create_market_ix(
+        &creator.pubkey(),
+        &market.mint_a,
+        &TOKEN,
+        &mint_c,
+        &TOKEN,
+        30,
+    );
+    create.accounts.insert(1, config.clone());
+    assert!(env.send(&[create], &[&creator]).is_err());
+    assert_eq!(env.lamports(&creator.pubkey()), creator_before);
+
+    let payer = env.admin.pubkey();
+    let mut register =
+        client::register_existing_market(&payer, &CP_PROGRAM_ID, &market.pool, vec![]);
+    register.accounts.insert(1, config);
+    assert!(env.send(&[register], &[]).is_err());
+
+    let mut update = client::update_config(
+        &payer,
+        &client::UpdateConfigArgs {
+            listing_fee_lamports: Some(0),
+            ..Default::default()
+        },
+    );
+    update.accounts.insert(
+        2,
+        AccountMeta::new_readonly(client::pda::program_data(&client::PROGRAM_ID), false),
+    );
+    update
+        .accounts
+        .insert(2, AccountMeta::new_readonly(client::PROGRAM_ID, false));
+    assert!(env.send(&[update], &[]).is_err());
+    let after = client::decode_config(&env.account_data(&client::pda::config())).unwrap();
+    assert_eq!(after.listing_fee_lamports, LISTING_FEE);
 }
 
 /// A registration names the most it will pay, so raising the listing fee can't surprise
@@ -426,58 +507,6 @@ fn tiny_swaps_pay_at_least_one_unit() {
 }
 
 #[test]
-fn pause_blocks_swaps_and_market_creation_until_unpaused() {
-    let mut env = Env::new();
-    let market = setup_cp_market(&mut env, TOKEN, TOKEN, 1_000_000_000, 2_000_000_000, 30);
-    let (trader, trader_a) = env.trader_with(&market.mint_a, &TOKEN, 10_000_000);
-    let trader_b = env.create_ata(&trader.pubkey(), &market.mint_b, &TOKEN);
-    let admin = env.admin.pubkey();
-    let pause = |paused| {
-        client::update_config(
-            &admin,
-            &client::UpdateConfigArgs {
-                paused: Some(paused),
-                ..Default::default()
-            },
-        )
-    };
-
-    env.send(&[pause(true)], &[]).unwrap();
-    let accounts = cp_swap_accounts(
-        &market,
-        &trader.pubkey(),
-        &market.mint_a,
-        &trader_a,
-        &market.mint_b,
-        &trader_b,
-    );
-    assert_fails_with(
-        env.send(&[client::swap(&accounts, &exact_in(1_000, 0))], &[&trader]),
-        "Paused",
-    );
-
-    let mint_c = env.create_mint(&TOKEN, 6, None, None);
-    let creator = env.funded_keypair();
-    let create = cp_create_market_ix(
-        &creator.pubkey(),
-        &market.mint_a,
-        &TOKEN,
-        &mint_c,
-        &TOKEN,
-        30,
-    );
-    assert_fails_with(
-        env.send(std::slice::from_ref(&create), &[&creator]),
-        "Paused",
-    );
-
-    env.send(&[pause(false)], &[]).unwrap();
-    env.send(&[client::swap(&accounts, &exact_in(1_000, 0))], &[&trader])
-        .unwrap();
-    env.send(&[create], &[&creator]).unwrap();
-}
-
-#[test]
 fn sweep_moves_fees_to_the_treasury() {
     let mut env = Env::new();
     let market = setup_cp_market(&mut env, TOKEN, TOKEN, 1_000_000_000, 2_000_000_000, 30);
@@ -567,7 +596,7 @@ fn router_rejects_wrong_vault_and_fee_account() {
         &trader_b,
     );
     let mut ix = client::swap(&accounts, &exact_in(1_000, 0));
-    ix.accounts[13].pubkey = attacker_a;
+    ix.accounts[12].pubkey = attacker_a;
     assert_fails_with(env.send(&[ix], &[&trader]), "WrongFeeAccount");
     assert_eq!(env.token_balance(&trader_a), 10_000_000);
 }

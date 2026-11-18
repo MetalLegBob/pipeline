@@ -24,3 +24,14 @@ for program in "${programs[@]}"; do
   echo "== $program"
   cargo build-sbf --manifest-path "$program/Cargo.toml"
 done
+
+# Test-only programs with their own workspace (not members above), built when present and
+# no programs were named. They write to their own target/deploy.
+if [ "$#" -eq 0 ]; then
+  for program in test-quote-reads-input-vault; do
+    if [ -f "$program/Cargo.toml" ]; then
+      echo "== $program (standalone test program)"
+      cargo build-sbf --manifest-path "$program/Cargo.toml"
+    fi
+  done
+fi

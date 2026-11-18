@@ -1,14 +1,14 @@
 {
   "accounts": [
     {
-      "hex": "9b0caae01efacc82010101010101010101010101010101010101010101010101010101010101010101002f68590000000002020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303fe",
+      "hex": "9b0caae01efacc82010101010101010101010101010101010101010101010101010101010101010100002f68590000000002020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303fe",
       "type": "Config",
       "value": {
         "admin": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
         "bump": 254,
         "listingFeeLamports": "1500000000",
         "listingFeeRecipient": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
-        "paused": true,
+        "reserved": 0,
         "treasuryOwner": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8"
       }
     },
@@ -78,7 +78,6 @@
       "create_market": "67e261ebc8bcfbfe",
       "init_fee_account": "55a9b9d367996f02",
       "initialize_config": "d07f1501c2bec446",
-      "lift_pause": "aaafcc2a57fcdd78",
       "register_existing_market": "65a037a696967b36",
       "register_strategy": "790c404b630fb18f",
       "swap": "f8c69e91e17587c8",
@@ -218,24 +217,22 @@
       }
     },
     {
-      "hex": "00010001ffffffffffffffff00010303030303030303030303030303030303030303030303030303030303030303",
+      "hex": "0001ffffffffffffffff00010303030303030303030303030303030303030303030303030303030303030303",
       "type": "UpdateConfigArgs",
       "value": {
         "admin": null,
         "listingFeeLamports": "18446744073709551615",
         "listingFeeRecipient": null,
-        "paused": false,
         "treasuryOwner": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8"
       }
     },
     {
-      "hex": "0000000000",
+      "hex": "00000000",
       "type": "UpdateConfigArgs",
       "value": {
         "admin": null,
         "listingFeeLamports": null,
         "listingFeeRecipient": null,
-        "paused": null,
         "treasuryOwner": null
       }
     },
@@ -343,13 +340,12 @@
       }
     },
     {
-      "hex": "e445a52e51cb9a1d93195662624d4ec0010101010101010101010101010101010101010101010101010101010101010100000000000000000002020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303",
+      "hex": "e445a52e51cb9a1d93195662624d4ec00101010101010101010101010101010101010101010101010101010101010101000000000000000002020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303",
       "type": "ConfigChanged",
       "value": {
         "admin": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
         "listingFeeLamports": "0",
         "listingFeeRecipient": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
-        "paused": false,
         "treasuryOwner": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8"
       }
     }
@@ -1059,16 +1055,6 @@
           "isWritable": true
         },
         {
-          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
-          "isSigner": false,
-          "isWritable": false
-        },
-        {
-          "address": "3dpKiLEDnLxCDBybnc5N9iVSLDWpvVBhE4971w59JETL",
-          "isSigner": false,
-          "isWritable": false
-        },
-        {
           "address": "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
           "isSigner": false,
           "isWritable": false
@@ -1079,14 +1065,13 @@
           "isWritable": false
         }
       ],
-      "data": "1d9efcbf0a53db6301040404040404040404040404040404040404040404040404040404040404040401010001050505050505050505050505050505050505050505050505050505050505050500",
+      "data": "1d9efcbf0a53db630104040404040404040404040404040404040404040404040404040404040404040001050505050505050505050505050505050505050505050505050505050505050500",
       "inputs": {
         "admin": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
         "args": {
           "admin": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
           "listingFeeLamports": null,
           "listingFeeRecipient": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
-          "paused": true,
           "treasuryOwner": null
         }
       },
@@ -1106,16 +1091,6 @@
           "isWritable": true
         },
         {
-          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
-          "isSigner": false,
-          "isWritable": false
-        },
-        {
-          "address": "3dpKiLEDnLxCDBybnc5N9iVSLDWpvVBhE4971w59JETL",
-          "isSigner": false,
-          "isWritable": false
-        },
-        {
           "address": "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
           "isSigner": false,
           "isWritable": false
@@ -1126,51 +1101,17 @@
           "isWritable": false
         }
       ],
-      "data": "1d9efcbf0a53db630000000000",
+      "data": "1d9efcbf0a53db6300000000",
       "inputs": {
         "admin": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
         "args": {
           "admin": null,
           "listingFeeLamports": null,
           "listingFeeRecipient": null,
-          "paused": null,
           "treasuryOwner": null
         }
       },
       "name": "updateConfig",
-      "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
-    },
-    {
-      "accounts": [
-        {
-          "address": "BmdeX3kWjQavcjggCd1YDws67szz7iqcJRa1KebtRQZ8",
-          "isSigner": false,
-          "isWritable": true
-        },
-        {
-          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
-          "isSigner": false,
-          "isWritable": false
-        },
-        {
-          "address": "3dpKiLEDnLxCDBybnc5N9iVSLDWpvVBhE4971w59JETL",
-          "isSigner": false,
-          "isWritable": false
-        },
-        {
-          "address": "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
-          "isSigner": false,
-          "isWritable": false
-        },
-        {
-          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
-          "isSigner": false,
-          "isWritable": false
-        }
-      ],
-      "data": "aaafcc2a57fcdd78",
-      "inputs": {},
-      "name": "liftPause",
       "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
     },
     {
@@ -1288,11 +1229,6 @@
           "isWritable": true
         },
         {
-          "address": "BmdeX3kWjQavcjggCd1YDws67szz7iqcJRa1KebtRQZ8",
-          "isSigner": false,
-          "isWritable": false
-        },
-        {
           "address": "6Lu83KEiYTJhRRCaxo8kDEDKBAGUpX7Ej5ToWK3uCTuD",
           "isSigner": false,
           "isWritable": true
@@ -1393,11 +1329,6 @@
           "address": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
           "isSigner": true,
           "isWritable": true
-        },
-        {
-          "address": "BmdeX3kWjQavcjggCd1YDws67szz7iqcJRa1KebtRQZ8",
-          "isSigner": false,
-          "isWritable": false
         },
         {
           "address": "6Lu83KEiYTJhRRCaxo8kDEDKBAGUpX7Ej5ToWK3uCTuD",
@@ -1570,11 +1501,6 @@
           "isWritable": false
         },
         {
-          "address": "BmdeX3kWjQavcjggCd1YDws67szz7iqcJRa1KebtRQZ8",
-          "isSigner": false,
-          "isWritable": false
-        },
-        {
           "address": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
           "isSigner": false,
           "isWritable": false
@@ -1737,11 +1663,6 @@
         {
           "address": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
           "isSigner": true,
-          "isWritable": false
-        },
-        {
-          "address": "BmdeX3kWjQavcjggCd1YDws67szz7iqcJRa1KebtRQZ8",
-          "isSigner": false,
           "isWritable": false
         },
         {

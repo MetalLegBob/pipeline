@@ -162,7 +162,6 @@ fn discriminators() -> Value {
         "init_fee_account",
         "swap",
         "sweep_fees",
-        "lift_pause",
     ];
     let instructions: serde_json::Map<String, Value> = router_instructions
         .iter()
@@ -294,7 +293,6 @@ fn router_instructions() -> Value {
 
     let update = client::UpdateConfigArgs {
         admin: Some(key(4)),
-        paused: Some(true),
         listing_fee_lamports: None,
         listing_fee_recipient: Some(key(5)),
         treasury_owner: None,
@@ -306,7 +304,6 @@ fn router_instructions() -> Value {
                 "admin": addr(&key(1)),
                 "args": {
                     "admin": opt_addr(&args.admin),
-                    "paused": args.paused,
                     "listingFeeLamports": opt_big(args.listing_fee_lamports),
                     "listingFeeRecipient": opt_addr(&args.listing_fee_recipient),
                     "treasuryOwner": opt_addr(&args.treasury_owner),
@@ -315,7 +312,6 @@ fn router_instructions() -> Value {
             &client::update_config(&key(1), &args),
         ));
     }
-    cases.push(instruction("liftPause", json!({}), &client::lift_pause()));
 
     let uri = "https://example.com/strategy.json";
     cases.push(instruction(
@@ -849,7 +845,6 @@ fn encodings() -> Value {
     let update_configs = [
         client::UpdateConfigArgs {
             admin: None,
-            paused: Some(false),
             listing_fee_lamports: Some(u64::MAX),
             listing_fee_recipient: None,
             treasury_owner: Some(key(3)),
@@ -861,7 +856,6 @@ fn encodings() -> Value {
             "UpdateConfigArgs",
             json!({
                 "admin": opt_addr(&args.admin),
-                "paused": args.paused,
                 "listingFeeLamports": opt_big(args.listing_fee_lamports),
                 "listingFeeRecipient": opt_addr(&args.listing_fee_recipient),
                 "treasuryOwner": opt_addr(&args.treasury_owner),
@@ -915,7 +909,7 @@ fn router_accounts() -> Value {
 
     let config = client::Config {
         admin: key(1),
-        paused: true,
+        reserved: 0,
         listing_fee_lamports: 1_500_000_000,
         listing_fee_recipient: key(2),
         treasury_owner: key(3),
@@ -947,7 +941,7 @@ fn router_accounts() -> Value {
             "Config",
             json!({
                 "admin": addr(&config.admin),
-                "paused": config.paused,
+                "reserved": config.reserved,
                 "listingFeeLamports": big(config.listing_fee_lamports),
                 "listingFeeRecipient": addr(&config.listing_fee_recipient),
                 "treasuryOwner": addr(&config.treasury_owner),
@@ -1104,7 +1098,6 @@ fn router_events() -> Value {
 
     let changed = events::ConfigChanged {
         admin: key(1),
-        paused: false,
         listing_fee_lamports: 0,
         listing_fee_recipient: key(2),
         treasury_owner: key(3),
@@ -1113,7 +1106,6 @@ fn router_events() -> Value {
         "ConfigChanged",
         json!({
             "admin": addr(&changed.admin),
-            "paused": changed.paused,
             "listingFeeLamports": big(changed.listing_fee_lamports),
             "listingFeeRecipient": addr(&changed.listing_fee_recipient),
             "treasuryOwner": addr(&changed.treasury_owner),

@@ -81,7 +81,7 @@ The router does not enforce these, but quoting and trading depend on them.
 - **Deliver output without keeping any input.** The router rejects it.
 - **Touch Pipeline's fees.** Fee accounts belong to a separate PDA you never receive.
 - **Call back into the router.** Solana forbids re-entrancy.
-- **Pull a second token or collateral inside a swap.** Use a custom action called directly.
+- **Pull a second token or collateral inside a swap.** Use a separate instruction on your program that the user calls directly (section 5).
 
 ## 4. Solana limits that shape strategy design
 
@@ -91,9 +91,11 @@ The router does not enforce these, but quoting and trading depend on them.
 - **Write locks.** Every trade writes your market state. Avoid a strategy-wide account written on every trade, because it serialises all your markets.
 - **State size.** Accounts max out at 10 MB and return data at 1 KB.
 
-## 5. Custom actions
+## 5. Instructions that aren't swaps
 
-Anything that isn't a swap, such as adding liquidity, claims or keeper jobs, is an ordinary instruction on your program. Users call it directly; it costs no Pipeline fee and is not routed through the router. Describe custom actions in your metadata so desks can show generic forms (section 7).
+Anything that isn't a swap, such as adding liquidity, claims or keeper jobs, is an ordinary instruction on your program. Users call it directly, through your own front-end; it costs no Pipeline fee and is not routed through the router.
+
+Pipeline distributes swaps and market creation only. Its SDK, metadata and hosted API don't describe or build your other instructions, so desks built on Pipeline won't show forms for them: a user who signs one is trusting your program and your front-end, not Pipeline.
 
 ## 6. Registering and creating markets
 
@@ -115,7 +117,8 @@ transaction that creates the pool:
   records the market in the same instruction. The creator sets `max_creator_lamports`: the
   router lends exactly that much to your setup through the payer account and returns whatever
   you don't spend. Setup can't touch the creator's wallet or token accounts, so seed liquidity
-  with a separate custom action the creator signs directly, in the same transaction.
+  with a separate instruction on your program that the creator signs directly, in the same
+  transaction.
 - **Create it yourself, then record it.** If your program creates pools with its own
   instruction, put the router's `register_existing_market` **in the same transaction, right
   after it**. Your program can't make that call itself through a CPI: the router calls back
@@ -130,7 +133,7 @@ pool" transaction therefore looks like:
 ```
 [create_market]                     or   [your_init_pool, register_existing_market]
 [init_fee_account × each mint]           [init_fee_account × each mint]
-[your deposit / seed action]             (liquidity, if your init didn't add it)
+[your deposit instruction]               (liquidity, if your init didn't add it)
 ```
 
 If a market was created without being recorded, anyone can record it later with
@@ -145,7 +148,7 @@ Things worth knowing:
 
 ## 7. Metadata JSON (version 1)
 
-Point your registration's `metadata_uri` at a JSON file on IPFS (`ipfs://`), Arweave (`ar://`) or any `https://` URL. Desks use it for names, links, trust facts you declare, and forms for creating markets and calling your custom actions. Treat it as public: anyone can read it, and desks treat it as untrusted.
+Point your registration's `metadata_uri` at a JSON file on IPFS (`ipfs://`), Arweave (`ar://`) or any `https://` URL. Desks use it for names, links, trust facts you declare, and forms for creating markets. Treat it as public: anyone can read it, and desks treat it as untrusted.
 
 The JSON Schema is [`sdk/ts/schema/strategy-metadata.v1.json`](../sdk/ts/schema/strategy-metadata.v1.json). The TypeScript SDK reads and uses the file:
 
@@ -153,10 +156,11 @@ The JSON Schema is [`sdk/ts/schema/strategy-metadata.v1.json`](../sdk/ts/schema/
 |---|---|
 | `parseStrategyMetadata(json)` | Validates a document. Returns `{ ok, value, warnings }` or `{ ok: false, errors }` |
 | `fetchStrategyMetadata(uri)` | Fetches `https://`, `ipfs://` or `ar://` (64 KiB limit, 10 s timeout), then validates |
-| `buildActionInstruction(...)` | Turns one of your `actions` into an instruction to your program |
 | `buildCreateMarketFromMetadata(...)` | Turns your `init` into the router's `create_market` |
+| `buildSeedData(seed, args)` | Encodes the `data` of a `SeedRequest` from your `seed` |
+| `resolveSeedAccounts(...)` | Turns your `seed` into the new market state, its router market, the `data` and your own seed accounts |
 
-This example describes the constant-product test strategy (`programs/test-strategy-cp`). The SDK's tests build its `init` and `deposit` from this exact document and check the result against the program's accounts.
+This example describes the constant-product test strategy (`programs/test-strategy-cp`). The SDK's tests build its `init` and `seed` from this exact document and check the result against the program's accounts.
 
 ```json
 {
@@ -192,30 +196,17 @@ This example describes the constant-product test strategy (`programs/test-strate
       { "name": "associated_token_program", "source": "associated_token_program" }
     ]
   },
-  "actions": [
-    {
-      "name": "deposit",
-      "label": "Add liquidity",
-      "kind": "add_liquidity",
-      "discriminator": "f223c68952e1f2b6",
-      "args": [
-        { "name": "amount_a", "type": "u64", "label": "Amount of token A", "decimals_of": "mint:0" },
-        { "name": "amount_b", "type": "u64", "label": "Amount of token B", "decimals_of": "mint:1" }
-      ],
-      "accounts": [
-        { "name": "depositor", "source": "wallet", "signer": true },
-        { "name": "pool", "source": "market_state", "writable": true },
-        { "name": "depositor_a", "source": "wallet_token_account:0", "writable": true },
-        { "name": "depositor_b", "source": "wallet_token_account:1", "writable": true },
-        { "name": "vault_a", "source": "vault:0", "writable": true },
-        { "name": "vault_b", "source": "vault:1", "writable": true },
-        { "name": "mint_a", "source": "mint:0" },
-        { "name": "mint_b", "source": "mint:1" },
-        { "name": "token_program_a", "source": "token_program:0" },
-        { "name": "token_program_b", "source": "token_program:1" }
-      ]
-    }
-  ],
+  "seed": {
+    "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+    "idl_type": "InitParams",
+    "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps",
+    "args": [{ "name": "fee_bps", "type": "u16", "label": "Pool fee (basis points)" }],
+    "accounts": [
+      { "name": "vault_a", "source": "ata:market_state,mint:0", "writable": true },
+      { "name": "vault_b", "source": "ata:market_state,mint:1", "writable": true },
+      { "name": "associated_token_program", "source": "associated_token_program" }
+    ]
+  },
   "conformance": {
     "report": "https://example.com/report.json",
     "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
@@ -243,13 +234,15 @@ Only `schema` and `name` are required. Unknown keys are allowed everywhere and i
 | `links` | `website`, `docs`, `source` (a link for people), `idl` (your Anchor IDL or Codama file); social accounts `twitter`, `github`, `discord`, `telegram`, `farcaster`; and any other named URL. A social link on an unexpected site (a `twitter` link not on x.com or twitter.com, say) is accepted with a warning |
 | `source` | `{ repository, commit?, path? }`: the code a verified build is made from. `path` is the program's directory |
 | `init` | How to create a market (below) |
-| `actions` | Your custom instructions (below) |
+| `seed` | How another program creates and funds a market through `pipeline_seed_liquidity` (below; optional, see section 9) |
 | `conformance` | `{ report, sha256? }`: a `pipeline-check` JSON report and its SHA-256 in hex |
 | `security` | `{ contact, policy?, audits? }`. `contact` is an email address, URL or handle; each audit is `{ by, url?, date? }` with `date` as `YYYY-MM-DD` |
 
 Every URL must start with `https://`, `ipfs://` or `ar://`. Other schemes, including `http://`, make the document invalid.
 
-An unknown `category` or action `kind` is a warning, not an error, so new values can be added later.
+An unknown `category` is a warning, not an error, so new values can be added later.
+
+Metadata describes market creation and seeding only. Earlier revisions had an `actions` section for other instructions; a document that still has one is valid, but readers ignore the section and report a warning.
 
 ### `init`: creating a market
 
@@ -265,19 +258,21 @@ An unknown `category` or action `kind` is a warning, not an error, so new values
 
 `init` can't use the sources that need an existing market (`mint:i`, `vault:i`, `token_program:i`, `wallet_token_account:i`). Use `input:` for the mints instead, as in the example. `market_state` can't be `market_state` or `market`.
 
-### `actions`: custom instructions
+### `seed`: accepting graduations
+
+`seed` describes a `pipeline_seed_liquidity` call (section 9), so a launcher can open a market on your strategy without code written for it. Leave it out if you don't implement seeding.
 
 | Field | Meaning |
 |---|---|
-| `name` | The instruction's name. For Anchor programs, use the IDL instruction name |
-| `label` | Button text, up to 64 characters |
-| `kind` | `add_liquidity`, `remove_liquidity`, `claim`, `create_market` or `other` |
-| `description` | Shown with the form |
-| `discriminator` | 8 bytes as 16 hex digits. Optional: the default is Anchor's `sha256("global:<name>")[..8]` |
-| `args` | Encoded in order with Borsh after the discriminator |
-| `accounts` | The instruction's accounts, in order |
+| `args` | Encoded in order with Borsh, with no discriminator, to form `SeedRequest.data` |
+| `accounts` | Your own seed accounts. They are passed after the five fixed seed accounts and the three accounts per mint; transfer-hook accounts follow them |
+| `market_state` | An account source giving the new market state's address, usually a `pda:` derived from `key:seeder`. If you leave it out, the seeder must know the address some other way |
+| `idl_type` | The IDL type `data` decodes to, if you publish an IDL |
+| `description` | Shown to the launcher |
 
-Users sign actions directly. They don't go through the router and pay no Pipeline fee.
+Inside `seed`, `mint:i` and `token_program:i` are the seeded mints and their token programs, in the order the seeder passes them. `seeder`, `escrow:i` and `lp_recipient` are only available in `seed`. `seed` can't use `wallet`, `vault:i` or `wallet_token_account:i`: there is no user wallet, and the vaults are yours to list. `market_state` can't be `new_keypair` (nobody can sign for it), `market_state` or `market`.
+
+The example's pool lives at `["seeded", seeder, mint_a, mint_b, fee_bps]` and its vaults are its associated token accounts, so the whole call comes from the seeder, the mints and the fee.
 
 ### Arguments
 
@@ -298,16 +293,18 @@ Each account is `{ name, source, signer?, writable? }`. `signer` and `writable` 
 
 | Source | Account |
 |---|---|
-| `wallet` | The user's wallet. For `init`, the market creator |
+| `wallet` | The market creator's wallet (`init` only) |
 | `market_state` | The market's state account |
 | `market` | The router's market account |
 | `strategy_program` | Your program |
 | `system_program` | The system program |
 | `associated_token_program` | The associated token account program |
-| `mint:i` | The market's mint at index `i` (0–3) |
-| `vault:i` | The market's vault at index `i` |
-| `token_program:i` | The token program of mint `i` |
-| `wallet_token_account:i` | The user's associated token account for mint `i` |
+| `mint:i` | `seed` only. The seeded mint at index `i` (0–3) |
+| `token_program:i` | `seed` only. The token program of mint `i` |
+| `vault:i`, `wallet_token_account:i` | An existing market's vault, and the user's associated token account, for mint `i`. Neither `init` nor `seed` can use them |
+| `seeder` | `seed` only. The seeder PDA (seed account 0) |
+| `escrow:i` | `seed` only. The seeder's escrow for mint `i` |
+| `lp_recipient` | `seed` only. The LP recipient (seed account 4) |
 | `fixed:<address>` | A fixed address |
 | `input:<name>` | An address the user enters |
 | `pda:<program>:<seed>,<seed>…` | A PDA. `<program>` is an address, or `strategy` for your program |
@@ -348,8 +345,13 @@ A strategy can let another program create and fund a new market in one call. A l
 **Rules:**
 
 - **Derive the new market state's address from the seeder.** For example, the reference strategy uses `["seeded", seeder, mint_a, mint_b, fee]`, so nobody can create or fund the market first at a bad price.
+- **Create the market state with transfer + allocate + assign** (as Anchor's `init` does), not a plain system `CreateAccount`. Anyone can compute a seeder-derived address and send it the rent-exempt minimum (about 0.0009 SOL) in advance, and `CreateAccount` then fails on every attempt.
+- **Validate every account the caller chooses.** The accounts after the per-mint ones, and every account your `pipeline_quote` reads, are chosen by whoever calls the seeder (for a launchpad graduation, any keeper), not by the person who set up the launch. Derive or check every account you write to or price from (vaults, LP accounts, resolved accounts) from your market state and mints. Take fees, admins and recipients from `data` only.
 - **Take at most `amounts[i]` from each escrow**, and open the market at the price those amounts imply. `data` carries your setup parameters, such as a fee tier.
+- **Put everything you take into the vaults your `pipeline_market_info` declares**, one transfer per escrow. A seeder may call your `pipeline_market_info` right after seeding, with only the new market state as its account, and require that the vault you declare for each seeded mint received what left its escrow (less that mint's Token-2022 transfer fee on one transfer). Answer it from the market state alone, and keep any separate reserve inside the declared vault (account for it in your state).
 - **Store the router's market signer** for the new market state, as `pipeline_init_market` does.
 - **Set return data** to `SeedResult { taken, lp_amount }`. Callers measure their escrows rather than trust it.
+- **List the new market's mints in the order the seeder passes them**, so index `i` in trades is the seeder's mint `i`. A seeder may require it of your market info.
+- **Make `pipeline_quote` work on the freshly seeded market, in the same transaction.** A seeder may check the opening price by quoting a small buy and a small sell against the new market right after seeding. Expect this call shape: every account read-only; `trader` is `None` and `extra` is empty; exact-in; mint indices in seeding order; the fixed quote accounts name the new market (its router market signer, market state, mints and token programs) and the input vault is the one your market info declares for the input mint; the trader accounts are placeholders; then whatever your `pipeline_resolve_accounts` lists, as the caller resolved it. The market doesn't exist before seeding, so callers can't simulate your account resolution in advance: keep the accounts your quote needs derivable from the market's address and mints, and check them.
 
-The caller then records the market with the router's `register_existing_market`. See `pipeline_seed_liquidity` in `programs/test-strategy-cp` (about 60 lines). Describe your `data` format in your metadata so launchers can fill it in.
+The caller then records the market with the router's `register_existing_market`. See `pipeline_seed_liquidity` in `programs/test-strategy-cp` (about 60 lines). Describe `data` and your own accounts in the `seed` section of your metadata (section 7) so launchers can fill them in.

@@ -130,7 +130,6 @@ pub struct ConfigArgs {
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct UpdateConfigArgs {
     pub admin: Option<Pubkey>,
-    pub paused: Option<bool>,
     pub listing_fee_lamports: Option<u64>,
     pub listing_fee_recipient: Option<Pubkey>,
     pub treasury_owner: Option<Pubkey>,
@@ -165,7 +164,8 @@ pub struct SwapResult {
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     pub admin: Pubkey,
-    pub paused: bool,
+    /// Unused, always 0 (the place of a pause flag the router once had).
+    pub reserved: u8,
     pub listing_fee_lamports: u64,
     pub listing_fee_recipient: Pubkey,
     pub treasury_owner: Pubkey,
@@ -250,22 +250,9 @@ pub fn update_config(admin: &Pubkey, args: &UpdateConfigArgs) -> Instruction {
     let mut accounts = vec![
         AccountMeta::new_readonly(*admin, true),
         AccountMeta::new(pda::config(), false),
-        AccountMeta::new_readonly(PROGRAM_ID, false),
-        AccountMeta::new_readonly(pda::program_data(&PROGRAM_ID), false),
     ];
     accounts.extend(event_cpi_accounts());
     Instruction::new_with_bytes(PROGRAM_ID, &anchor_data("update_config", args), accounts)
-}
-
-/// `lift_pause`: anyone can clear the pause once the router is frozen.
-pub fn lift_pause() -> Instruction {
-    let mut accounts = vec![
-        AccountMeta::new(pda::config(), false),
-        AccountMeta::new_readonly(PROGRAM_ID, false),
-        AccountMeta::new_readonly(pda::program_data(&PROGRAM_ID), false),
-    ];
-    accounts.extend(event_cpi_accounts());
-    Instruction::new_with_bytes(PROGRAM_ID, &anchor_data("lift_pause", &()), accounts)
 }
 
 /// `register_strategy`. `registrar` is the program's upgrade authority or its
@@ -345,7 +332,6 @@ pub fn create_market(params: &CreateMarket) -> Instruction {
     let market = pda::market(&params.strategy_program, &params.market_state);
     let mut accounts = vec![
         AccountMeta::new(params.creator, true),
-        AccountMeta::new_readonly(pda::config(), false),
         AccountMeta::new(pda::strategy(&params.strategy_program), false),
         AccountMeta::new_readonly(params.strategy_program, false),
         AccountMeta::new(params.market_state, params.market_state_signs),
@@ -375,7 +361,6 @@ pub fn register_existing_market(
 ) -> Instruction {
     let mut accounts = vec![
         AccountMeta::new(*payer, true),
-        AccountMeta::new_readonly(pda::config(), false),
         AccountMeta::new(pda::strategy(strategy_program), false),
         AccountMeta::new_readonly(*strategy_program, false),
         AccountMeta::new_readonly(*market_state, false),
@@ -438,7 +423,6 @@ pub fn swap(accounts: &SwapAccounts, args: &SwapArgs) -> Instruction {
     let market = pda::market(&accounts.strategy_program, &accounts.market_state);
     let mut metas = vec![
         AccountMeta::new_readonly(accounts.trader, true),
-        AccountMeta::new_readonly(pda::config(), false),
         AccountMeta::new_readonly(accounts.strategy_program, false),
         AccountMeta::new_readonly(market, false),
         AccountMeta::new(accounts.market_state, false),

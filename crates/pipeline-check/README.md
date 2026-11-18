@@ -130,7 +130,7 @@ it works but integrators or traders should know something.
 
 | Id | Passes when | Warn | Fail |
 |---|---|---|---|
-| `market_account` | The Market decodes, the strategy is registered and deployed, the market state is owned by it, mints are token mints and vaults exist | The router is paused (checks run with the pause lifted locally) | Anything missing; later checks are skipped if the market can't be loaded |
+| `market_account` | The Market decodes, the strategy is registered and deployed, the market state is owned by it, mints are token mints and vaults exist | — | Anything missing; later checks are skipped if the market can't be loaded |
 | `market_info` | `pipeline_market_info` (given only the market state) reports the mints, vaults and exact-out flag the router recorded | It fails with only the market state | It reports something different, or malformed data |
 | `fee_accounts` | Every mint has its fee account and none is frozen | A fee account is missing (selling that mint fails until anyone sends `init_fee_account`; the checks create it locally and carry on) or frozen | — |
 | `mint_extensions` | No extension stops trading (extensions are listed) | Accounts start frozen, the mint is non-transferable, or a hook's program or account list is missing | — |

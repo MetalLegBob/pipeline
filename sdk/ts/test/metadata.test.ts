@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
+    ACTIONS_IGNORED_WARNING,
     fetchStrategyMetadata,
     parseAccountSource,
     parseStrategyMetadata,
@@ -23,12 +24,12 @@ function errorsOf(doc: unknown): string[] {
 describe('parseStrategyMetadata', () => {
     it('accepts the full example and keeps unknown keys', () => {
         const doc: Record<string, any> = { ...sampleMetadata(), x_future: { anything: 1 } };
-        doc.actions[0].x_extra = true;
+        doc.init.accounts[0].x_extra = true;
         const result = parseStrategyMetadata(doc);
         expect(result).toMatchObject({ ok: true, warnings: [] });
         if (result.ok) {
             expect(result.value.x_future).toEqual({ anything: 1 });
-            expect(result.value.actions![0]!.x_extra).toBe(true);
+            expect(result.value.init!.accounts![0]!.x_extra).toBe(true);
         }
     });
 
@@ -36,16 +37,22 @@ describe('parseStrategyMetadata', () => {
         expect(parseStrategyMetadata({ schema: STRATEGY_METADATA_SCHEMA, name: 'x' }).ok).toBe(true);
     });
 
-    it('warns, but accepts, unknown categories and action kinds', () => {
+    it('warns, but accepts, unknown categories', () => {
         const doc = sampleMetadata();
         doc.category = 'perpetuals';
-        doc.actions[0].kind = 'stake';
         const result = parseStrategyMetadata(doc);
         expect(result.ok).toBe(true);
-        expect(result.ok && result.warnings).toEqual([
-            'category: unknown category "perpetuals"',
-            'actions[0].kind: unknown kind "stake"',
-        ]);
+        expect(result.ok && result.warnings).toEqual(['category: unknown category "perpetuals"']);
+    });
+
+    it('accepts, ignores and warns about an `actions` section, whatever it holds', () => {
+        for (const actions of [[{ name: 'deposit', label: 'Add liquidity' }], [{ name: 7 }], {}, 'x', null]) {
+            const result = parseStrategyMetadata({ ...sampleMetadata(), actions });
+            expect(result).toMatchObject({ ok: true, warnings: [ACTIONS_IGNORED_WARNING] });
+        }
+        expect(ACTIONS_IGNORED_WARNING).toBe(
+            'actions: custom actions are no longer part of the schema and are ignored',
+        );
     });
 
     it('rejects a wrong schema, missing name and non-objects', () => {
@@ -69,12 +76,10 @@ describe('parseStrategyMetadata', () => {
         ]);
     });
 
-    it('rejects bad args, sources and discriminators', () => {
+    it('rejects bad args and sources', () => {
         const doc = sampleMetadata();
-        const action = doc.actions[0];
-        action.discriminator = 'xyz';
-        action.args.push({ name: 'amount_a', type: 'u64' }, { name: 'n', type: 'f32' });
-        action.accounts.push(
+        doc.seed.args.push({ name: 'fee_bps', type: 'u64' }, { name: 'n', type: 'f32' });
+        doc.seed.accounts.push(
             { name: 'a', source: 'mint:4' },
             { name: 'b', source: 'pda:strategy:key:pda:strategy:str:x' },
             { name: 'c', source: 'pda:strategy:arg:missing' },
@@ -83,15 +88,14 @@ describe('parseStrategyMetadata', () => {
             { name: 'f', source: 'pda:strategy:str:' + 'x'.repeat(33) },
         );
         expect(errorsOf(doc)).toEqual([
-            'actions[0].discriminator: must be 16 hex digits',
-            'actions[0].args[2].name: duplicate argument "amount_a"',
-            'actions[0].args[3].type: must be one of u8, u16, u32, u64, i64, bool, pubkey, bytes, string',
-            'actions[0].accounts[10].source: "mint:4": index must be 0 to 3',
-            'actions[0].accounts[11].source: "pda:strategy:key:pda:strategy:str:x": pda and ata sources cannot be nested',
-            'actions[0].accounts[12].source: seed refers to unknown argument "missing"',
-            'actions[0].accounts[13].source: unknown account source "treasury"',
-            'actions[0].accounts[14].source: "fixed:notanaddress": not an address',
-            `actions[0].accounts[15].source: "pda:strategy:str:${'x'.repeat(33)}": str seed longer than 32 bytes`,
+            'seed.args[1].name: duplicate argument "fee_bps"',
+            'seed.args[2].type: must be one of u8, u16, u32, u64, i64, bool, pubkey, bytes, string',
+            'seed.accounts[3].source: "mint:4": index must be 0 to 3',
+            'seed.accounts[4].source: "pda:strategy:key:pda:strategy:str:x": pda and ata sources cannot be nested',
+            'seed.accounts[5].source: seed refers to unknown argument "missing"',
+            'seed.accounts[6].source: unknown account source "treasury"',
+            'seed.accounts[7].source: "fixed:notanaddress": not an address',
+            `seed.accounts[8].source: "pda:strategy:str:${'x'.repeat(33)}": str seed longer than 32 bytes`,
         ]);
     });
 
@@ -102,6 +106,29 @@ describe('parseStrategyMetadata', () => {
         expect(errorsOf(doc)).toEqual([
             'init.market_state: cannot refer to the market itself',
             'init.accounts[7].source: "vault:0" refers to the market\'s mints, which don\'t exist before the market is created',
+        ]);
+    });
+
+    it('allows seeder sources only in seed, and no wallet or vaults there', () => {
+        const doc = sampleMetadata();
+        doc.init.accounts.push({ name: 'escrow', source: 'ata:seeder,input:mint_a' });
+        doc.init.args[0].decimals_of = 'token_program_of:lp_recipient';
+        doc.seed.market_state = 'new_keypair';
+        doc.seed.accounts.push(
+            { name: 'escrow', source: 'escrow:1', writable: true },
+            { name: 'wallet', source: 'pda:strategy:key:wallet' },
+            { name: 'vault', source: 'vault:0' },
+            { name: 'user', source: 'wallet_token_account:1' },
+            { name: 'pda', source: 'pda:strategy:key:seeder,arg:nope' },
+        );
+        expect(errorsOf(doc)).toEqual([
+            'init.args[0].decimals_of: "token_program_of:lp_recipient" is only available in seed',
+            'init.accounts[7].source: "ata:seeder,input:mint_a" is only available in seed',
+            'seed.market_state: "new_keypair" isn\'t available in seed',
+            'seed.accounts[4].source: "pda:strategy:key:wallet" isn\'t available in seed',
+            'seed.accounts[5].source: "vault:0" isn\'t available in seed',
+            'seed.accounts[6].source: "wallet_token_account:1" isn\'t available in seed',
+            'seed.accounts[7].source: seed refers to unknown argument "nope"',
         ]);
     });
 
@@ -136,6 +163,9 @@ describe('STRATEGY-GUIDE.md section 7', () => {
 describe('parseAccountSource', () => {
     it('parses every source kind', () => {
         expect(parseAccountSource('wallet')).toEqual({ kind: 'wallet' });
+        expect(parseAccountSource('seeder')).toEqual({ kind: 'seeder' });
+        expect(parseAccountSource('lp_recipient')).toEqual({ kind: 'lp_recipient' });
+        expect(parseAccountSource('escrow:2')).toEqual({ kind: 'escrow', index: 2 });
         expect(parseAccountSource('wallet_token_account:3')).toEqual({ kind: 'wallet_token_account', index: 3 });
         expect(parseAccountSource(`fixed:${key(1)}`)).toEqual({ kind: 'fixed', address: key(1) });
         expect(parseAccountSource('ata:wallet,mint:1')).toEqual({
@@ -171,7 +201,8 @@ describe('parseAccountSource', () => {
         const sources = [
             doc.init.market_state,
             ...doc.init.accounts.map((a: any) => a.source),
-            ...doc.actions[0].accounts.map((a: any) => a.source),
+            doc.seed.market_state,
+            ...doc.seed.accounts.map((a: any) => a.source),
         ];
         for (const source of sources) {
             expect(pattern.test(source), source).toBe(true);

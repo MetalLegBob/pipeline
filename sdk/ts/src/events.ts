@@ -78,7 +78,6 @@ export type FeesSwept = {
 
 export type ConfigChanged = {
     admin: Address;
-    paused: boolean;
     listingFeeLamports: bigint;
     listingFeeRecipient: Address;
     treasuryOwner: Address;
@@ -151,7 +150,6 @@ export function getFeesSweptCodec(): Codec<FeesSwept> {
 export function getConfigChangedCodec(): Codec<ConfigChanged> {
     return getStructCodec([
         ['admin', pubkey()],
-        ['paused', getBorshBoolCodec()],
         ['listingFeeLamports', getU64Codec()],
         ['listingFeeRecipient', pubkey()],
         ['treasuryOwner', pubkey()],

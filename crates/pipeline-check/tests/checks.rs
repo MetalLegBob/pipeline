@@ -139,25 +139,6 @@ fn missing_fee_account_warns_and_the_rest_still_runs() {
 }
 
 #[test]
-fn paused_router_warns_and_checks_run_with_the_pause_lifted() {
-    let mut env = Env::new();
-    let market = plain_cp_market(&mut env);
-    let admin = env.admin.pubkey();
-    env.send(
-        &[pipeline_client::update_config(
-            &admin,
-            &pipeline_client::UpdateConfigArgs {
-                paused: Some(true),
-                ..Default::default()
-            },
-        )],
-        &[],
-    );
-    let report = check_market(&env.svm, market.market, &CheckOptions::default());
-    assert_all_pass(&report, &[("market_account", Status::Warn)]);
-}
-
-#[test]
 fn honest_hostile_strategy_passes_what_applies() {
     let mut env = Env::new();
     let market = evil_market(&mut env);

@@ -11,10 +11,10 @@ It starts as a working constant-product pool. Change the pricing, keep the plumb
 ```
 programs/my-strategy/
   src/pricing.rs      the pricing: the file to change
-  src/lib.rs          Pipeline's five instructions, the pool account and a deposit action
+  src/lib.rs          Pipeline's five instructions, the pool account and a deposit instruction
   tests/strategy.rs   LiteSVM tests through the real router, including pipeline-check
   tests/common/       test setup: the router, your program, mints, markets, swaps
-metadata.json         what desks show and how they create markets and call deposit
+metadata.json         what desks show and how they create markets
 scripts/
   fetch-router.sh     copies the devnet router into the tests' fixtures
   deploy-devnet.ts    registers the strategy, creates a market, adds liquidity, swaps
@@ -100,7 +100,7 @@ Step by step, the script:
 4. creates two test tokens;
 5. creates a market and records it with the router, plus a fee account for each token, in
    one transaction (`create_market` + `init_fee_account`, built from your metadata's `init`);
-6. adds liquidity with the `deposit` action described in your metadata;
+6. adds liquidity by calling your program's `deposit` instruction directly;
 7. quotes a swap and swaps through the router.
 
 Your market is then live: anything built on Pipeline can find, quote and trade it. The SDK
@@ -163,10 +163,10 @@ if the strategy follows these. Each is marked in `src/lib.rs`; the Pipeline repo
   `pipeline_swap` as remaining accounts in that order.
 - **No exact-out:** set `SUPPORTS_EXACT_OUT` to `false` in `pricing.rs` and return an error
   for exact-out trades.
-- **More actions:** a withdrawal, claims or keeper jobs are ordinary instructions that users
-  call directly. They pay no Pipeline fee. Describe each in `metadata.json`'s `actions` so
-  desks can show a form for it. This starter pool has no LP shares and no withdrawal:
-  add them before real users deposit.
+- **More instructions:** a withdrawal, claims or keeper jobs are ordinary instructions that
+  users call directly, through your own front-end. They pay no Pipeline fee, and Pipeline's
+  metadata and SDK don't describe or build them. This starter pool has no LP shares and no
+  withdrawal: add them before real users deposit.
 - **Launchpads graduating tokens into your pools:** implement the optional
   `pipeline_seed_liquidity` (guide section 9; `programs/test-strategy-cp` in the Pipeline
   repository has an example).

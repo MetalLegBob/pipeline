@@ -2035,7 +2035,7 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "pipeline-check"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -2059,7 +2059,7 @@ dependencies = [
 
 [[package]]
 name = "pipeline-client"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "borsh",
@@ -2075,7 +2075,7 @@ dependencies = [
 
 [[package]]
 name = "pipeline-events"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "borsh",
  "sha2 0.10.9",
@@ -2084,7 +2084,7 @@ dependencies = [
 
 [[package]]
 name = "pipeline-quoter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "borsh",
  "litesvm",
@@ -2117,6 +2117,7 @@ dependencies = [
  "bincode",
  "borsh",
  "litesvm",
+ "pipeline-check",
  "pipeline-client",
  "pipeline-events",
  "pipeline-quoter",

@@ -8,7 +8,7 @@
 [workspace]
 resolver = "2"
 exclude = ["pipeline-strategy-interface"]
-members = ["pipeline", "test-strategy-cp", "test-strategy-evil", "test-hook", "test-hook-refill"]
+members = ["pipeline", "test-strategy-cp", "test-strategy-evil", "test-strategy-script", "test-hook", "test-hook-refill"]
 
 [profile.release]
 overflow-checks = true

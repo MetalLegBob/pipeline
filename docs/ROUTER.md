@@ -9,7 +9,7 @@ hold their own liquidity; the router never custodies it.
 
 | Account | Seeds | Contents |
 |---|---|---|
-| `Config` | `["config"]` | `admin`, `paused`, `listing_fee_lamports` (at most `MAX_LISTING_FEE_LAMPORTS`), `listing_fee_recipient`, `treasury_owner` (owner of the treasury token accounts that receive swept fees) |
+| `Config` | `["config"]` | `admin`, a reserved byte (always 0), `listing_fee_lamports` (at most `MAX_LISTING_FEE_LAMPORTS`), `listing_fee_recipient`, `treasury_owner` (owner of the treasury token accounts that receive swept fees) |
 | `Strategy` | `["strategy", program_id]` | `program_id`, `metadata_uri` (up to 200 bytes), `interface_version`, `registered_at`, `market_count` |
 | `Market` | `["market", program_id, market_state]` | `strategy_program`, `market_state` (an account the strategy owns), `mints` (2–4), `vaults` (where input in each mint goes), `supports_exact_out`, `created_by`, `created_at`. The market PDA also **signs the router's calls that set up or trade the market** (`pipeline_init_market`, `pipeline_swap`; the read-only `pipeline_market_info` isn't signed), so a strategy can check a call came from Pipeline for that exact market |
 | `fee_authority` | `["fees", market]` | No data. Owns the market's fee accounts. **Never signs during a swap or market setup** (a trader may list it, unsigned, among the strategy's accounts; it signs only sweeps to the treasury), so nothing a strategy receives can move fees |
@@ -63,8 +63,9 @@ measure the input they received from their own vault rather than trusting `amoun
 The example strategy does all three; [`STRATEGY-GUIDE.md`](STRATEGY-GUIDE.md) explains why.
 
 Anyone may call a strategy directly, bypassing Pipeline and its fee. That is allowed.
-Custom actions (adding liquidity, claims and so on) are ordinary instructions on the
-strategy, described in its metadata.
+Instructions that aren't swaps (adding liquidity, claims and so on) are ordinary
+instructions on the strategy, reached through the strategy's own front-end. Pipeline's
+metadata and SDK don't describe or build them.
 
 An optional sixth instruction, `pipeline_seed_liquidity`, lets another program create and
 fund a market on a strategy in one call (for example, a launchpad graduating a token).
@@ -75,8 +76,7 @@ See [`STRATEGY-GUIDE.md`](STRATEGY-GUIDE.md) section 9.
 | Instruction | Who | Effect |
 |---|---|---|
 | `initialize_config` | The router's upgrade authority, once | Creates `Config` |
-| `update_config` | `admin` | Admin, pause, listing fee (0, or between the rent-exempt minimum and the cap), fee recipient, treasury owner. Pausing needs the router to still be upgradeable |
-| `lift_pause` | Anyone, once the router is frozen | Clears a pause left in place |
+| `update_config` | `admin` | Admin, listing fee (0, or between the rent-exempt minimum and the cap), fee recipient, treasury owner |
 | `register_strategy(metadata_uri, interface_version, max_listing_fee_lamports)` | The strategy program's upgrade authority, or the program itself signing with its PDA `["pipeline-register"]` | Pays the listing fee (failing if above the caller's maximum) and creates `Strategy` |
 | `update_metadata(uri)` | The same | Updates `metadata_uri` |
 | `create_market(init_data, max_creator_lamports)` | Anyone | Funds the `setup_payer` with up to `max_creator_lamports`, calls `pipeline_init_market` with it as payer (the creator's own signature is never passed on), checks the payer is still a plain system account, refunds what's left, then calls `pipeline_market_info` and records the `Market` |
@@ -85,14 +85,12 @@ See [`STRATEGY-GUIDE.md`](STRATEGY-GUIDE.md) section 9.
 | `swap(...)` | The trader | Below |
 | `sweep_fees` | Anyone | Moves a market's collected fees in one mint to the treasury's token account |
 
-When paused, `swap`, `create_market`, `register_existing_market` and `register_strategy`
-stop. Admin actions and `sweep_fees` keep working, and direct calls to strategies are
-unaffected. The pause power ends when the router is frozen: a frozen router can't be
-paused, and anyone can clear a pause left in place.
+The router has no pause: nothing the admin can do stops swaps, market creation or
+registration. `swap`, `create_market` and `register_existing_market` don't read `Config`.
 
 ## A swap, step by step
 
-1. **Check.** Not paused; the market and strategy match; both mints belong to the market;
+1. **Check.** The market and strategy match; both mints belong to the market;
    exact-out only if the market supports it; neither fee account is the trader's input.
 2. **Snapshot** the trader's input and output balances and the market's input vault.
 3. **Send input** with `transfer_checked`, signed by the trader: `amount_in` (exact-in) or

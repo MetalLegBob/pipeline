@@ -308,58 +308,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -398,6 +346,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -434,6 +390,34 @@
           ],
           "contact": "security@example.com",
           "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
         },
         "source": {
           "commit": "dac82fef2b88",
@@ -661,58 +645,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -751,6 +683,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -787,6 +727,34 @@
           ],
           "contact": "security@example.com",
           "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
         },
         "source": {
           "commit": "xyz",
@@ -829,58 +797,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -919,6 +835,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -955,6 +879,34 @@
           ],
           "contact": "security@example.com",
           "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
         },
         "source": {
           "commit": "dac82fef2b88",
@@ -995,58 +947,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -1085,6 +985,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -1122,6 +1030,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -1148,58 +1084,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -1238,6 +1122,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -1274,6 +1166,34 @@
           ],
           "contact": "security@example.com",
           "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
         },
         "source": {
           "commit": "dac82fef2b88",
@@ -1314,58 +1234,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -1404,6 +1272,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -1441,6 +1317,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -1467,58 +1371,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -1557,6 +1409,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -1594,6 +1454,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -1620,58 +1508,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -1710,6 +1546,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -1747,6 +1591,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -1773,58 +1645,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "ata:pda:strategy,mint:0"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -1863,6 +1683,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -1900,6 +1728,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:pda:strategy,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -1918,7 +1774,7 @@
         }
       },
       "errors": [
-        "actions[0].accounts[0].source: \"ata:pda:strategy,mint:0\": pda and ata sources cannot be nested"
+        "seed.accounts[0].source: \"ata:pda:strategy,mint:0\": pda and ata sources cannot be nested"
       ],
       "name": "nested-pda",
       "ok": false,
@@ -1926,58 +1782,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "vault:4"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -2016,6 +1820,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -2053,6 +1865,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "vault:4",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -2071,7 +1911,7 @@
         }
       },
       "errors": [
-        "actions[0].accounts[0].source: \"vault:4\": index must be 0 to 3"
+        "seed.accounts[0].source: \"vault:4\": index must be 0 to 3"
       ],
       "name": "bad-index",
       "ok": false,
@@ -2079,58 +1919,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "fixed:notanaddress"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -2169,6 +1957,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -2206,6 +2002,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "fixed:notanaddress",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -2224,7 +2048,7 @@
         }
       },
       "errors": [
-        "actions[0].accounts[0].source: \"fixed:notanaddress\": not an address"
+        "seed.accounts[0].source: \"fixed:notanaddress\": not an address"
       ],
       "name": "bad-fixed",
       "ok": false,
@@ -2232,58 +2056,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "pda:strategy:str:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -2322,6 +2094,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -2359,6 +2139,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "pda:strategy:str:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -2377,7 +2185,7 @@
         }
       },
       "errors": [
-        "actions[0].accounts[0].source: \"pda:strategy:str:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\": str seed longer than 32 bytes"
+        "seed.accounts[0].source: \"pda:strategy:str:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\": str seed longer than 32 bytes"
       ],
       "name": "long-str-seed",
       "ok": false,
@@ -2385,58 +2193,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "pda:strategy:hex:abc"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -2475,6 +2231,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -2512,6 +2276,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "pda:strategy:hex:abc",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -2530,7 +2322,7 @@
         }
       },
       "errors": [
-        "actions[0].accounts[0].source: \"pda:strategy:hex:abc\": hex seed must be at most 32 bytes of hex"
+        "seed.accounts[0].source: \"pda:strategy:hex:abc\": hex seed must be at most 32 bytes of hex"
       ],
       "name": "odd-hex-seed",
       "ok": false,
@@ -2538,58 +2330,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "pda:strategy:str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -2628,6 +2368,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -2665,6 +2413,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "pda:strategy:str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -2683,7 +2459,7 @@
         }
       },
       "errors": [
-        "actions[0].accounts[0].source: \"pda:strategy:str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a\": at most 15 seeds"
+        "seed.accounts[0].source: \"pda:strategy:str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a,str:a\": at most 15 seeds"
       ],
       "name": "too-many-seeds",
       "ok": false,
@@ -2691,58 +2467,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "pda:strategy:num:1"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -2781,6 +2505,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -2818,6 +2550,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "pda:strategy:num:1",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -2836,7 +2596,7 @@
         }
       },
       "errors": [
-        "actions[0].accounts[0].source: \"pda:strategy:num:1\": unknown seed \"num:1\" (expected str:, hex:, key: or arg:)"
+        "seed.accounts[0].source: \"pda:strategy:num:1\": unknown seed \"num:1\" (expected str:, hex:, key: or arg:)"
       ],
       "name": "unknown-seed-kind",
       "ok": false,
@@ -2844,58 +2604,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "ata:wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -2934,6 +2642,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -2971,6 +2687,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:wallet",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -2989,7 +2733,7 @@
         }
       },
       "errors": [
-        "actions[0].accounts[0].source: \"ata:wallet\": expected ata:<owner>,<mint>"
+        "seed.accounts[0].source: \"ata:wallet\": expected ata:<owner>,<mint>"
       ],
       "name": "bad-ata",
       "ok": false,
@@ -2997,58 +2741,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "treasury"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -3087,6 +2779,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -3124,6 +2824,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "treasury",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -3142,7 +2870,7 @@
         }
       },
       "errors": [
-        "actions[0].accounts[0].source: unknown account source \"treasury\""
+        "seed.accounts[0].source: unknown account source \"treasury\""
       ],
       "name": "unknown-source",
       "ok": false,
@@ -3150,108 +2878,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          },
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -3290,6 +2916,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -3327,118 +2961,17 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
-        "source": {
-          "commit": "dac82fef2b88",
-          "path": "programs/cp",
-          "repository": "https://github.com/example/cp"
-        },
-        "tags": [
-          "cpmm",
-          "fees"
-        ],
-        "x_custom": {
-          "anything": [
-            1,
-            2,
-            3
-          ]
-        }
-      },
-      "errors": [
-        "actions[1].name: duplicate action \"deposit\""
-      ],
-      "name": "duplicate-action",
-      "ok": false,
-      "warnings": []
-    },
-    {
-      "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_a",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
-        "category": "amm",
-        "conformance": {
-          "report": "https://example.com/report.json",
-          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
-        },
-        "description": "x*y=k pool with a configurable fee.",
-        "image": "https://example.com/logo.png",
-        "init": {
+        "seed": {
           "accounts": [
             {
-              "name": "mint_a",
-              "source": "input:mint_a"
-            },
-            {
-              "name": "mint_b",
-              "source": "input:mint_b"
-            },
-            {
               "name": "vault_a",
-              "source": "ata:market_state,input:mint_a",
+              "source": "ata:market_state,mint:0",
               "writable": true
             },
             {
               "name": "vault_b",
-              "source": "ata:market_state,input:mint_b",
+              "source": "ata:market_state,mint:1",
               "writable": true
-            },
-            {
-              "name": "token_program_a",
-              "source": "token_program_of:input:mint_a"
-            },
-            {
-              "name": "token_program_b",
-              "source": "token_program_of:input:mint_b"
             },
             {
               "name": "associated_token_program",
@@ -3450,35 +2983,16 @@
               "label": "Pool fee (basis points)",
               "name": "fee_bps",
               "type": "u16"
-            }
-          ],
-          "description": "Creates a pool for two mints.",
-          "idl_type": "InitParams",
-          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
-        },
-        "links": {
-          "discord": "https://discord.gg/example",
-          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
-          "farcaster": "https://farcaster.xyz/example",
-          "github": "https://github.com/example",
-          "idl": "ar://abc123/idl.json",
-          "source": "https://github.com/example/cp",
-          "telegram": "https://t.me/example",
-          "twitter": "https://x.com/example",
-          "website": "https://example.com"
-        },
-        "name": "Constant product",
-        "schema": "pipeline-strategy-metadata/1",
-        "security": {
-          "audits": [
+            },
             {
-              "by": "Example Audits",
-              "date": "2026-10-01",
-              "url": "https://example.com/audit.pdf"
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
             }
           ],
-          "contact": "security@example.com",
-          "policy": "https://example.com/security"
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
         },
         "source": {
           "commit": "dac82fef2b88",
@@ -3498,7 +3012,7 @@
         }
       },
       "errors": [
-        "actions[0].args[1].name: duplicate argument \"amount_a\""
+        "seed.args[1].name: duplicate argument \"fee_bps\""
       ],
       "name": "duplicate-arg",
       "ok": false,
@@ -3506,58 +3020,6 @@
     },
     {
       "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u128"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -3596,6 +3058,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -3633,6 +3103,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u128"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -3651,7 +3149,7 @@
         }
       },
       "errors": [
-        "actions[0].args[0].type: must be one of u8, u16, u32, u64, i64, bool, pubkey, bytes, string"
+        "seed.args[0].type: must be one of u8, u16, u32, u64, i64, bool, pubkey, bytes, string"
       ],
       "name": "bad-arg-type",
       "ok": false,
@@ -3659,53 +3157,146 @@
     },
     {
       "document": {
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "signer": "yes",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "seed.accounts[0].signer: must be a boolean"
+      ],
+      "name": "signer-not-boolean",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
         "actions": [
           {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223",
             "kind": "add_liquidity",
             "label": "Add liquidity",
             "name": "deposit"
@@ -3749,6 +3340,14 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -3786,118 +3385,17 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
-        "source": {
-          "commit": "dac82fef2b88",
-          "path": "programs/cp",
-          "repository": "https://github.com/example/cp"
-        },
-        "tags": [
-          "cpmm",
-          "fees"
-        ],
-        "x_custom": {
-          "anything": [
-            1,
-            2,
-            3
-          ]
-        }
-      },
-      "errors": [
-        "actions[0].discriminator: must be 16 hex digits"
-      ],
-      "name": "bad-discriminator",
-      "ok": false,
-      "warnings": []
-    },
-    {
-      "document": {
-        "actions": [
-          {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": true,
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "stake",
-            "label": "Add liquidity",
-            "name": "deposit"
-          }
-        ],
-        "category": "amm",
-        "conformance": {
-          "report": "https://example.com/report.json",
-          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
-        },
-        "description": "x*y=k pool with a configurable fee.",
-        "image": "https://example.com/logo.png",
-        "init": {
+        "seed": {
           "accounts": [
             {
-              "name": "mint_a",
-              "source": "input:mint_a"
-            },
-            {
-              "name": "mint_b",
-              "source": "input:mint_b"
-            },
-            {
               "name": "vault_a",
-              "source": "ata:market_state,input:mint_a",
+              "source": "ata:market_state,mint:0",
               "writable": true
             },
             {
               "name": "vault_b",
-              "source": "ata:market_state,input:mint_b",
+              "source": "ata:market_state,mint:1",
               "writable": true
-            },
-            {
-              "name": "token_program_a",
-              "source": "token_program_of:input:mint_a"
-            },
-            {
-              "name": "token_program_b",
-              "source": "token_program_of:input:mint_b"
             },
             {
               "name": "associated_token_program",
@@ -3911,33 +3409,9 @@
               "type": "u16"
             }
           ],
-          "description": "Creates a pool for two mints.",
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
           "idl_type": "InitParams",
-          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
-        },
-        "links": {
-          "discord": "https://discord.gg/example",
-          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
-          "farcaster": "https://farcaster.xyz/example",
-          "github": "https://github.com/example",
-          "idl": "ar://abc123/idl.json",
-          "source": "https://github.com/example/cp",
-          "telegram": "https://t.me/example",
-          "twitter": "https://x.com/example",
-          "website": "https://example.com"
-        },
-        "name": "Constant product",
-        "schema": "pipeline-strategy-metadata/1",
-        "security": {
-          "audits": [
-            {
-              "by": "Example Audits",
-              "date": "2026-10-01",
-              "url": "https://example.com/audit.pdf"
-            }
-          ],
-          "contact": "security@example.com",
-          "policy": "https://example.com/security"
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
         },
         "source": {
           "commit": "dac82fef2b88",
@@ -3957,66 +3431,369 @@
         }
       },
       "errors": [],
-      "name": "unknown-action-kind",
+      "name": "actions-ignored",
       "ok": true,
       "warnings": [
-        "actions[0].kind: unknown kind \"stake\""
+        "actions: custom actions are no longer part of the schema and are ignored"
       ]
     },
     {
       "document": {
         "actions": [
           {
-            "accounts": [
-              {
-                "name": "depositor",
-                "signer": "yes",
-                "source": "wallet"
-              },
-              {
-                "name": "pool",
-                "source": "market_state",
-                "writable": true
-              },
-              {
-                "name": "depositor_a",
-                "source": "wallet_token_account:0",
-                "writable": true
-              },
-              {
-                "name": "vault_a",
-                "source": "vault:0",
-                "writable": true
-              },
-              {
-                "name": "fixed",
-                "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-              },
-              {
-                "name": "pda",
-                "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
-              }
-            ],
-            "args": [
-              {
-                "decimals_of": "mint:0",
-                "label": "Amount of token A",
-                "name": "amount_a",
-                "type": "u64"
-              },
-              {
-                "decimals_of": "mint:1",
-                "label": "Amount of token B",
-                "name": "amount_b",
-                "type": "u64"
-              }
-            ],
-            "discriminator": "f223c68952e1f2b6",
-            "kind": "add_liquidity",
-            "label": "Add liquidity",
-            "name": "deposit"
+            "name": 7
           }
         ],
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [],
+      "name": "malformed-actions-ignored",
+      "ok": true,
+      "warnings": [
+        "actions: custom actions are no longer part of the schema and are ignored"
+      ]
+    },
+    {
+      "document": {
+        "actions": {},
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [],
+      "name": "actions-not-array-ignored",
+      "ok": true,
+      "warnings": [
+        "actions: custom actions are no longer part of the schema and are ignored"
+      ]
+    },
+    {
+      "document": {
+        "init": "x",
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1"
+      },
+      "errors": [
+        "init: must be an object"
+      ],
+      "name": "init-not-object",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1",
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        }
+      },
+      "errors": [],
+      "name": "minimal-with-seed",
+      "ok": true,
+      "warnings": []
+    },
+    {
+      "document": {
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "pda:strategy:key:seeder"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "init.accounts[0].source: \"pda:strategy:key:seeder\" is only available in seed"
+      ],
+      "name": "seeder-in-init",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "ata:escrow:0,input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "init.accounts[0].source: \"ata:escrow:0,input:mint_a\" is only available in seed"
+      ],
+      "name": "escrow-in-init",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
         "category": "amm",
         "conformance": {
           "report": "https://example.com/report.json",
@@ -4055,6 +3832,152 @@
             {
               "name": "associated_token_program",
               "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+            }
+          ],
+          "args": [
+            {
+              "decimals_of": "token_program_of:lp_recipient",
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "init.args[0].decimals_of: \"token_program_of:lp_recipient\" is only available in seed"
+      ],
+      "name": "lp-recipient-decimals-in-init",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
             }
           ],
           "args": [
@@ -4092,6 +4015,34 @@
           "contact": "security@example.com",
           "policy": "https://example.com/security"
         },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:wallet,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
         "source": {
           "commit": "dac82fef2b88",
           "path": "programs/cp",
@@ -4110,52 +4061,983 @@
         }
       },
       "errors": [
-        "actions[0].accounts[0].signer: must be a boolean"
+        "seed.accounts[0].source: \"ata:wallet,mint:0\" isn't available in seed"
       ],
-      "name": "signer-not-boolean",
+      "name": "wallet-in-seed",
       "ok": false,
       "warnings": []
     },
     {
       "document": {
-        "actions": [
-          {
-            "name": "go"
-          }
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "vault:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
         ],
-        "name": "Pool",
-        "schema": "pipeline-strategy-metadata/1"
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
       },
       "errors": [
-        "actions[0].label: must be a non-empty string"
+        "seed.accounts[0].source: \"vault:0\" isn't available in seed"
       ],
-      "name": "action-without-label",
+      "name": "vault-in-seed",
       "ok": false,
       "warnings": []
     },
     {
       "document": {
-        "actions": {},
-        "name": "Pool",
-        "schema": "pipeline-strategy-metadata/1"
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:key:wallet_token_account:0"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
       },
       "errors": [
-        "actions: must be an array"
+        "seed.market_state: \"pda:strategy:key:wallet_token_account:0\" isn't available in seed"
       ],
-      "name": "actions-not-array",
+      "name": "wallet-token-account-in-seed-pda",
       "ok": false,
       "warnings": []
     },
     {
       "document": {
-        "init": "x",
-        "name": "Pool",
-        "schema": "pipeline-strategy-metadata/1"
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "new_keypair"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
       },
       "errors": [
-        "init: must be an object"
+        "seed.market_state: \"new_keypair\" isn't available in seed"
       ],
-      "name": "init-not-object",
+      "name": "new-keypair-seed-market-state",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "market_state"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "seed.market_state: cannot refer to the market itself"
+      ],
+      "name": "seed-market-state-itself",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:key:seeder,arg:salt"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "seed.market_state: seed refers to unknown argument \"salt\""
+      ],
+      "name": "unknown-arg-in-seed-pda",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "escrow:4",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [
+        "seed.accounts[0].source: \"escrow:4\": index must be 0 to 3"
+      ],
+      "name": "seed-escrow-index",
+      "ok": false,
+      "warnings": []
+    },
+    {
+      "document": {
+        "category": "amm",
+        "conformance": {
+          "report": "https://example.com/report.json",
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        },
+        "description": "x*y=k pool with a configurable fee.",
+        "image": "https://example.com/logo.png",
+        "init": {
+          "accounts": [
+            {
+              "name": "mint_a",
+              "source": "input:mint_a"
+            },
+            {
+              "name": "mint_b",
+              "source": "input:mint_b"
+            },
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,input:mint_a",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,input:mint_b",
+              "writable": true
+            },
+            {
+              "name": "token_program_a",
+              "source": "token_program_of:input:mint_a"
+            },
+            {
+              "name": "token_program_b",
+              "source": "token_program_of:input:mint_b"
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            },
+            {
+              "name": "fixed",
+              "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            },
+            {
+              "name": "pda",
+              "source": "pda:11111111111111111111111111111111:hex:00ff,str:a"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Creates a pool for two mints.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:pool,key:input:mint_a,key:input:mint_b,arg:fee_bps"
+        },
+        "links": {
+          "discord": "https://discord.gg/example",
+          "docs": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/docs.html",
+          "farcaster": "https://farcaster.xyz/example",
+          "github": "https://github.com/example",
+          "idl": "ar://abc123/idl.json",
+          "source": "https://github.com/example/cp",
+          "telegram": "https://t.me/example",
+          "twitter": "https://x.com/example",
+          "website": "https://example.com"
+        },
+        "name": "Constant product",
+        "schema": "pipeline-strategy-metadata/1",
+        "security": {
+          "audits": [
+            {
+              "by": "Example Audits",
+              "date": "2026-10-01",
+              "url": "https://example.com/audit.pdf"
+            }
+          ],
+          "contact": "security@example.com",
+          "policy": "https://example.com/security"
+        },
+        "seed": {
+          "accounts": [
+            {
+              "name": "vault_a",
+              "source": "ata:market_state,mint:0",
+              "writable": true
+            },
+            {
+              "name": "vault_b",
+              "source": "ata:market_state,mint:1",
+              "writable": true
+            },
+            {
+              "name": "associated_token_program",
+              "source": "associated_token_program"
+            },
+            {
+              "name": "x",
+              "source": "pda:strategy:key:escrow:1,key:lp_recipient,key:market,key:token_program:1,key:strategy_program,key:system_program"
+            }
+          ],
+          "args": [
+            {
+              "label": "Pool fee (basis points)",
+              "name": "fee_bps",
+              "type": "u16"
+            }
+          ],
+          "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+          "idl_type": "InitParams",
+          "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps"
+        },
+        "source": {
+          "commit": "dac82fef2b88",
+          "path": "programs/cp",
+          "repository": "https://github.com/example/cp"
+        },
+        "tags": [
+          "cpmm",
+          "fees"
+        ],
+        "x_custom": {
+          "anything": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "errors": [],
+      "name": "seed-sources-valid",
+      "ok": true,
+      "warnings": []
+    },
+    {
+      "document": {
+        "name": "Pool",
+        "schema": "pipeline-strategy-metadata/1",
+        "seed": []
+      },
+      "errors": [
+        "seed: must be an object"
+      ],
+      "name": "seed-not-object",
       "ok": false,
       "warnings": []
     }

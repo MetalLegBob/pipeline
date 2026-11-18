@@ -9,6 +9,13 @@
 
 Line references are to these three files at `73e5ca0`. `lib.rs` means `programs/pipeline/src/lib.rs`, `token.rs` means `programs/pipeline/src/token.rs` and `interface` means `crates/pipeline-strategy-interface/src/lib.rs`.
 
+> **Change since this audit (2026-11-13).** The router's pause was removed: there is no
+> `paused` flag and no `lift_pause`, and `swap`, `create_market` and
+> `register_existing_market` no longer take the config account. Everything below about
+> the pause (audit #1 H007 and this audit's H001, H002, H046, H048 and H060, and the
+> freeze runbook's `lift_pause` step) describes the audited version and no longer
+> applies; the tests for those items were removed with the code.
+
 ---
 
 ## Executive Summary

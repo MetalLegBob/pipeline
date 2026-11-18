@@ -1,5 +1,8 @@
 //! BOK LiteSVM tests — router config admin and strategy registration
-//! (INV-ADM-1, INV-ADM-2, INV-ADM-3), run against the real router binary.
+//! (INV-ADM-1, INV-ADM-2), run against the real router binary. INV-ADM-3 was about the
+//! router's pause, which has been removed; what is left of it here is that the config
+//! always carries a zero in the pause flag's old place and that freezing the router
+//! changes nothing about who may write the config.
 
 mod common;
 
@@ -120,7 +123,6 @@ fn assert_event_matches_config(
     assert_eq!(changed.len(), 1, "one ConfigChanged event");
     let event = &changed[0];
     assert_eq!(event.admin, config.admin);
-    assert_eq!(event.paused, config.paused);
     assert_eq!(event.listing_fee_lamports, config.listing_fee_lamports);
     assert_eq!(event.listing_fee_recipient, config.listing_fee_recipient);
     assert_eq!(event.treasury_owner, config.treasury_owner);
@@ -164,7 +166,7 @@ fn bok_inv_adm_1_initialize_config_fee_bounds() {
                 assert_eq!(config.admin, env.admin.pubkey());
                 assert_eq!(config.listing_fee_recipient, recipient);
                 assert_eq!(config.treasury_owner, treasury);
-                assert!(!config.paused);
+                assert_eq!(config.reserved, 0);
             }
         }
     }
@@ -202,8 +204,8 @@ fn bok_inv_adm_1_update_config_fee_bounds() {
 }
 
 /// INV-ADM-1: an `update_config` that bundles a bad fee with changes to every other
-/// field reverts completely: admin, recipient, treasury owner and pause stay as they
-/// were (the account bytes are identical).
+/// field reverts completely: admin, recipient and treasury owner stay as they were
+/// (the account bytes are identical).
 #[test]
 fn bok_inv_adm_1_rejected_update_changes_no_field() {
     let mut env = Env::new();
@@ -220,7 +222,6 @@ fn bok_inv_adm_1_rejected_update_changes_no_field() {
             &env.admin.pubkey(),
             &client::UpdateConfigArgs {
                 admin: Some(Pubkey::new_unique()),
-                paused: Some(true),
                 listing_fee_lamports: Some(fee),
                 listing_fee_recipient: Some(Pubkey::new_unique()),
                 treasury_owner: Some(Pubkey::new_unique()),
@@ -241,7 +242,6 @@ fn bok_inv_adm_1_rejected_update_changes_no_field() {
         &env.admin.pubkey(),
         &client::UpdateConfigArgs {
             admin: Some(admin),
-            paused: Some(true),
             listing_fee_lamports: Some(rent),
             listing_fee_recipient: Some(recipient),
             treasury_owner: Some(treasury),
@@ -252,12 +252,12 @@ fn bok_inv_adm_1_rejected_update_changes_no_field() {
     assert_eq!(
         (
             config.admin,
-            config.paused,
+            config.reserved,
             config.listing_fee_lamports,
             config.listing_fee_recipient,
             config.treasury_owner
         ),
-        (admin, true, rent, recipient, treasury)
+        (admin, 0, rent, recipient, treasury)
     );
     assert_event_matches_config(&meta, &config);
 }
@@ -519,109 +519,7 @@ fn bok_inv_adm_2_prefunded_pda_and_payer_as_recipient() {
 }
 
 // ---------------------------------------------------------------------------------------
-// INV-ADM-3 — pause power ends at freeze
-// ---------------------------------------------------------------------------------------
-
-fn pause_ix(admin: &Pubkey, paused: bool) -> Instruction {
-    client::update_config(
-        admin,
-        &client::UpdateConfigArgs {
-            paused: Some(paused),
-            ..Default::default()
-        },
-    )
-}
-
-/// INV-ADM-3: pausing works only while upgradeable; `lift_pause` works only once frozen
-/// (freezing with the real loader instruction) and always leaves `paused = false`; once
-/// frozen and unpaused, the router stays unpaused.
-#[test]
-fn bok_inv_adm_3_pause_and_lift_follow_the_freeze() {
-    let mut env = Env::new();
-    let admin = env.admin.pubkey();
-    assert_fails_with(env.send(&[client::lift_pause()], &[]), "RouterNotFrozen");
-    env.send(&[pause_ix(&admin, true)], &[]).unwrap();
-    assert_fails_with(env.send(&[client::lift_pause()], &[]), "RouterNotFrozen");
-    assert!(config(&env).paused);
-
-    env.send(&[loader_set_authority(&admin, None)], &[])
-        .expect("freeze through the loader");
-    assert!(router_frozen(&env));
-    let meta = env.send(&[client::lift_pause()], &[]).unwrap();
-    let after = config(&env);
-    assert!(!after.paused);
-    assert_event_matches_config(&meta, &after);
-
-    for _ in 0..3 {
-        assert_fails_with(
-            env.send(&[pause_ix(&admin, true)], &[]),
-            "FrozenRouterCannotPause",
-        );
-        assert!(!config(&env).paused);
-        env.send(&[pause_ix(&admin, false)], &[]).unwrap();
-        // Lifting an absent pause is a harmless no-op.
-        env.send(&[client::lift_pause()], &[]).unwrap();
-        assert!(!config(&env).paused);
-    }
-}
-
-/// INV-ADM-3: on a frozen router, an update that bundles `paused = Some(true)` with
-/// valid changes to every other field reverts all of them.
-#[test]
-fn bok_inv_adm_3_frozen_bundled_pause_reverts_every_field() {
-    let mut env = Env::new();
-    set_upgrade_authority(&mut env.svm, &client::PROGRAM_ID, None);
-    let before = env.account_data(&pda::config());
-    let ix = client::update_config(
-        &env.admin.pubkey(),
-        &client::UpdateConfigArgs {
-            admin: Some(Pubkey::new_unique()),
-            paused: Some(true),
-            listing_fee_lamports: Some(0),
-            listing_fee_recipient: Some(Pubkey::new_unique()),
-            treasury_owner: Some(Pubkey::new_unique()),
-        },
-    );
-    assert_fails_with(env.send(&[ix], &[]), "FrozenRouterCannotPause");
-    assert_eq!(env.account_data(&pda::config()), before);
-}
-
-/// INV-ADM-3: the freeze is read at execution time. Freeze-then-pause in one transaction
-/// fails (and the freeze reverts with it); pause-then-freeze succeeds, and the leftover
-/// pause can then be lifted by anyone.
-#[test]
-fn bok_inv_adm_3_freeze_and_pause_in_one_transaction() {
-    let mut env = Env::new();
-    let admin = env.admin.pubkey();
-    let ixs = [loader_set_authority(&admin, None), pause_ix(&admin, true)];
-    assert_fails_with(env.send(&ixs, &[]), "FrozenRouterCannotPause");
-    assert!(!router_frozen(&env));
-    assert!(!config(&env).paused);
-
-    let ixs = [pause_ix(&admin, true), loader_set_authority(&admin, None)];
-    env.send(&ixs, &[]).unwrap();
-    assert!(router_frozen(&env));
-    assert!(config(&env).paused);
-
-    // Anyone (here a stranger paying its own fee) can lift it.
-    let stranger = env.funded_keypair();
-    env.svm.expire_blockhash();
-    let tx = Transaction::new_signed_with_payer(
-        &[client::lift_pause()],
-        Some(&stranger.pubkey()),
-        &[&stranger],
-        env.svm.latest_blockhash(),
-    );
-    env.svm.send_transaction(tx).unwrap();
-    assert!(!config(&env).paused);
-    assert_fails_with(
-        env.send(&[pause_ix(&admin, true)], &[]),
-        "FrozenRouterCannotPause",
-    );
-}
-
-// ---------------------------------------------------------------------------------------
-// INV-ADM-1 + INV-ADM-3 — random sequences against a model of the config
+// INV-ADM-1 — random sequences against a model of the config
 // ---------------------------------------------------------------------------------------
 
 #[derive(Clone, Debug)]
@@ -676,12 +574,12 @@ enum Op {
     Update {
         signer: usize,
         admin: Option<usize>,
-        paused: Option<bool>,
         fee: Option<FeeChoice>,
         recipient: Option<u8>,
         treasury: Option<u8>,
     },
-    Lift,
+    /// Freezes the router (drops its upgrade authority). Nothing about the config
+    /// depends on it.
     Freeze,
 }
 
@@ -690,20 +588,17 @@ fn op() -> impl Strategy<Value = Op> {
         6 => (
             0usize..3,
             proptest::option::of(0usize..4),
-            proptest::option::of(any::<bool>()),
             proptest::option::weighted(0.5, fee_choice()),
             proptest::option::of(any::<u8>()),
             proptest::option::of(any::<u8>()),
         )
-            .prop_map(|(signer, admin, paused, fee, recipient, treasury)| Op::Update {
+            .prop_map(|(signer, admin, fee, recipient, treasury)| Op::Update {
                 signer,
                 admin,
-                paused,
                 fee,
                 recipient,
                 treasury,
             }),
-        2 => Just(Op::Lift),
         1 => Just(Op::Freeze),
     ]
 }
@@ -711,7 +606,6 @@ fn op() -> impl Strategy<Value = Op> {
 #[derive(Clone, Debug, PartialEq)]
 struct Model {
     admin: usize,
-    paused: bool,
     fee: u64,
     recipient: Pubkey,
     treasury: Pubkey,
@@ -725,12 +619,12 @@ fn key_from(byte: u8) -> Pubkey {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(48))]
 
-    /// INV-ADM-1 + INV-ADM-3: random sequences of updates (any signer, any bundle of
-    /// fields), lifts and freezes. Each step's acceptance and error must match the
-    /// router's rules, the stored config must match the model, the fee is always 0 or in
-    /// [rent_min(0), 1e12], and once frozen and unpaused the router never pauses again.
+    /// INV-ADM-1: random sequences of updates (any signer, any bundle of fields) and
+    /// freezes. Each step's acceptance and error must match the router's rules, before
+    /// and after the freeze alike; the stored config must match the model; and the fee is
+    /// always 0 or in [rent_min(0), 1e12].
     #[test]
-    fn bok_inv_adm_1_3_config_state_machine(ops in proptest::collection::vec(op(), 1..14)) {
+    fn bok_inv_adm_1_config_state_machine(ops in proptest::collection::vec(op(), 1..14)) {
         let mut env = Env::new();
         let rent = rent_min_0(&env);
         let pool = [Keypair::new(), Keypair::new()];
@@ -742,23 +636,20 @@ proptest! {
         let start = config(&env);
         let mut model = Model {
             admin: 0,
-            paused: false,
             fee: start.listing_fee_lamports,
             recipient: start.listing_fee_recipient,
             treasury: start.treasury_owner,
             frozen: false,
         };
-        let mut unpaused_while_frozen = false;
 
         for op in ops {
             match op.clone() {
-                Op::Update { signer, admin, paused, fee, recipient, treasury } => {
+                Op::Update { signer, admin, fee, recipient, treasury } => {
                     let fee_value = fee.as_ref().map(|f| f.value(rent));
                     let ix = client::update_config(
                         &pool_key(signer, &env),
                         &client::UpdateConfigArgs {
                             admin: admin.map(|a| pool_key(a, &env)),
-                            paused,
                             listing_fee_lamports: fee_value,
                             listing_fee_recipient: recipient.map(key_from),
                             treasury_owner: treasury.map(key_from),
@@ -772,8 +663,6 @@ proptest! {
                     };
                     let expected_error = if signer != model.admin {
                         Some("NotAdmin")
-                    } else if paused == Some(true) && model.frozen {
-                        Some("FrozenRouterCannotPause")
                     } else {
                         fee_value.and_then(|f| fee_error(f, rent))
                     };
@@ -786,9 +675,6 @@ proptest! {
                             if let Some(a) = admin {
                                 model.admin = a;
                             }
-                            if let Some(p) = paused {
-                                model.paused = p;
-                            }
                             if let Some(f) = fee_value {
                                 model.fee = f;
                             }
@@ -800,18 +686,6 @@ proptest! {
                             }
                             assert_event_matches_config(&meta, &config(&env));
                         }
-                    }
-                }
-                Op::Lift => {
-                    let result = env.send(&[client::lift_pause()], &[]);
-                    if model.frozen {
-                        let meta = result.map_err(|e| {
-                            TestCaseError::fail(format!("lift on a frozen router: {:?}", e.err))
-                        })?;
-                        model.paused = false;
-                        assert_event_matches_config(&meta, &config(&env));
-                    } else {
-                        assert_fails_with(result, "RouterNotFrozen");
                     }
                 }
                 Op::Freeze => {
@@ -831,19 +705,13 @@ proptest! {
                 pool_key(model.admin, &env)
             };
             prop_assert_eq!(stored.admin, model_admin);
-            prop_assert_eq!(stored.paused, model.paused);
+            prop_assert_eq!(stored.reserved, 0);
             prop_assert_eq!(stored.listing_fee_lamports, model.fee);
             prop_assert_eq!(stored.listing_fee_recipient, model.recipient);
             prop_assert_eq!(stored.treasury_owner, model.treasury);
             prop_assert_eq!(router_frozen(&env), model.frozen);
             let fee = stored.listing_fee_lamports;
             prop_assert!(fee == 0 || (rent..=MAX_FEE).contains(&fee), "fee {} out of bounds", fee);
-            if model.frozen && !stored.paused {
-                unpaused_while_frozen = true;
-            }
-            if unpaused_while_frozen {
-                prop_assert!(!stored.paused, "a frozen, unpaused router was paused again");
-            }
         }
     }
 }

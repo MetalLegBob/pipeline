@@ -1,6 +1,6 @@
-// Turns a metadata `action` or `init` description into real instruction data and
-// accounts, so a desk can render a form for any strategy and submit it without
-// strategy-specific code.
+// Turns a metadata `init` or `seed` description into real instruction data and accounts,
+// so a launcher can render a market-creation form for any strategy, and a seeder can
+// fund a market through any strategy, without strategy-specific code.
 
 import {
     AccountRole,
@@ -34,9 +34,9 @@ import {
     type AccountSource,
     type ArgType,
     type MetadataAccount,
-    type MetadataAction,
     type MetadataArg,
     type MetadataInit,
+    type MetadataSeed,
 } from './metadata.js';
 import { associatedTokenAddress, marketPda } from './pda.js';
 import type { MarketView } from './quote.js';
@@ -44,7 +44,7 @@ import type { MarketView } from './quote.js';
 /** A value for one metadata argument. Integers may be given as decimal strings. */
 export type ArgValue = bigint | number | string | boolean | ReadonlyUint8Array;
 
-/** Thrown when an action or init description can't be turned into an instruction. */
+/** Thrown when an init or seed description can't be turned into an instruction. */
 export class MetadataInstructionError extends Error {
     override name = 'MetadataInstructionError';
 }
@@ -57,6 +57,8 @@ export type SourceContext = {
     marketState?: Address;
     /** Mints, vaults and token programs, for an existing market. */
     market?: MarketView;
+    /** What a seeder passes to `pipeline_seed_liquidity`, for `seed`. */
+    seed?: SeedSourceContext;
     /** Values for `input:<name>` sources. */
     inputs?: Record<string, Address>;
     /** Encoded arguments, for `arg:<name>` seeds. */
@@ -67,6 +69,20 @@ export type SourceContext = {
      */
     tokenPrograms?: Record<string, Address>;
     rpc?: Rpc<GetAccountInfoApi>;
+};
+
+/**
+ * The seeder's side of `pipeline_seed_liquidity`. `mint:i` and `token_program:i` resolve
+ * to `mints[i]` and `tokenPrograms[i]`, in the order the seeder passes them.
+ */
+export type SeedSourceContext = {
+    seeder: Address;
+    mints: readonly Address[];
+    /** One per mint. */
+    tokenPrograms: readonly Address[];
+    /** The seeder's escrow for each mint, for `escrow:i` sources. */
+    escrows?: readonly Address[];
+    lpRecipient?: Address;
 };
 
 const addressEncoder = getAddressEncoder();
@@ -197,7 +213,21 @@ function marketIndex(context: SourceContext, kind: string, index: number) {
     return { market, mint, vault: market.vaults[index], tokenProgram: market.tokenPrograms[index] };
 }
 
+/** Mint `index` and its token program: the seeded mint for `seed`, else the market's. */
+function mintAt(context: SourceContext, kind: string, index: number) {
+    if (context.seed) {
+        const mint = context.seed.mints[index] ?? fail(`no seeded mint ${index}`);
+        return { mint, tokenProgram: context.seed.tokenPrograms[index] };
+    }
+    const { mint, tokenProgram } = marketIndex(context, kind, index);
+    return { mint, tokenProgram };
+}
+
 async function tokenProgramOf(context: SourceContext, mint: Address): Promise<Address> {
+    const seeded = context.seed?.mints.indexOf(mint) ?? -1;
+    if (seeded >= 0 && context.seed?.tokenPrograms[seeded]) {
+        return context.seed.tokenPrograms[seeded];
+    }
     const index = context.market?.mints.indexOf(mint) ?? -1;
     if (index >= 0 && context.market?.tokenPrograms[index]) {
         return context.market.tokenPrograms[index];
@@ -239,12 +269,20 @@ export async function resolveAccountSource(source: string | AccountSource, conte
             return SYSTEM_PROGRAM_ADDRESS;
         case 'associated_token_program':
             return ASSOCIATED_TOKEN_PROGRAM_ADDRESS;
+        case 'seeder':
+            return context.seed?.seeder ?? fail('"seeder" needs a seeder');
+        case 'lp_recipient':
+            return context.seed?.lpRecipient ?? fail('"lp_recipient" needs an LP recipient');
+        case 'escrow': {
+            const escrows = context.seed?.escrows ?? fail(`"escrow:${s.index}" needs the seeder's escrows`);
+            return escrows[s.index] ?? fail(`no escrow for mint ${s.index}`);
+        }
         case 'mint':
-            return marketIndex(context, s.kind, s.index).mint;
+            return mintAt(context, s.kind, s.index).mint;
         case 'vault':
             return marketIndex(context, s.kind, s.index).vault ?? fail(`the market has no vault ${s.index}`);
         case 'token_program':
-            return marketIndex(context, s.kind, s.index).tokenProgram ?? fail(`no token program for mint ${s.index}`);
+            return mintAt(context, s.kind, s.index).tokenProgram ?? fail(`no token program for mint ${s.index}`);
         case 'wallet_token_account': {
             const { mint, tokenProgram } = marketIndex(context, s.kind, s.index);
             const wallet = context.wallet ?? fail('"wallet_token_account" needs a wallet');
@@ -312,43 +350,6 @@ export async function resolveMetadataAccounts(
         metas.push({ address: await resolveAccountSource(account.source, context), role: role(account) });
     }
     return metas;
-}
-
-/**
- * Builds a custom action from strategy metadata as an instruction to the strategy
- * program: the discriminator (given, or Anchor's from the action name), the Borsh-encoded
- * arguments, and the resolved accounts. The user signs it directly; it doesn't go through
- * the router.
- */
-export async function buildActionInstruction(input: {
-    action: MetadataAction;
-    market: MarketView;
-    wallet: Address;
-    args?: Record<string, ArgValue>;
-    inputs?: Record<string, Address>;
-    tokenPrograms?: Record<string, Address>;
-    rpc?: Rpc<GetAccountInfoApi>;
-}): Promise<PipelineInstruction> {
-    const specs = input.action.args ?? [];
-    const args = encodeArgs(specs, input.args ?? {});
-    const context: SourceContext = {
-        strategyProgram: input.market.strategyProgram,
-        wallet: input.wallet,
-        market: input.market,
-        marketState: input.market.marketState,
-        inputs: input.inputs,
-        args,
-        tokenPrograms: input.tokenPrograms,
-        rpc: input.rpc,
-    };
-    const discriminator = input.action.discriminator
-        ? hexToBytes(input.action.discriminator)
-        : await anchorDiscriminator(input.action.name);
-    return {
-        programAddress: input.market.strategyProgram,
-        accounts: await resolveMetadataAccounts(input.action.accounts ?? [], context),
-        data: concat([discriminator, ...specs.map((spec) => args[spec.name]!)]),
-    };
 }
 
 /** What `create_market` needs from a strategy's `init` description. */
@@ -431,4 +432,92 @@ export async function buildCreateMarketFromMetadata(
         strategyAccounts: resolved.strategyAccounts,
     });
     return { instruction, resolved };
+}
+
+/** `SeedRequest.data` for a strategy's `seed` description: the Borsh-encoded args, in order. */
+export function buildSeedData(seed: MetadataSeed, args: Record<string, ArgValue>): Uint8Array {
+    const specs = seed.args ?? [];
+    const encoded = encodeArgs(specs, args);
+    return concat(specs.map((spec) => encoded[spec.name]!));
+}
+
+/** What a seeder needs from a strategy's `seed` description. */
+export type ResolvedSeed = {
+    /** The new market state (fixed seed account 1). */
+    marketState: Address;
+    /** The new market's router account, for `register_existing_market`. */
+    market: Address;
+    /** `SeedRequest.data`. */
+    seedData: Uint8Array;
+    /**
+     * The strategy's own seed accounts. They go after the five fixed seed accounts and the
+     * three accounts per mint; transfer-hook accounts follow them.
+     */
+    accounts: AccountMeta[];
+};
+
+/**
+ * Resolves a strategy's metadata `seed` into the inputs of `pipeline_seed_liquidity`.
+ * `mints` are in the order the seeder passes them, with one token program each. Pass
+ * `marketState` when the description has no `market_state`.
+ */
+export async function resolveSeedAccounts(input: {
+    seed: MetadataSeed;
+    strategyProgram: Address;
+    seeder: Address;
+    mints: readonly Address[];
+    /** One per mint. */
+    tokenPrograms: readonly Address[];
+    escrows?: readonly Address[];
+    lpRecipient?: Address;
+    marketState?: Address;
+    args?: Record<string, ArgValue>;
+    inputs?: Record<string, Address>;
+    /** Token programs of mints other than the seeded ones. Looked up with `rpc` if missing. */
+    otherTokenPrograms?: Record<string, Address>;
+    rpc?: Rpc<GetAccountInfoApi>;
+}): Promise<ResolvedSeed> {
+    if (input.tokenPrograms.length !== input.mints.length) {
+        fail('pass one token program per seeded mint');
+    }
+    if (input.escrows && input.escrows.length !== input.mints.length) {
+        fail('pass one escrow per seeded mint');
+    }
+    const specs = input.seed.args ?? [];
+    const args = encodeArgs(specs, input.args ?? {});
+    const context: SourceContext = {
+        strategyProgram: input.strategyProgram,
+        seed: {
+            seeder: input.seeder,
+            mints: input.mints,
+            tokenPrograms: input.tokenPrograms,
+            escrows: input.escrows,
+            lpRecipient: input.lpRecipient,
+        },
+        inputs: input.inputs,
+        args,
+        tokenPrograms: input.otherTokenPrograms,
+        rpc: input.rpc,
+    };
+    let marketState: Address;
+    const stateSource = input.seed.market_state;
+    if (stateSource === undefined) {
+        marketState = input.marketState ?? fail('the seed description has no market_state: pass marketState');
+    } else {
+        const source = parsed(stateSource);
+        if (source.kind === 'market_state' || source.kind === 'market') {
+            fail(`seed.market_state "${stateSource}" can't refer to the market itself`);
+        }
+        marketState = await resolveAccountSource(source, context);
+        if (input.marketState !== undefined && input.marketState !== marketState) {
+            fail(`marketState ${input.marketState} differs from seed.market_state (${marketState})`);
+        }
+    }
+    context.marketState = marketState;
+    return {
+        marketState,
+        market: await marketPda(input.strategyProgram, marketState),
+        seedData: concat(specs.map((spec) => args[spec.name]!)),
+        accounts: await resolveMetadataAccounts(input.seed.accounts ?? [], context),
+    };
 }

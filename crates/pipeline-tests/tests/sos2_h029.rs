@@ -82,7 +82,6 @@ fn h029_no_router_instruction_discriminator_collides_with_the_event_tag() {
     let names = [
         "initialize_config",
         "update_config",
-        "lift_pause",
         "register_strategy",
         "update_metadata",
         "create_market",
@@ -115,7 +114,6 @@ fn h029_outer_event_instruction_without_authority_signature_is_refused() {
         &env.admin.pubkey(),
         &client::UpdateConfigArgs {
             admin: None,
-            paused: None,
             listing_fee_lamports: None,
             listing_fee_recipient: None,
             treasury_owner: None,

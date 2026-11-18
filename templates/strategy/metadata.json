@@ -32,30 +32,6 @@
             { "name": "associated_token_program", "source": "associated_token_program" }
         ]
     },
-    "actions": [
-        {
-            "name": "deposit",
-            "label": "Add liquidity",
-            "kind": "add_liquidity",
-            "description": "Adds both tokens to the pool. This starter pool has no withdrawals: deposits stay in the pool.",
-            "args": [
-                { "name": "amount_a", "type": "u64", "label": "Amount of token A", "decimals_of": "mint:0" },
-                { "name": "amount_b", "type": "u64", "label": "Amount of token B", "decimals_of": "mint:1" }
-            ],
-            "accounts": [
-                { "name": "depositor", "source": "wallet", "signer": true },
-                { "name": "pool", "source": "market_state", "writable": true },
-                { "name": "depositor_a", "source": "wallet_token_account:0", "writable": true },
-                { "name": "depositor_b", "source": "wallet_token_account:1", "writable": true },
-                { "name": "vault_a", "source": "vault:0", "writable": true },
-                { "name": "vault_b", "source": "vault:1", "writable": true },
-                { "name": "mint_a", "source": "mint:0" },
-                { "name": "mint_b", "source": "mint:1" },
-                { "name": "token_program_a", "source": "token_program:0" },
-                { "name": "token_program_b", "source": "token_program:1" }
-            ]
-        }
-    ],
     "security": {
         "contact": "security@example.com"
     }

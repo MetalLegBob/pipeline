@@ -564,7 +564,7 @@ fn fee_accounts_and_authorities_are_bound_per_market() {
         HONEST,
         vec![],
     );
-    ix.accounts[13].pubkey = w.m2_fee_x;
+    ix.accounts[12].pubkey = w.m2_fee_x;
     assert_fails_with(w.env.send(&[ix], &[&trader]), "WrongFeeAccount");
     let mut ix = evil_swap(
         &w.m1,
@@ -574,8 +574,8 @@ fn fee_accounts_and_authorities_are_bound_per_market() {
         HONEST,
         vec![],
     );
-    ix.accounts[12].pubkey = pda::fee_authority(&w.m2.market);
-    ix.accounts[13].pubkey = w.m2_fee_x;
+    ix.accounts[11].pubkey = pda::fee_authority(&w.m2.market);
+    ix.accounts[12].pubkey = w.m2_fee_x;
     assert_fails_with(w.env.send(&[ix], &[&trader]), "ConstraintSeeds");
 
     assert_eq!(

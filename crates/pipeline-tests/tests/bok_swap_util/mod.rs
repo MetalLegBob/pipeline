@@ -27,11 +27,11 @@ pub const HOOK_COUNT_OFFSET: usize = 8 + 1 + 8 + 8 + 8 + 2;
 
 /// Positions of the router's named `swap` accounts in `client::swap`'s instruction.
 pub mod ix {
-    pub const TRADER_INPUT: usize = 5;
-    pub const TRADER_OUTPUT: usize = 6;
-    pub const INPUT_VAULT: usize = 7;
-    pub const FEE_ACCOUNT: usize = 13;
-    pub const INTEGRATOR: usize = 14;
+    pub const TRADER_INPUT: usize = 4;
+    pub const TRADER_OUTPUT: usize = 5;
+    pub const INPUT_VAULT: usize = 6;
+    pub const FEE_ACCOUNT: usize = 12;
+    pub const INTEGRATOR: usize = 13;
 }
 
 pub fn compute(units: u32) -> Instruction {

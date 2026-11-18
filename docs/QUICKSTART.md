@@ -16,7 +16,7 @@ cargo test --workspace
 ```
 
 You should see every test pass, including:
-- **router tests** — swaps, fees, pause, sweeps, two-hop routes;
+- **router tests** — swaps, fees, sweeps, two-hop routes;
 - **Token-2022 tests** — transfer fees and transfer hooks;
 - **adversarial tests** — a hostile strategy can't harm traders or fees;
 - **quoter tests** — quotes match execution exactly.

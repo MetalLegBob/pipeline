@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Pipeline strategy metadata, version 1",
-    "description": "The JSON document a registered strategy's metadata_uri points to. Unknown keys are allowed everywhere. Account source strings follow the grammar documented in the SDK's parseAccountSource; parseStrategyMetadata in the TypeScript SDK is the reference validator.",
+    "description": "The JSON document a registered strategy's metadata_uri points to. Unknown keys are allowed everywhere. An actions key, from earlier revisions that described custom instructions, is allowed and ignored. Account source strings follow the grammar documented in the SDK's parseAccountSource; parseStrategyMetadata in the TypeScript SDK is the reference validator.",
     "type": "object",
     "required": ["schema", "name"],
     "properties": {
@@ -70,10 +70,20 @@
                 "accounts": { "$ref": "#/$defs/accounts" }
             }
         },
-        "actions": {
-            "type": "array",
-            "maxItems": 64,
-            "items": { "$ref": "#/$defs/action" }
+        "seed": {
+            "type": "object",
+            "description": "How a seeder (another program, such as a launchpad graduating a token) creates and funds a market through pipeline_seed_liquidity: SeedRequest.data is the args Borsh-encoded in order (no discriminator); accounts are the strategy's own seed accounts after the five fixed seed accounts and the three per mint. Sources may use seeder, escrow:i and lp_recipient, and mint:i and token_program:i for the seeded mints, but not wallet, vault:i or wallet_token_account:i.",
+            "properties": {
+                "description": { "type": "string", "maxLength": 2000 },
+                "idl_type": { "type": "string", "maxLength": 128 },
+                "market_state": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "description": "An account source giving the new market state's address, usually pda:strategy:... derived from key:seeder. Not new_keypair."
+                },
+                "args": { "$ref": "#/$defs/args" },
+                "accounts": { "$ref": "#/$defs/accounts" }
+            }
         },
         "conformance": {
             "type": "object",
@@ -117,8 +127,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 512,
-            "description": "wallet | market_state | market | strategy_program | system_program | associated_token_program | mint:i | vault:i | token_program:i | wallet_token_account:i | fixed:<address> | input:<name> | pda:<address|strategy>:<seed>,... (seeds str:<text>, hex:<bytes>, key:<source>, arg:<name>) | ata:<owner>,<mint> | token_program_of:<mint>",
-            "pattern": "^(wallet|market_state|market|strategy_program|system_program|associated_token_program|(mint|vault|token_program|wallet_token_account):[0-3]|fixed:.+|input:.+|pda:.+|ata:.+,.+|token_program_of:.+)$"
+            "description": "wallet | market_state | market | strategy_program | system_program | associated_token_program | seeder | lp_recipient | mint:i | vault:i | token_program:i | wallet_token_account:i | escrow:i | fixed:<address> | input:<name> | pda:<address|strategy>:<seed>,... (seeds str:<text>, hex:<bytes>, key:<source>, arg:<name>) | ata:<owner>,<mint> | token_program_of:<mint>",
+            "pattern": "^(wallet|market_state|market|strategy_program|system_program|associated_token_program|seeder|lp_recipient|(mint|vault|token_program|wallet_token_account|escrow):[0-3]|fixed:.+|input:.+|pda:.+|ata:.+,.+|token_program_of:.+)$"
         },
         "arg": {
             "type": "object",
@@ -142,30 +152,6 @@
                 "writable": { "type": "boolean" }
             }
         },
-        "accounts": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/account" } },
-        "action": {
-            "type": "object",
-            "required": ["name", "label"],
-            "properties": {
-                "name": {
-                    "$ref": "#/$defs/identifier",
-                    "description": "For Anchor programs, the IDL instruction name."
-                },
-                "label": { "type": "string", "minLength": 1, "maxLength": 64 },
-                "kind": {
-                    "type": "string",
-                    "description": "add_liquidity, remove_liquidity, claim, create_market or other. Readers treat other values as unknown, not invalid.",
-                    "examples": ["add_liquidity", "remove_liquidity", "claim", "create_market", "other"]
-                },
-                "description": { "type": "string", "maxLength": 2000 },
-                "discriminator": {
-                    "type": "string",
-                    "pattern": "^[0-9a-fA-F]{16}$",
-                    "description": "Defaults to Anchor's sha256(\"global:<name>\")[..8]."
-                },
-                "args": { "$ref": "#/$defs/args" },
-                "accounts": { "$ref": "#/$defs/accounts" }
-            }
-        }
+        "accounts": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/account" } }
     }
 }

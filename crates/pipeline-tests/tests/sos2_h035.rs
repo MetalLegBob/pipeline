@@ -1,17 +1,17 @@
 //! SOS audit 2, H035: what the admin can still do, field by field, after the router is
 //! frozen (upgrade authority = None).
 //!
-//! `Config` has six fields: `admin`, `paused`, `listing_fee_lamports`,
-//! `listing_fee_recipient`, `treasury_owner`, `bump`. Writers: `initialize_config` (once,
-//! needs the upgrade authority), `update_config` (admin) and `lift_pause` (anyone, frozen
-//! only, writes `paused = false`). These tests show, with the router frozen, that
+//! `Config` has six fields: `admin`, `reserved` (always 0; the place of the pause flag
+//! the router had when this audit ran), `listing_fee_lamports`, `listing_fee_recipient`,
+//! `treasury_owner`, `bump`. Writers: `initialize_config` (once, needs the upgrade
+//! authority) and `update_config` (admin). These tests show, with the router frozen, that
 //! - no other instruction writes `Config`, and `update_config` writes no `Strategy`/`Market`;
 //! - `treasury_owner` redirects fees already accrued (accepted: "change recipients");
 //! - `admin` can be handed to a dead key, which freezes the config in place;
 //! - the listing fee is bounded by the cap and the rent floor;
 //! - a hostile config (cap fee, dead recipient, dead admin) does not touch swaps, market
 //!   creation, fee-account creation, metadata updates or sweeps for other people;
-//! - `paused` cannot be set after the freeze, and a non-admin cannot write any field.
+//! - a non-admin cannot write any field.
 //!
 //! The recipient write-demotion block on registration is H027, not repeated here.
 
@@ -74,14 +74,14 @@ fn sweep(env: &mut Env, market: &CpMarket, owner: &Pubkey) -> TxResult {
     env.send(&[ix], &[])
 }
 
-/// Every `Config` writer after the freeze: only `update_config` (admin) and `lift_pause`
-/// (a no-op write while unpaused) touch the account. Swap, sweep, create_market,
+/// Every `Config` writer after the freeze: only `update_config` (admin) touches the
+/// account. Swap, sweep, create_market,
 /// init_fee_account, register_strategy, update_metadata, register_existing_market and
 /// a failed update leave the Config bytes untouched. `update_config` leaves `Strategy`
 /// and `Market` untouched. Settled by test (plus code reading: `Config` is `mut` only in
-/// `UpdateConfig` and `LiftPause`).
+/// `UpdateConfig`).
 #[test]
-fn h035_only_update_config_and_lift_pause_write_config() {
+fn h035_only_update_config_writes_config() {
     let mut env = Env::new();
     let (market, trader, swap) = trade(&mut env);
     freeze(&mut env);
@@ -132,14 +132,6 @@ fn h035_only_update_config_and_lift_pause_write_config() {
         "H035: update_metadata wrote Config"
     );
 
-    // lift_pause on a frozen, unpaused router rewrites paused=false: identical bytes.
-    env.send(&[client::lift_pause()], &[]).expect("lift_pause");
-    assert_eq!(
-        config_bytes(&env),
-        before,
-        "H035: lift_pause changed more than paused"
-    );
-
     // A non-admin update fails and writes nothing.
     let attacker = env.funded_keypair();
     let ix = client::update_config(
@@ -149,7 +141,6 @@ fn h035_only_update_config_and_lift_pause_write_config() {
             treasury_owner: Some(attacker.pubkey()),
             listing_fee_lamports: Some(0),
             listing_fee_recipient: Some(attacker.pubkey()),
-            ..Default::default()
         },
     );
     assert_fails_with(env.send(&[ix], &[&attacker]), "NotAdmin");
@@ -276,28 +267,12 @@ fn h035_treasury_owner_redirects_accrued_fees_and_cannot_jam_sweeps() {
 /// `admin`: one-step handover to any key, including `Pubkey::default()`. After a handover
 /// to a dead key nobody can call `update_config` again, so the config (including any
 /// H027 recipient) is permanent, but nothing else is affected. The old admin loses power
-/// at once. Pause: still impossible after the freeze, for either admin.
+/// at once.
 #[test]
 fn h035_admin_handover_to_dead_key_freezes_config_only() {
     let mut env = Env::new();
     let (market, trader, swap) = trade(&mut env);
     freeze(&mut env);
-
-    // Pause cannot be set after the freeze (H001) -- also not bundled with other fields.
-    let paused = update(
-        &mut env,
-        client::UpdateConfigArgs {
-            paused: Some(true),
-            listing_fee_lamports: Some(0),
-            ..Default::default()
-        },
-    );
-    assert_fails_with(paused, "FrozenRouterCannotPause");
-    assert_eq!(
-        config(&env).listing_fee_lamports,
-        LISTING_FEE,
-        "bundled update reverted whole"
-    );
 
     // Hand to a live key: the new key works, the old one is locked out.
     let new_admin = env.funded_keypair();
@@ -473,7 +448,7 @@ fn h035_hostile_config_does_not_touch_swaps_markets_or_sweeps() {
     let cfg = config(&env);
     assert_eq!(cfg.admin, Pubkey::default());
     assert_eq!(cfg.listing_fee_recipient, Pubkey::default());
-    assert!(!cfg.paused);
+    assert_eq!(cfg.reserved, 0);
 
     env.send(&[swap], &[&trader])
         .expect("H035: swap blocked by hostile config");

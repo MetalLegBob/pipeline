@@ -5,7 +5,7 @@
 //! Pipeline's 0.25% fee and publishes a standard swap event, so every market on this
 //! program can be found, quoted, traded and charted by anything built on Pipeline.
 //!
-//! This file implements the five Pipeline instructions plus one custom action:
+//! This file implements the five Pipeline instructions plus one instruction of its own:
 //!
 //! | Instruction                 | Called by                       | Does                              |
 //! |-----------------------------|---------------------------------|-----------------------------------|
@@ -241,12 +241,11 @@ pub mod my_strategy {
         Ok(())
     }
 
-    /// Custom action: add liquidity. Liquidity providers call it directly, not through
-    /// the router, and it pays no Pipeline fee. `metadata.json` describes it so desks can
-    /// show a form for it.
+    /// Adds liquidity. Liquidity providers call it directly, through your own front-end,
+    /// not through the router, and it pays no Pipeline fee.
     ///
     /// This starter pool has no LP shares and no withdrawal: anyone can deposit and
-    /// nobody can take liquidity out. Add shares and a `withdraw` action before real
+    /// nobody can take liquidity out. Add shares and a `withdraw` instruction before real
     /// users deposit.
     ///
     /// While either side is empty, a deposit must add both tokens, so a pool never trades

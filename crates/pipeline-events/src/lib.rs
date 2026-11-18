@@ -81,7 +81,6 @@ pub struct FeesSwept {
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ConfigChanged {
     pub admin: Pubkey,
-    pub paused: bool,
     pub listing_fee_lamports: u64,
     pub listing_fee_recipient: Pubkey,
     pub treasury_owner: Pubkey,

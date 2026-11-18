@@ -59,7 +59,7 @@ pub const MAX_TRANSACTION_ACCOUNTS: usize = 64;
 /// The most compute a transaction can request.
 pub const MAX_COMPUTE_UNITS: u32 = 1_400_000;
 /// The router's `InsufficientOutput` error number (Anchor numbers errors from 6000).
-pub const ROUTER_INSUFFICIENT_OUTPUT: u32 = 6021;
+pub const ROUTER_INSUFFICIENT_OUTPUT: u32 = 6020;
 const TRADER_LAMPORTS: u64 = 100_000_000_000;
 
 /// How to exercise the market.
@@ -451,7 +451,7 @@ fn prepare(
             ),
         );
     }
-    let Some(config) = svm
+    let Some(_config) = svm
         .get_account(&pda::config())
         .and_then(|a| client::decode_config(&a.data))
     else {
@@ -529,18 +529,7 @@ fn prepare(
         ));
     }
 
-    let mut base = svm.clone();
-    if config.paused {
-        status = status.max(Status::Warn);
-        notes.push(
-            "The router is paused here, so swaps would fail; the checks ran with the pause lifted locally."
-                .into(),
-        );
-        let mut account = base.get_account(&pda::config()).unwrap();
-        // Config layout: 8-byte discriminator, admin (32), then the `paused` flag.
-        account.data[40] = 0;
-        base.set_account(pda::config(), account).unwrap();
-    }
+    let base = svm.clone();
     if notes.is_empty() {
         notes.push(format!(
             "Market of registered strategy {strategy} with {} mints; router config found.",
@@ -553,7 +542,6 @@ fn prepare(
         notes.join(" "),
         json!({
             "strategy_registered": registered.is_some(),
-            "router_paused": config.paused,
             "mint_count": mints.len(),
         }),
     );

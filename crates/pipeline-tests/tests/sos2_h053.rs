@@ -3,10 +3,9 @@
 //! The router caps `metadata_uri` at 200 bytes (`String::len`, so UTF-8 bytes, not
 //! characters) on both `register_strategy` and `update_metadata`. The `Strategy` account
 //! is sized for that maximum, so no update should need a reallocation. Content is not
-//! validated (the integrator guide treats it as untrusted), and `update_metadata` is not
-//! gated by the pause (H001 relies on that). These tests check the bound at both entry
-//! points, the account size after multi-byte URIs, and the accepted content and pause
-//! behaviour.
+//! validated (the integrator guide treats it as untrusted). These tests check the bound
+//! at both entry points, the account size after multi-byte URIs, and the accepted
+//! content.
 
 mod common;
 
@@ -87,26 +86,16 @@ fn h053_update_rejects_201_bytes_and_keeps_account_size() {
 }
 
 #[test]
-fn h053_update_is_not_gated_by_pause_and_content_is_not_validated() {
+fn h053_content_is_not_validated() {
     let mut env = Env::new();
     let owner = env.register(&CP_PROGRAM_ID, "test_strategy_cp");
-    let admin = env.admin.insecure_clone();
 
-    let pause = client::update_config(
-        &admin.pubkey(),
-        &client::UpdateConfigArgs {
-            paused: Some(true),
-            ..Default::default()
-        },
-    );
-    env.send(&[pause], &[&admin]).expect("pause");
-
-    // Accepted design: the URI is changeable while paused and its content is not checked.
+    // Accepted design: the URI's content is not checked.
     // A `javascript:` URI with control characters is stored as given; front-ends must
     // treat it as untrusted (see docs/INTEGRATOR-GUIDE.md).
     let hostile = "javascript:alert(1)\u{202E}\u{0007}";
     let ix = client::update_metadata(&owner.pubkey(), &CP_PROGRAM_ID, hostile);
     env.send(&[ix], &[&owner])
-        .expect("H053: update while paused must succeed (accepted, H001)");
+        .expect("H053: any URI within the length limit is stored");
     assert_eq!(stored_uri(&env), hostile);
 }

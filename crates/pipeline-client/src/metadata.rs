@@ -19,13 +19,10 @@ pub const STRATEGY_METADATA_SCHEMA: &str = "pipeline-strategy-metadata/1";
 
 pub const STRATEGY_CATEGORIES: &[&str] =
     &["amm", "launchpad", "order-book", "auction", "lbp", "other"];
-pub const ACTION_KINDS: &[&str] = &[
-    "add_liquidity",
-    "remove_liquidity",
-    "claim",
-    "create_market",
-    "other",
-];
+/// The warning for a document that still has the `actions` section of earlier revisions,
+/// which described custom instructions. The section is no longer read.
+pub const ACTIONS_IGNORED_WARNING: &str =
+    "actions: custom actions are no longer part of the schema and are ignored";
 /// Argument types, Borsh-encoded in order after the discriminator.
 pub const ARG_TYPES: &[&str] = &[
     "u8", "u16", "u32", "u64", "i64", "bool", "pubkey", "bytes", "string",
@@ -131,7 +128,12 @@ pub fn parse_strategy_metadata(json: &Value) -> ParseResult {
     if let Some(init) = doc.get("init") {
         check_init(&mut c, init);
     }
-    check_actions(&mut c, doc.get("actions"));
+    if let Some(seed) = doc.get("seed") {
+        check_seed(&mut c, seed);
+    }
+    if doc.get("actions").is_some() {
+        c.warn(ACTIONS_IGNORED_WARNING.to_string());
+    }
     if let Some(conformance) = doc.get("conformance") {
         if let Some(conformance) = c.object(Some(conformance), "conformance") {
             c.url(conformance.get("report"), "conformance.report", true);
@@ -326,7 +328,19 @@ impl Checker {
     }
 }
 
-fn check_args(c: &mut Checker, value: Option<&Value>, path: &str, init: bool) -> HashSet<String> {
+/// The part of the document an account source appears in, which decides what it may use.
+#[derive(Clone, Copy, PartialEq)]
+enum Section {
+    Init,
+    Seed,
+}
+
+fn check_args(
+    c: &mut Checker,
+    value: Option<&Value>,
+    path: &str,
+    section: Section,
+) -> HashSet<String> {
     let mut names = HashSet::new();
     for (i, arg) in c.array(value, path, 32).iter().enumerate() {
         let p = format!("{path}[{i}]");
@@ -367,13 +381,19 @@ fn check_args(c: &mut Checker, value: Option<&Value>, path: &str, init: bool) ->
         let decimals_path = format!("{p}.decimals_of");
         if c.string(arg.get("decimals_of"), &decimals_path, 256, false) {
             let text = arg["decimals_of"].as_str().unwrap_or("");
-            check_source(c, text, &decimals_path, init, &names);
+            check_source(c, text, &decimals_path, section, &names);
         }
     }
     names
 }
 
-fn check_source(c: &mut Checker, text: &str, path: &str, init: bool, arg_names: &HashSet<String>) {
+fn check_source(
+    c: &mut Checker,
+    text: &str,
+    path: &str,
+    section: Section,
+    arg_names: &HashSet<String>,
+) {
     let source = match parse_account_source(text) {
         Ok(source) => source,
         Err(error) => {
@@ -381,11 +401,17 @@ fn check_source(c: &mut Checker, text: &str, path: &str, init: bool, arg_names: 
             return;
         }
     };
-    if init && source.needs_market() {
+    if section == Section::Init && source.needs_market() {
         c.error(
             path,
             format!("\"{text}\" refers to the market's mints, which don't exist before the market is created"),
         );
+    }
+    if section != Section::Seed && source.is_seed_only() {
+        c.error(path, format!("\"{text}\" is only available in seed"));
+    }
+    if section == Section::Seed && source.unavailable_in_seed() {
+        c.error(path, format!("\"{text}\" isn't available in seed"));
     }
     if let AccountSource::Pda { seeds, .. } = &source {
         for seed in seeds {
@@ -402,7 +428,7 @@ fn check_accounts(
     c: &mut Checker,
     value: Option<&Value>,
     path: &str,
-    init: bool,
+    section: Section,
     arg_names: &HashSet<String>,
 ) {
     for (i, account) in c.array(value, path, 64).iter().enumerate() {
@@ -414,7 +440,7 @@ fn check_accounts(
         let source_path = format!("{p}.source");
         if c.string(account.get("source"), &source_path, 512, true) {
             let text = account["source"].as_str().unwrap_or("");
-            check_source(c, text, &source_path, init, arg_names);
+            check_source(c, text, &source_path, section, arg_names);
         }
         c.boolean(account.get("signer"), &format!("{p}.signer"));
         c.boolean(account.get("writable"), &format!("{p}.writable"));
@@ -427,70 +453,66 @@ fn check_init(c: &mut Checker, init: &Value) {
     };
     c.string(init.get("description"), "init.description", 2000, false);
     c.string(init.get("idl_type"), "init.idl_type", 128, false);
-    let arg_names = check_args(c, init.get("args"), "init.args", true);
+    let arg_names = check_args(c, init.get("args"), "init.args", Section::Init);
     if c.string(init.get("market_state"), "init.market_state", 512, false) {
         let market_state = init["market_state"].as_str().unwrap_or("");
         if market_state != "new_keypair" {
-            check_source(c, market_state, "init.market_state", true, &arg_names);
+            check_source(
+                c,
+                market_state,
+                "init.market_state",
+                Section::Init,
+                &arg_names,
+            );
             if market_state == "market_state" || market_state == "market" {
                 c.error("init.market_state", "cannot refer to the market itself");
             }
         }
     }
-    check_accounts(c, init.get("accounts"), "init.accounts", true, &arg_names);
+    check_accounts(
+        c,
+        init.get("accounts"),
+        "init.accounts",
+        Section::Init,
+        &arg_names,
+    );
 }
 
-fn check_actions(c: &mut Checker, value: Option<&Value>) {
-    let mut names = HashSet::new();
-    for (i, action) in c.array(value, "actions", 64).iter().enumerate() {
-        let p = format!("actions[{i}]");
-        let Some(action) = c.object(Some(action), &p) else {
-            continue;
-        };
-        match action.get("name").and_then(Value::as_str) {
-            Some(name) if is_name(name) => {
-                if !names.insert(name.to_string()) {
-                    c.error(&format!("{p}.name"), format!("duplicate action \"{name}\""));
-                }
-            }
-            _ => c.error(
-                &format!("{p}.name"),
-                "must be an identifier (letters, digits, _)",
-            ),
-        }
-        c.string(action.get("label"), &format!("{p}.label"), 64, true);
-        c.string(
-            action.get("description"),
-            &format!("{p}.description"),
-            2000,
-            false,
-        );
-        match action.get("kind") {
-            None => {}
-            Some(Value::String(kind)) => {
-                if !ACTION_KINDS.contains(&kind.as_str()) {
-                    c.warn(format!("{p}.kind: unknown kind \"{kind}\""));
-                }
-            }
-            Some(_) => c.error(&format!("{p}.kind"), "must be a string"),
-        }
-        if let Some(discriminator) = action.get("discriminator") {
-            if !discriminator
-                .as_str()
-                .is_some_and(|s| s.len() == 16 && is_hex(s))
-            {
-                c.error(&format!("{p}.discriminator"), "must be 16 hex digits");
+fn check_seed(c: &mut Checker, seed: &Value) {
+    let Some(seed) = c.object(Some(seed), "seed") else {
+        return;
+    };
+    c.string(seed.get("description"), "seed.description", 2000, false);
+    c.string(seed.get("idl_type"), "seed.idl_type", 128, false);
+    let arg_names = check_args(c, seed.get("args"), "seed.args", Section::Seed);
+    if c.string(seed.get("market_state"), "seed.market_state", 512, false) {
+        let market_state = seed["market_state"].as_str().unwrap_or("");
+        // The seeder can't sign for a fresh keypair: the address must be derivable.
+        if market_state == "new_keypair" {
+            c.error(
+                "seed.market_state",
+                "\"new_keypair\" isn't available in seed",
+            );
+        } else {
+            check_source(
+                c,
+                market_state,
+                "seed.market_state",
+                Section::Seed,
+                &arg_names,
+            );
+            if market_state == "market_state" || market_state == "market" {
+                c.error("seed.market_state", "cannot refer to the market itself");
             }
         }
-        let arg_names = check_args(c, action.get("args"), &format!("{p}.args"), false);
-        check_accounts(
-            c,
-            action.get("accounts"),
-            &format!("{p}.accounts"),
-            false,
-            &arg_names,
-        );
     }
+    check_accounts(
+        c,
+        seed.get("accounts"),
+        "seed.accounts",
+        Section::Seed,
+        &arg_names,
+    );
 }
 
 // ---------------------------------------------------------------------------------------
@@ -516,10 +538,16 @@ pub enum AccountSource {
     StrategyProgram,
     SystemProgram,
     AssociatedTokenProgram,
+    /// The seeder PDA, in `seed` only.
+    Seeder,
+    /// The LP recipient, in `seed` only.
+    LpRecipient,
     Mint(u8),
     Vault(u8),
     TokenProgram(u8),
     WalletTokenAccount(u8),
+    /// The seeder's escrow for mint `i`, in `seed` only.
+    Escrow(u8),
     Fixed(Pubkey),
     Input(String),
     /// `program` is `None` for the strategy program.
@@ -535,20 +563,54 @@ pub enum AccountSource {
 }
 
 impl AccountSource {
-    /// Sources that only exist once a market does, so `init` cannot use them.
-    pub fn needs_market(&self) -> bool {
+    /// Whether `test` holds for the source or for any source nested in it.
+    fn any(&self, test: &impl Fn(&AccountSource) -> bool) -> bool {
+        if test(self) {
+            return true;
+        }
         match self {
-            AccountSource::Mint(_)
-            | AccountSource::Vault(_)
-            | AccountSource::TokenProgram(_)
-            | AccountSource::WalletTokenAccount(_) => true,
-            AccountSource::Ata { owner, mint } => owner.needs_market() || mint.needs_market(),
-            AccountSource::TokenProgramOf(mint) => mint.needs_market(),
+            AccountSource::Ata { owner, mint } => owner.any(test) || mint.any(test),
+            AccountSource::TokenProgramOf(mint) => mint.any(test),
             AccountSource::Pda { seeds, .. } => seeds
                 .iter()
-                .any(|seed| matches!(seed, PdaSeed::Key(source) if source.needs_market())),
+                .any(|seed| matches!(seed, PdaSeed::Key(source) if source.any(test))),
             _ => false,
         }
+    }
+
+    /// Sources that only exist once a market does, so `init` cannot use them.
+    pub fn needs_market(&self) -> bool {
+        self.any(&|source| {
+            matches!(
+                source,
+                AccountSource::Mint(_)
+                    | AccountSource::Vault(_)
+                    | AccountSource::TokenProgram(_)
+                    | AccountSource::WalletTokenAccount(_)
+            )
+        })
+    }
+
+    /// Sources that only a seeder provides, so only `seed` can use them.
+    pub fn is_seed_only(&self) -> bool {
+        self.any(&|source| {
+            matches!(
+                source,
+                AccountSource::Seeder | AccountSource::Escrow(_) | AccountSource::LpRecipient
+            )
+        })
+    }
+
+    /// Sources a seeder doesn't have: there is no user wallet and no vaults yet.
+    pub fn unavailable_in_seed(&self) -> bool {
+        self.any(&|source| {
+            matches!(
+                source,
+                AccountSource::Wallet
+                    | AccountSource::Vault(_)
+                    | AccountSource::WalletTokenAccount(_)
+            )
+        })
     }
 }
 
@@ -561,6 +623,8 @@ pub fn parse_account_source(text: &str) -> Result<AccountSource, String> {
         "strategy_program" => Some(AccountSource::StrategyProgram),
         "system_program" => Some(AccountSource::SystemProgram),
         "associated_token_program" => Some(AccountSource::AssociatedTokenProgram),
+        "seeder" => Some(AccountSource::Seeder),
+        "lp_recipient" => Some(AccountSource::LpRecipient),
         _ => None,
     };
     if let Some(source) = simple {
@@ -574,6 +638,7 @@ pub fn parse_account_source(text: &str) -> Result<AccountSource, String> {
         "vault" => Some(AccountSource::Vault),
         "token_program" => Some(AccountSource::TokenProgram),
         "wallet_token_account" => Some(AccountSource::WalletTokenAccount),
+        "escrow" => Some(AccountSource::Escrow),
         _ => None,
     };
     if let Some(make) = indexed {
@@ -740,7 +805,7 @@ mod tests {
                 "market_state": "pda:strategy:str:pool,arg:fee,arg:missing",
                 "accounts": [{ "name": "v", "source": "vault:0" }],
             },
-            "actions": [{ "name": "go", "label": "Go", "accounts": [{ "name": "x", "source": "ata:pda:strategy,mint:0" }] }],
+            "seed": { "accounts": [{ "name": "x", "source": "ata:pda:strategy,mint:0" }] },
         });
         let errors = parse_strategy_metadata(&doc).unwrap_err();
         assert_eq!(
@@ -748,7 +813,42 @@ mod tests {
             [
                 "init.market_state: seed refers to unknown argument \"missing\"",
                 "init.accounts[0].source: \"vault:0\" refers to the market's mints, which don't exist before the market is created",
-                "actions[0].accounts[0].source: \"ata:pda:strategy,mint:0\": pda and ata sources cannot be nested",
+                "seed.accounts[0].source: \"ata:pda:strategy,mint:0\": pda and ata sources cannot be nested",
+            ]
+        );
+    }
+
+    #[test]
+    fn seed_sources_are_checked_by_section() {
+        let doc = json!({
+            "schema": STRATEGY_METADATA_SCHEMA,
+            "name": "Pool",
+            "init": {
+                "accounts": [
+                    { "name": "s", "source": "ata:seeder,input:m" },
+                    { "name": "r", "source": "lp_recipient" },
+                ],
+            },
+            "seed": {
+                "args": [{ "name": "fee", "type": "u16" }],
+                "market_state": "new_keypair",
+                "accounts": [
+                    { "name": "ok", "source": "pda:strategy:key:seeder,key:mint:0,arg:fee" },
+                    { "name": "e", "source": "escrow:1" },
+                    { "name": "w", "source": "ata:wallet,mint:0" },
+                    { "name": "v", "source": "vault:0" },
+                ],
+            },
+        });
+        let errors = parse_strategy_metadata(&doc).unwrap_err();
+        assert_eq!(
+            errors,
+            [
+                "init.accounts[0].source: \"ata:seeder,input:m\" is only available in seed",
+                "init.accounts[1].source: \"lp_recipient\" is only available in seed",
+                "seed.market_state: \"new_keypair\" isn't available in seed",
+                "seed.accounts[2].source: \"ata:wallet,mint:0\" isn't available in seed",
+                "seed.accounts[3].source: \"vault:0\" isn't available in seed",
             ]
         );
     }

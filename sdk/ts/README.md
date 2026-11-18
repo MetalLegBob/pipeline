@@ -185,12 +185,18 @@ compares its `strategy.program_id` and `strategy.executable_sha256` with the dep
 | Checks   | `checks-passed`, `checks-failed`, `checks-pending`: set by the hosted API from its `pipeline-check` runs, never by the SDK                                                                                                                                                                                                                                                                                                                           |
 | Mints    | `mint-unreadable`, `token-2022`, `mint-authority`, `freeze-authority`, `transfer-hook` (a hook is set), `transfer-hook-authority` (can set one), `transfer-fee` (non-zero now or scheduled), `transfer-fee-authority` (can change it), `permanent-delegate`, `non-transferable`, `default-frozen`, `pausable`, `paused`, `closable-mint`, `interest-bearing`, `scaled-ui-amount`, `confidential-transfers`, `permissioned-burn`, `unknown-extension` |
 
-### Strategy metadata and custom actions
+### Strategy metadata
 
 `fetchStrategyMetadata(uri)` fetches and validates a strategy's metadata document
 (`schema/strategy-metadata.v1.json`; see `docs/STRATEGY-GUIDE.md` section 7).
-`buildActionInstruction` turns one of its `actions` into an instruction, and
-`buildCreateMarketFromMetadata` turns its `init` into `create_market`.
+`buildCreateMarketFromMetadata` turns its `init` into `create_market`, and
+`buildSeedData` and `resolveSeedAccounts` turn its `seed` into the `data` and accounts a
+seeder (such as a launchpad graduating a token) passes to `pipeline_seed_liquidity`.
+
+The SDK builds swaps and market creation only. A strategy's other instructions (adding
+liquidity, claims and so on) are not described in metadata or built here; users reach
+them through the strategy's own front-end. A document that still has an `actions`
+section is valid, with a warning, and the section is ignored.
 
 ## Contents
 
@@ -206,5 +212,5 @@ compares its `strategy.program_id` and `strategy.executable_sha256` with the dep
 | `quote`        | `quoteStrategy`, `resolveAccounts` (RPC simulation), and the instructions they simulate                                                                                      |
 | `listing`      | `registerAndListMarketInstructions`, `createAndListMarketInstructions` (record a market, then `init_fee_account` per mint)                                                   |
 | `metadata`     | Strategy metadata v1 (`schema/strategy-metadata.v1.json`): `parseStrategyMetadata`, `fetchStrategyMetadata` (https, ipfs, ar; size limit and timeout), `parseAccountSource`  |
-| `actions`      | `buildActionInstruction`, `resolveInit`, `buildCreateMarketFromMetadata`, `encodeArg`: instructions from metadata `actions` and `init`                                       |
+| `forms`        | `resolveInit`, `buildCreateMarketFromMetadata`, `buildSeedData`, `resolveSeedAccounts`, `encodeArg`: instructions from metadata `init` and `seed`                            |
 | `inspect`      | `inspectProgram`, `fetchVerifiedBuild`, `inspectMint`, `inspectStrategy`, `inspectMarket`, `FLAG_DESCRIPTIONS`, `filterMarkets`: trust facts and filter flags, no judgements |

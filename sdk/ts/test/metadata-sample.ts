@@ -35,30 +35,18 @@ export function sampleMetadata(): Record<string, any> {
                 { name: 'associated_token_program', source: 'associated_token_program' },
             ],
         },
-        actions: [
-            {
-                name: 'deposit',
-                label: 'Add liquidity',
-                kind: 'add_liquidity',
-                discriminator: 'f223c68952e1f2b6',
-                args: [
-                    { name: 'amount_a', type: 'u64', label: 'Amount of token A', decimals_of: 'mint:0' },
-                    { name: 'amount_b', type: 'u64', label: 'Amount of token B', decimals_of: 'mint:1' },
-                ],
-                accounts: [
-                    { name: 'depositor', source: 'wallet', signer: true },
-                    { name: 'pool', source: 'market_state', writable: true },
-                    { name: 'depositor_a', source: 'wallet_token_account:0', writable: true },
-                    { name: 'depositor_b', source: 'wallet_token_account:1', writable: true },
-                    { name: 'vault_a', source: 'vault:0', writable: true },
-                    { name: 'vault_b', source: 'vault:1', writable: true },
-                    { name: 'mint_a', source: 'mint:0' },
-                    { name: 'mint_b', source: 'mint:1' },
-                    { name: 'token_program_a', source: 'token_program:0' },
-                    { name: 'token_program_b', source: 'token_program:1' },
-                ],
-            },
-        ],
+        seed: {
+            description:
+                'Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.',
+            idl_type: 'InitParams',
+            market_state: 'pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps',
+            args: [{ name: 'fee_bps', type: 'u16', label: 'Pool fee (basis points)' }],
+            accounts: [
+                { name: 'vault_a', source: 'ata:market_state,mint:0', writable: true },
+                { name: 'vault_b', source: 'ata:market_state,mint:1', writable: true },
+                { name: 'associated_token_program', source: 'associated_token_program' },
+            ],
+        },
         conformance: {
             report: 'https://example.com/report.json',
             sha256: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',

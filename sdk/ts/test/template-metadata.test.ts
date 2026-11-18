@@ -1,5 +1,5 @@
 // The strategy template's metadata.json must stay valid and must build the same
-// `create_market` and `deposit` instructions the template program and its tests use.
+// `create_market` instruction the template program and its tests use.
 
 import { readFileSync } from 'node:fs';
 
@@ -7,20 +7,17 @@ import { AccountRole, getAddressEncoder, getProgramDerivedAddress } from '@solan
 import { describe, expect, it } from 'vitest';
 
 import {
-    anchorDiscriminator,
     ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
     associatedTokenAddress,
-    buildActionInstruction,
     buildCreateMarketFromMetadata,
     createMarket,
     marketPda,
     parseStrategyMetadata,
     TOKEN_2022_PROGRAM_ADDRESS,
     TOKEN_PROGRAM_ADDRESS,
-    type MarketView,
     type StrategyMetadata,
 } from '../src/index.js';
-import { hex, key } from './helpers.js';
+import { key } from './helpers.js';
 
 const TEMPLATE_METADATA = new URL('../../../templates/strategy/metadata.json', import.meta.url);
 
@@ -101,47 +98,5 @@ describe('strategy template metadata.json', () => {
                 strategyAccounts,
             }),
         );
-    });
-
-    it('builds the deposit action the template program expects', async () => {
-        const metadata = templateMetadata();
-        const deposit = metadata.actions?.find((action) => action.name === 'deposit');
-        expect(deposit).toBeDefined();
-        const marketState = await pool(30);
-        const market: MarketView = {
-            market: await marketPda(strategyProgram, marketState),
-            strategyProgram,
-            marketState,
-            mints: [mintA, mintB],
-            vaults: [key(16), key(17)],
-            tokenPrograms: [TOKEN_PROGRAM_ADDRESS, TOKEN_2022_PROGRAM_ADDRESS],
-            supportsExactOut: true,
-        };
-        const instruction = await buildActionInstruction({
-            action: deposit!,
-            market,
-            wallet,
-            args: { amount_a: 1_000n, amount_b: 2_000n },
-        });
-        expect(instruction.programAddress).toBe(strategyProgram);
-        expect(hex(instruction.data)).toBe(
-            hex(await anchorDiscriminator('deposit')) + 'e803000000000000' + 'd007000000000000',
-        );
-        // The order of the `Deposit` accounts struct.
-        expect(instruction.accounts).toEqual([
-            { address: wallet, role: AccountRole.READONLY_SIGNER },
-            { address: marketState, role: AccountRole.WRITABLE },
-            { address: await associatedTokenAddress(wallet, mintA, TOKEN_PROGRAM_ADDRESS), role: AccountRole.WRITABLE },
-            {
-                address: await associatedTokenAddress(wallet, mintB, TOKEN_2022_PROGRAM_ADDRESS),
-                role: AccountRole.WRITABLE,
-            },
-            { address: key(16), role: AccountRole.WRITABLE },
-            { address: key(17), role: AccountRole.WRITABLE },
-            { address: mintA, role: AccountRole.READONLY },
-            { address: mintB, role: AccountRole.READONLY },
-            { address: TOKEN_PROGRAM_ADDRESS, role: AccountRole.READONLY },
-            { address: TOKEN_2022_PROGRAM_ADDRESS, role: AccountRole.READONLY },
-        ]);
     });
 });

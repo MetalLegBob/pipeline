@@ -338,7 +338,6 @@ export function getConfigArgsCodec(): Codec<ConfigArgs> {
 /** Each field left `null` keeps its current value. */
 export type UpdateConfigArgs = {
     admin: Address | null;
-    paused: boolean | null;
     listingFeeLamports: bigint | null;
     listingFeeRecipient: Address | null;
     treasuryOwner: Address | null;
@@ -347,7 +346,6 @@ export type UpdateConfigArgs = {
 export function getUpdateConfigArgsCodec(): Codec<UpdateConfigArgs> {
     return getStructCodec([
         ['admin', getBorshOptionCodec(pubkey())],
-        ['paused', getBorshOptionCodec(bool())],
         ['listingFeeLamports', getBorshOptionCodec(u64())],
         ['listingFeeRecipient', getBorshOptionCodec(pubkey())],
         ['treasuryOwner', getBorshOptionCodec(pubkey())],
@@ -402,7 +400,8 @@ export function getSwapResultCodec(): Codec<SwapResult> {
 
 export type Config = {
     admin: Address;
-    paused: boolean;
+    /** Unused, always 0 (the place of a pause flag the router once had). */
+    reserved: number;
     listingFeeLamports: bigint;
     listingFeeRecipient: Address;
     treasuryOwner: Address;
@@ -412,7 +411,7 @@ export type Config = {
 export function getConfigCodec(): Codec<Config> {
     return getStructCodec([
         ['admin', pubkey()],
-        ['paused', bool()],
+        ['reserved', u8()],
         ['listingFeeLamports', u64()],
         ['listingFeeRecipient', pubkey()],
         ['treasuryOwner', pubkey()],

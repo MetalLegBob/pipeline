@@ -5,7 +5,7 @@
 //   3. register the strategy (0.01 devnet SOL, once) or update its metadata URI;
 //   4. create two test tokens;
 //   5. create a market and record it with the router, with fee accounts, in one transaction;
-//   6. add liquidity through the `deposit` action described in metadata.json;
+//   6. add liquidity by calling the program's `deposit` instruction directly;
 //   7. quote a swap, then swap through the router.
 //
 // Deploy the program itself first (`solana program deploy`, see the README).
@@ -24,6 +24,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+    AccountRole,
     address,
     addSignersToTransactionMessage,
     appendTransactionMessageInstructions,
@@ -34,6 +35,7 @@ import {
     generateKeyPairSigner,
     getBase64EncodedWireTransaction,
     getSignatureFromTransaction,
+    getU64Encoder,
     pipe,
     setTransactionMessageFeePayerSigner,
     setTransactionMessageLifetimeUsingBlockhash,
@@ -99,6 +101,51 @@ function fail(message: string): never {
 function explorer(kind: 'tx' | 'address', value: string) {
     const suffix = onDevnet ? '?cluster=devnet' : '';
     return `https://orbmarkets.io/${kind}/${value}${suffix}`;
+}
+
+/**
+ * The program's own `deposit` instruction, which the depositor signs directly: Anchor's
+ * discriminator, the two amounts, then the accounts in the order of the `Deposit` struct.
+ * Pipeline doesn't describe or build a strategy's non-swap instructions; your front-end
+ * builds them like this (or from your IDL).
+ */
+async function deposit(
+    program: Address,
+    market: pipeline.MarketView,
+    depositor: Address,
+    amountA: bigint,
+    amountB: bigint,
+): Promise<Instruction> {
+    const u64 = getU64Encoder();
+    const [mintA, mintB] = market.mints as [Address, Address];
+    const [vaultA, vaultB] = market.vaults as [Address, Address];
+    const [tokenProgramA, tokenProgramB] = market.tokenPrograms as [Address, Address];
+    return {
+        programAddress: program,
+        accounts: [
+            { address: depositor, role: AccountRole.READONLY_SIGNER },
+            { address: market.marketState, role: AccountRole.WRITABLE },
+            {
+                address: await pipeline.associatedTokenAddress(depositor, mintA, tokenProgramA),
+                role: AccountRole.WRITABLE,
+            },
+            {
+                address: await pipeline.associatedTokenAddress(depositor, mintB, tokenProgramB),
+                role: AccountRole.WRITABLE,
+            },
+            { address: vaultA, role: AccountRole.WRITABLE },
+            { address: vaultB, role: AccountRole.WRITABLE },
+            { address: mintA, role: AccountRole.READONLY },
+            { address: mintB, role: AccountRole.READONLY },
+            { address: tokenProgramA, role: AccountRole.READONLY },
+            { address: tokenProgramB, role: AccountRole.READONLY },
+        ],
+        data: new Uint8Array([
+            ...(await pipeline.anchorDiscriminator('deposit')),
+            ...u64.encode(amountA),
+            ...u64.encode(amountB),
+        ]),
+    };
 }
 
 async function loadWallet(): Promise<KeyPairSigner> {
@@ -217,9 +264,8 @@ async function main() {
         info('desks will show your strategy without metadata until it can be fetched');
     }
     const metadata = local.value;
-    const deposit = metadata.actions?.find((action) => action.name === 'deposit');
-    if (!metadata.init || !deposit) {
-        fail('metadata.json needs `init` and a `deposit` action for this script');
+    if (!metadata.init) {
+        fail('metadata.json needs `init` for this script');
     }
 
     step('3. Registering the strategy');
@@ -282,7 +328,7 @@ async function main() {
     info(`market ${resolved.market} (${explorer('address', resolved.market)})`);
     info(`pool   ${resolved.marketState}`);
 
-    step('6. Adding liquidity with the deposit action');
+    step("6. Adding liquidity with the program's deposit instruction");
     const marketAccount = pipeline.decodeMarket((await accountData(resolved.market)) ?? new Uint8Array());
     if (!marketAccount) {
         fail(`the router has no market at ${resolved.market}`);
@@ -291,12 +337,7 @@ async function main() {
         TOKEN_PROGRAM_ADDRESS,
         TOKEN_PROGRAM_ADDRESS,
     ]);
-    const depositInstruction = await pipeline.buildActionInstruction({
-        action: deposit,
-        market: view,
-        wallet: wallet.address,
-        args: { amount_a: DEPOSIT_A, amount_b: DEPOSIT_B },
-    });
+    const depositInstruction = await deposit(programId, view, wallet.address, DEPOSIT_A, DEPOSIT_B);
     await send('deposit', wallet, [depositInstruction]);
     info(`deposited ${DEPOSIT_A} of token A and ${DEPOSIT_B} of token B`);
 

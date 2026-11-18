@@ -95,27 +95,8 @@ export async function initializeConfig(input: { admin: Address; args: ConfigArgs
 
 export async function updateConfig(input: { admin: Address; args: UpdateConfigArgs }): Promise<PipelineInstruction> {
     return routerInstruction(
-        [
-            readonlySigner(input.admin),
-            writable(await configPda()),
-            readonly(PIPELINE_PROGRAM_ADDRESS),
-            readonly(await programDataPda(PIPELINE_PROGRAM_ADDRESS)),
-            ...(await eventCpiAccounts()),
-        ],
+        [readonlySigner(input.admin), writable(await configPda()), ...(await eventCpiAccounts())],
         instructionData(DISCRIMINATORS.updateConfig, getUpdateConfigArgsCodec(), input.args),
-    );
-}
-
-/** `lift_pause`: anyone can clear the pause once the router is frozen. */
-export async function liftPause(): Promise<PipelineInstruction> {
-    return routerInstruction(
-        [
-            writable(await configPda()),
-            readonly(PIPELINE_PROGRAM_ADDRESS),
-            readonly(await programDataPda(PIPELINE_PROGRAM_ADDRESS)),
-            ...(await eventCpiAccounts()),
-        ],
-        discriminatorOnly(DISCRIMINATORS.liftPause),
     );
 }
 
@@ -193,7 +174,6 @@ export async function createMarket(input: {
     return routerInstruction(
         [
             writableSigner(input.creator),
-            readonly(await configPda()),
             writable(await strategyPda(input.strategyProgram)),
             readonly(input.strategyProgram),
             input.marketStateSigns ? writableSigner(input.marketState) : writable(input.marketState),
@@ -228,7 +208,6 @@ export async function registerExistingMarket(input: {
     return routerInstruction(
         [
             writableSigner(input.payer),
-            readonly(await configPda()),
             writable(await strategyPda(input.strategyProgram)),
             readonly(input.strategyProgram),
             readonly(input.marketState),
@@ -296,7 +275,6 @@ export async function swap(accounts: SwapAccounts, args: SwapInstructionArgs): P
     return routerInstruction(
         [
             readonlySigner(accounts.trader),
-            readonly(await configPda()),
             readonly(accounts.strategyProgram),
             readonly(market),
             writable(accounts.marketState),

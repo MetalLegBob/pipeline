@@ -849,27 +849,22 @@ fn full_document() -> Value {
                 { "name": "vault_b", "source": "ata:market_state,input:mint_b", "writable": true },
                 { "name": "token_program_a", "source": "token_program_of:input:mint_a" },
                 { "name": "token_program_b", "source": "token_program_of:input:mint_b" },
-                { "name": "associated_token_program", "source": "associated_token_program" }
-            ]
-        },
-        "actions": [{
-            "name": "deposit",
-            "label": "Add liquidity",
-            "kind": "add_liquidity",
-            "discriminator": "f223c68952e1f2b6",
-            "args": [
-                { "name": "amount_a", "type": "u64", "label": "Amount of token A", "decimals_of": "mint:0" },
-                { "name": "amount_b", "type": "u64", "label": "Amount of token B", "decimals_of": "mint:1" }
-            ],
-            "accounts": [
-                { "name": "depositor", "source": "wallet", "signer": true },
-                { "name": "pool", "source": "market_state", "writable": true },
-                { "name": "depositor_a", "source": "wallet_token_account:0", "writable": true },
-                { "name": "vault_a", "source": "vault:0", "writable": true },
+                { "name": "associated_token_program", "source": "associated_token_program" },
                 { "name": "fixed", "source": "fixed:TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" },
                 { "name": "pda", "source": "pda:11111111111111111111111111111111:hex:00ff,str:a" }
             ]
-        }],
+        },
+        "seed": {
+            "description": "Opens a pool funded by a seeder, such as a launchpad graduating a token. The pool has no LP shares, so seeded liquidity stays in it.",
+            "idl_type": "InitParams",
+            "market_state": "pda:strategy:str:seeded,key:seeder,key:mint:0,key:mint:1,arg:fee_bps",
+            "args": [{ "name": "fee_bps", "type": "u16", "label": "Pool fee (basis points)" }],
+            "accounts": [
+                { "name": "vault_a", "source": "ata:market_state,mint:0", "writable": true },
+                { "name": "vault_b", "source": "ata:market_state,mint:1", "writable": true },
+                { "name": "associated_token_program", "source": "associated_token_program" }
+            ]
+        },
         "conformance": {
             "report": "https://example.com/report.json",
             "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
@@ -1062,7 +1057,7 @@ fn metadata_cases() -> Vec<(&'static str, Value, bool)> {
             "nested-pda",
             with(
                 full(),
-                &["actions", "0", "accounts", "0", "source"],
+                &["seed", "accounts", "0", "source"],
                 json!("ata:pda:strategy,mint:0"),
             ),
             false,
@@ -1071,7 +1066,7 @@ fn metadata_cases() -> Vec<(&'static str, Value, bool)> {
             "bad-index",
             with(
                 full(),
-                &["actions", "0", "accounts", "0", "source"],
+                &["seed", "accounts", "0", "source"],
                 json!("vault:4"),
             ),
             false,
@@ -1080,7 +1075,7 @@ fn metadata_cases() -> Vec<(&'static str, Value, bool)> {
             "bad-fixed",
             with(
                 full(),
-                &["actions", "0", "accounts", "0", "source"],
+                &["seed", "accounts", "0", "source"],
                 json!("fixed:notanaddress"),
             ),
             false,
@@ -1089,7 +1084,7 @@ fn metadata_cases() -> Vec<(&'static str, Value, bool)> {
             "long-str-seed",
             with(
                 full(),
-                &["actions", "0", "accounts", "0", "source"],
+                &["seed", "accounts", "0", "source"],
                 json!(format!("pda:strategy:str:{}", "a".repeat(33))),
             ),
             false,
@@ -1098,7 +1093,7 @@ fn metadata_cases() -> Vec<(&'static str, Value, bool)> {
             "odd-hex-seed",
             with(
                 full(),
-                &["actions", "0", "accounts", "0", "source"],
+                &["seed", "accounts", "0", "source"],
                 json!("pda:strategy:hex:abc"),
             ),
             false,
@@ -1107,7 +1102,7 @@ fn metadata_cases() -> Vec<(&'static str, Value, bool)> {
             "too-many-seeds",
             with(
                 full(),
-                &["actions", "0", "accounts", "0", "source"],
+                &["seed", "accounts", "0", "source"],
                 json!(format!("pda:strategy:{}", vec!["str:a"; 16].join(","))),
             ),
             false,
@@ -1116,7 +1111,7 @@ fn metadata_cases() -> Vec<(&'static str, Value, bool)> {
             "unknown-seed-kind",
             with(
                 full(),
-                &["actions", "0", "accounts", "0", "source"],
+                &["seed", "accounts", "0", "source"],
                 json!("pda:strategy:num:1"),
             ),
             false,
@@ -1125,7 +1120,7 @@ fn metadata_cases() -> Vec<(&'static str, Value, bool)> {
             "bad-ata",
             with(
                 full(),
-                &["actions", "0", "accounts", "0", "source"],
+                &["seed", "accounts", "0", "source"],
                 json!("ata:wallet"),
             ),
             false,
@@ -1134,66 +1129,155 @@ fn metadata_cases() -> Vec<(&'static str, Value, bool)> {
             "unknown-source",
             with(
                 full(),
-                &["actions", "0", "accounts", "0", "source"],
+                &["seed", "accounts", "0", "source"],
                 json!("treasury"),
             ),
-            false,
-        ),
-        (
-            "duplicate-action",
-            with(full(), &["actions", "1"], full()["actions"][0].clone()),
             false,
         ),
         (
             "duplicate-arg",
             with(
                 full(),
-                &["actions", "0", "args", "1", "name"],
-                json!("amount_a"),
+                &["seed", "args", "1"],
+                full()["seed"]["args"][0].clone(),
             ),
             false,
         ),
         (
             "bad-arg-type",
-            with(
-                full(),
-                &["actions", "0", "args", "0", "type"],
-                json!("u128"),
-            ),
+            with(full(), &["seed", "args", "0", "type"], json!("u128")),
             false,
-        ),
-        (
-            "bad-discriminator",
-            with(full(), &["actions", "0", "discriminator"], json!("f223")),
-            false,
-        ),
-        (
-            "unknown-action-kind",
-            with(full(), &["actions", "0", "kind"], json!("stake")),
-            true,
         ),
         (
             "signer-not-boolean",
+            with(full(), &["seed", "accounts", "0", "signer"], json!("yes")),
+            false,
+        ),
+        // `actions` described custom instructions in earlier revisions. It is ignored,
+        // whatever it holds, with a warning.
+        (
+            "actions-ignored",
             with(
                 full(),
-                &["actions", "0", "accounts", "0", "signer"],
-                json!("yes"),
+                &["actions"],
+                json!([{ "name": "deposit", "label": "Add liquidity", "kind": "add_liquidity" }]),
             ),
-            false,
+            true,
         ),
         (
-            "action-without-label",
-            with(minimal(), &["actions"], json!([{ "name": "go" }])),
-            false,
+            "malformed-actions-ignored",
+            with(minimal(), &["actions"], json!([{ "name": 7 }])),
+            true,
         ),
         (
-            "actions-not-array",
+            "actions-not-array-ignored",
             with(minimal(), &["actions"], json!({})),
-            false,
+            true,
         ),
         (
             "init-not-object",
             with(minimal(), &["init"], json!("x")),
+            false,
+        ),
+        (
+            "minimal-with-seed",
+            with(minimal(), &["seed"], full()["seed"].clone()),
+            true,
+        ),
+        (
+            "seeder-in-init",
+            with(
+                full(),
+                &["init", "accounts", "0", "source"],
+                json!("pda:strategy:key:seeder"),
+            ),
+            false,
+        ),
+        (
+            "escrow-in-init",
+            with(
+                full(),
+                &["init", "accounts", "0", "source"],
+                json!("ata:escrow:0,input:mint_a"),
+            ),
+            false,
+        ),
+        (
+            "lp-recipient-decimals-in-init",
+            with(
+                full(),
+                &["init", "args", "0", "decimals_of"],
+                json!("token_program_of:lp_recipient"),
+            ),
+            false,
+        ),
+        (
+            "wallet-in-seed",
+            with(
+                full(),
+                &["seed", "accounts", "0", "source"],
+                json!("ata:wallet,mint:0"),
+            ),
+            false,
+        ),
+        (
+            "vault-in-seed",
+            with(
+                full(),
+                &["seed", "accounts", "0", "source"],
+                json!("vault:0"),
+            ),
+            false,
+        ),
+        (
+            "wallet-token-account-in-seed-pda",
+            with(
+                full(),
+                &["seed", "market_state"],
+                json!("pda:strategy:key:wallet_token_account:0"),
+            ),
+            false,
+        ),
+        (
+            "new-keypair-seed-market-state",
+            with(full(), &["seed", "market_state"], json!("new_keypair")),
+            false,
+        ),
+        (
+            "seed-market-state-itself",
+            with(full(), &["seed", "market_state"], json!("market_state")),
+            false,
+        ),
+        (
+            "unknown-arg-in-seed-pda",
+            with(
+                full(),
+                &["seed", "market_state"],
+                json!("pda:strategy:key:seeder,arg:salt"),
+            ),
+            false,
+        ),
+        (
+            "seed-escrow-index",
+            with(
+                full(),
+                &["seed", "accounts", "0", "source"],
+                json!("escrow:4"),
+            ),
+            false,
+        ),
+        (
+            "seed-sources-valid",
+            with(
+                full(),
+                &["seed", "accounts", "3"],
+                json!({ "name": "x", "source": "pda:strategy:key:escrow:1,key:lp_recipient,key:market,key:token_program:1,key:strategy_program,key:system_program" }),
+            ),
+            true,
+        ),
+        (
+            "seed-not-object",
+            with(minimal(), &["seed"], json!([])),
             false,
         ),
     ]

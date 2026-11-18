@@ -1,6 +1,7 @@
 // Strategy metadata, version 1: the JSON document a strategy's on-chain `metadata_uri`
 // points to. Desks use it for names, links, trust facts the developer declares, and
-// generic forms for creating markets and calling custom instructions.
+// generic forms for creating markets. It doesn't describe a strategy's other
+// instructions: those are reached through the strategy's own front-end.
 //
 // The JSON Schema is `schema/strategy-metadata.v1.json`. Keys are snake_case, as in the
 // JSON. Unknown keys are allowed everywhere and kept in the parsed value, so later minor
@@ -17,9 +18,6 @@ export const STRATEGY_METADATA_SCHEMA = 'pipeline-strategy-metadata/1';
 export const STRATEGY_CATEGORIES = ['amm', 'launchpad', 'order-book', 'auction', 'lbp', 'other'] as const;
 export type StrategyCategory = (typeof STRATEGY_CATEGORIES)[number];
 
-export const ACTION_KINDS = ['add_liquidity', 'remove_liquidity', 'claim', 'create_market', 'other'] as const;
-export type ActionKind = (typeof ACTION_KINDS)[number];
-
 /** Argument types, Borsh-encoded in order after the discriminator. */
 export const ARG_TYPES = ['u8', 'u16', 'u32', 'u64', 'i64', 'bool', 'pubkey', 'bytes', 'string'] as const;
 export type ArgType = (typeof ARG_TYPES)[number];
@@ -34,6 +32,9 @@ function onHost(url: string, hosts: readonly string[]): boolean {
         return false;
     }
 }
+
+/** The warning for a document that still has the `actions` section of earlier revisions. */
+export const ACTIONS_IGNORED_WARNING = 'actions: custom actions are no longer part of the schema and are ignored';
 
 /** URL schemes accepted for links, images and reports. */
 export const METADATA_URL_SCHEMES = ['https:', 'ipfs:', 'ar:'] as const;
@@ -58,20 +59,6 @@ export type MetadataAccount = {
     [key: string]: unknown;
 };
 
-/** A custom instruction on the strategy, such as adding liquidity or claiming. */
-export type MetadataAction = {
-    /** The instruction's name; for Anchor programs, the IDL instruction name. */
-    name: string;
-    label: string;
-    kind?: ActionKind;
-    description?: string;
-    /** 8-byte discriminator as 16 hex digits. Defaults to Anchor's `sha256("global:<name>")[..8]`. */
-    discriminator?: string;
-    args?: MetadataArg[];
-    accounts?: MetadataAccount[];
-    [key: string]: unknown;
-};
-
 /** How to build `create_market`'s `init_data` and the strategy's setup accounts. */
 export type MetadataInit = {
     description?: string;
@@ -85,6 +72,27 @@ export type MetadataInit = {
     /** Borsh-encoded in order, with no discriminator, to form `init_data`. */
     args?: MetadataArg[];
     /** The strategy's own setup accounts, passed after the router's four fixed accounts. */
+    accounts?: MetadataAccount[];
+    [key: string]: unknown;
+};
+
+/**
+ * How another program (a seeder, such as a launchpad graduating a token) creates and
+ * funds a market through the strategy's `pipeline_seed_liquidity`: the `data` bytes of
+ * its `SeedRequest` and the strategy's own seed accounts.
+ */
+export type MetadataSeed = {
+    description?: string;
+    /** The IDL type `SeedRequest.data` decodes to, if the strategy publishes an IDL. */
+    idl_type?: string;
+    /** An account source giving the new market state's address, usually a `pda:` source. */
+    market_state?: string;
+    /** Borsh-encoded in order, with no discriminator, to form `SeedRequest.data`. */
+    args?: MetadataArg[];
+    /**
+     * The strategy's own seed accounts, passed after the five fixed seed accounts and the
+     * three accounts per mint. Transfer-hook accounts follow them.
+     */
     accounts?: MetadataAccount[];
     [key: string]: unknown;
 };
@@ -164,15 +172,15 @@ export type StrategyMetadata = {
     links?: MetadataLinks;
     source?: MetadataSource;
     init?: MetadataInit;
-    actions?: MetadataAction[];
+    seed?: MetadataSeed;
     conformance?: MetadataConformance;
     security?: MetadataSecurity;
     [key: string]: unknown;
 };
 
 /**
- * `warnings` report values a newer minor revision may add (an unknown category or action
- * kind); the document is still usable.
+ * `warnings` report values a newer minor revision may add (an unknown category) and
+ * sections that are no longer read (`actions`); the document is still usable.
  */
 export type ParseMetadataResult =
     { ok: true; value: StrategyMetadata; warnings: string[] } | { ok: false; errors: string[] };
@@ -197,7 +205,9 @@ export type AccountSource =
     | { kind: 'strategy_program' }
     | { kind: 'system_program' }
     | { kind: 'associated_token_program' }
-    | { kind: 'mint' | 'vault' | 'token_program' | 'wallet_token_account'; index: number }
+    | { kind: 'seeder' }
+    | { kind: 'lp_recipient' }
+    | { kind: 'mint' | 'vault' | 'token_program' | 'wallet_token_account' | 'escrow'; index: number }
     | { kind: 'fixed'; address: Address }
     | { kind: 'input'; name: string }
     | { kind: 'pda'; program: Address | 'strategy'; seeds: PdaSeed[] }
@@ -211,8 +221,10 @@ const SIMPLE_SOURCES = [
     'strategy_program',
     'system_program',
     'associated_token_program',
+    'seeder',
+    'lp_recipient',
 ] as const;
-const INDEXED_SOURCES = ['mint', 'vault', 'token_program', 'wallet_token_account'] as const;
+const INDEXED_SOURCES = ['mint', 'vault', 'token_program', 'wallet_token_account', 'escrow'] as const;
 const NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const HEX = /^(?:[0-9a-fA-F]{2})*$/;
 
@@ -226,6 +238,7 @@ const HEX = /^(?:[0-9a-fA-F]{2})*$/;
  * | `strategy_program`, `system_program`, `associated_token_program` | Those programs |
  * | `mint:i`, `vault:i`, `token_program:i` | The market's mint, vault, token program at index `i` |
  * | `wallet_token_account:i` | The user's associated token account for mint `i` |
+ * | `seeder`, `escrow:i`, `lp_recipient` | In `seed` only: the seeder, its escrow for mint `i`, the LP recipient |
  * | `fixed:<address>` | A fixed address |
  * | `input:<name>` | An address the user enters |
  * | `pda:<program>:<seed>,<seed>…` | A PDA of `<program>` (an address, or `strategy`) |
@@ -347,23 +360,36 @@ function parseSeed(seed: string, whole: string): PdaSeed | string {
     }
 }
 
-/** Sources that only exist once a market does, so `init` cannot use them. */
-export function sourceNeedsMarket(source: AccountSource): boolean {
+/** Whether `test` holds for the source or for any source nested in it. */
+function anySource(source: AccountSource, test: (source: AccountSource) => boolean): boolean {
+    if (test(source)) {
+        return true;
+    }
     switch (source.kind) {
-        case 'mint':
-        case 'vault':
-        case 'token_program':
-        case 'wallet_token_account':
-            return true;
         case 'ata':
-            return sourceNeedsMarket(source.owner) || sourceNeedsMarket(source.mint);
+            return anySource(source.owner, test) || anySource(source.mint, test);
         case 'token_program_of':
-            return sourceNeedsMarket(source.mint);
+            return anySource(source.mint, test);
         case 'pda':
-            return source.seeds.some((seed) => seed.kind === 'key' && sourceNeedsMarket(seed.source));
+            return source.seeds.some((seed) => seed.kind === 'key' && anySource(seed.source, test));
         default:
             return false;
     }
+}
+
+/** Sources that only exist once a market does, so `init` cannot use them. */
+export function sourceNeedsMarket(source: AccountSource): boolean {
+    return anySource(source, (s) => ['mint', 'vault', 'token_program', 'wallet_token_account'].includes(s.kind));
+}
+
+/** Sources that only a seeder provides, so only `seed` can use them. */
+export function sourceIsSeedOnly(source: AccountSource): boolean {
+    return anySource(source, (s) => ['seeder', 'escrow', 'lp_recipient'].includes(s.kind));
+}
+
+/** Sources a seeder doesn't have: there is no user wallet and no vaults yet. */
+export function sourceUnavailableInSeed(source: AccountSource): boolean {
+    return anySource(source, (s) => ['wallet', 'vault', 'wallet_token_account'].includes(s.kind));
 }
 
 export function hexToBytes(hex: string): Uint8Array {
@@ -449,7 +475,10 @@ class Checker {
     }
 }
 
-function checkArgs(c: Checker, value: unknown, path: string, init: boolean): Set<string> {
+/** The part of the document an account source appears in, which decides what it may use. */
+type Section = 'init' | 'seed';
+
+function checkArgs(c: Checker, value: unknown, path: string, section: Section): Set<string> {
     const names = new Set<string>();
     const args = c.array(value, path, 32) ?? [];
     args.forEach((arg, i) => {
@@ -470,20 +499,26 @@ function checkArgs(c: Checker, value: unknown, path: string, init: boolean): Set
         c.string(arg.label, `${p}.label`, 64);
         c.string(arg.description, `${p}.description`, 1000);
         if (c.string(arg.decimals_of, `${p}.decimals_of`, 256)) {
-            checkSource(c, arg.decimals_of, `${p}.decimals_of`, init, names);
+            checkSource(c, arg.decimals_of, `${p}.decimals_of`, section, names);
         }
     });
     return names;
 }
 
-function checkSource(c: Checker, text: string, path: string, init: boolean, argNames: Set<string>): void {
+function checkSource(c: Checker, text: string, path: string, section: Section, argNames: Set<string>): void {
     const source = parseAccountSource(text);
     if (typeof source === 'string') {
         c.error(path, source);
         return;
     }
-    if (init && sourceNeedsMarket(source)) {
+    if (section === 'init' && sourceNeedsMarket(source)) {
         c.error(path, `"${text}" refers to the market's mints, which don't exist before the market is created`);
+    }
+    if (section !== 'seed' && sourceIsSeedOnly(source)) {
+        c.error(path, `"${text}" is only available in seed`);
+    }
+    if (section === 'seed' && sourceUnavailableInSeed(source)) {
+        c.error(path, `"${text}" isn't available in seed`);
     }
     if (source.kind === 'pda') {
         for (const seed of source.seeds) {
@@ -494,7 +529,7 @@ function checkSource(c: Checker, text: string, path: string, init: boolean, argN
     }
 }
 
-function checkAccounts(c: Checker, value: unknown, path: string, init: boolean, argNames: Set<string>): void {
+function checkAccounts(c: Checker, value: unknown, path: string, section: Section, argNames: Set<string>): void {
     const accounts = c.array(value, path, 64) ?? [];
     accounts.forEach((account, i) => {
         const p = `${path}[${i}]`;
@@ -503,7 +538,7 @@ function checkAccounts(c: Checker, value: unknown, path: string, init: boolean, 
         }
         c.string(account.name, `${p}.name`, 64, true);
         if (c.string(account.source, `${p}.source`, 512, true)) {
-            checkSource(c, account.source, `${p}.source`, init, argNames);
+            checkSource(c, account.source, `${p}.source`, section, argNames);
         }
         c.boolean(account.signer, `${p}.signer`);
         c.boolean(account.writable, `${p}.writable`);
@@ -516,49 +551,35 @@ function checkInit(c: Checker, init: unknown): void {
     }
     c.string(init.description, 'init.description', 2000);
     c.string(init.idl_type, 'init.idl_type', 128);
-    const argNames = checkArgs(c, init.args, 'init.args', true);
+    const argNames = checkArgs(c, init.args, 'init.args', 'init');
     if (c.string(init.market_state, 'init.market_state', 512) && init.market_state !== 'new_keypair') {
-        checkSource(c, init.market_state, 'init.market_state', true, argNames);
+        checkSource(c, init.market_state, 'init.market_state', 'init', argNames);
         if (init.market_state === 'market_state' || init.market_state === 'market') {
             c.error('init.market_state', 'cannot refer to the market itself');
         }
     }
-    checkAccounts(c, init.accounts, 'init.accounts', true, argNames);
+    checkAccounts(c, init.accounts, 'init.accounts', 'init', argNames);
 }
 
-function checkActions(c: Checker, value: unknown): void {
-    const actions = c.array(value, 'actions', 64) ?? [];
-    const names = new Set<string>();
-    actions.forEach((action, i) => {
-        const p = `actions[${i}]`;
-        if (!c.object(action, p)) {
-            return;
-        }
-        if (typeof action.name !== 'string' || !NAME.test(action.name)) {
-            c.error(`${p}.name`, 'must be an identifier (letters, digits, _)');
-        } else if (names.has(action.name)) {
-            c.error(`${p}.name`, `duplicate action "${action.name}"`);
+function checkSeed(c: Checker, seed: unknown): void {
+    if (!c.object(seed, 'seed')) {
+        return;
+    }
+    c.string(seed.description, 'seed.description', 2000);
+    c.string(seed.idl_type, 'seed.idl_type', 128);
+    const argNames = checkArgs(c, seed.args, 'seed.args', 'seed');
+    if (c.string(seed.market_state, 'seed.market_state', 512)) {
+        // The seeder can't sign for a fresh keypair: the address must be derivable.
+        if (seed.market_state === 'new_keypair') {
+            c.error('seed.market_state', '"new_keypair" isn\'t available in seed');
         } else {
-            names.add(action.name);
-        }
-        c.string(action.label, `${p}.label`, 64, true);
-        c.string(action.description, `${p}.description`, 2000);
-        if (action.kind !== undefined) {
-            if (typeof action.kind !== 'string') {
-                c.error(`${p}.kind`, 'must be a string');
-            } else if (!(ACTION_KINDS as readonly string[]).includes(action.kind)) {
-                c.warnings.push(`${p}.kind: unknown kind "${action.kind}"`);
+            checkSource(c, seed.market_state, 'seed.market_state', 'seed', argNames);
+            if (seed.market_state === 'market_state' || seed.market_state === 'market') {
+                c.error('seed.market_state', 'cannot refer to the market itself');
             }
         }
-        if (
-            action.discriminator !== undefined &&
-            (typeof action.discriminator !== 'string' || !/^[0-9a-fA-F]{16}$/.test(action.discriminator))
-        ) {
-            c.error(`${p}.discriminator`, 'must be 16 hex digits');
-        }
-        const argNames = checkArgs(c, action.args, `${p}.args`, false);
-        checkAccounts(c, action.accounts, `${p}.accounts`, false, argNames);
-    });
+    }
+    checkAccounts(c, seed.accounts, 'seed.accounts', 'seed', argNames);
 }
 
 /**
@@ -607,7 +628,13 @@ export function parseStrategyMetadata(json: unknown): ParseMetadataResult {
     if (json.init !== undefined) {
         checkInit(c, json.init);
     }
-    checkActions(c, json.actions);
+    if (json.seed !== undefined) {
+        checkSeed(c, json.seed);
+    }
+    // Earlier revisions described custom instructions here. They are no longer read.
+    if (json.actions !== undefined) {
+        c.warnings.push(ACTIONS_IGNORED_WARNING);
+    }
     if (json.conformance !== undefined && c.object(json.conformance, 'conformance')) {
         c.url(json.conformance.report, 'conformance.report', true);
         if (

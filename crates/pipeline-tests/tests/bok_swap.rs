@@ -1,4 +1,4 @@
-//! BOK runtime evidence for the router's `swap` handler: fee-account routing, pause,
+//! BOK runtime evidence for the router's `swap` handler: fee-account routing,
 //! reporting, aliasing, the hook split, exact-out and zero swaps, multi-hop fees.
 //!
 //! Invariants: `.bok/confirmed-invariants/04-swap-handler.md` and the LiteSVM parts of
@@ -176,82 +176,6 @@ fn bok_inv_swap_11_fee_goes_only_to_this_markets_fee_account() {
         assert_eq!(after[4], before[4], "{label}: output-mint fee account");
         assert_eq!(after[7], before[7], "{label}: other market's vault");
         assert_eq!(after[8], before[8], "{label}: trader's other account");
-    }
-}
-
-// ------------------------------------------------------------------- INV-SWAP-18
-
-/// INV-SWAP-18: a paused router moves nothing. `Paused` is the first check: it wins
-/// over a wrong fee account and a missing integrator account. No balance (trader in and
-/// out, both vaults, both fee accounts, integrator) and no trader lamport changes, for
-/// exact-in, exact-out and integrator-fee swaps. Unpausing makes the same swap succeed,
-/// so the fixture is otherwise valid.
-#[test]
-fn bok_inv_swap_18_paused_router_moves_nothing() {
-    let mut env = Env::new();
-    let m = setup_cp_market(&mut env, TOKEN, TOKEN, RESERVE, 2 * RESERVE, 30);
-    let t = cp_trader(&mut env, &m, true, 10_000_000);
-    let integrator = env.create_ata(&Pubkey::new_unique(), &m.mint_a, &TOKEN);
-    let fee_a = pda::fee_account(&m.market, &m.mint_a, &TOKEN);
-    let fee_b = pda::fee_account(&m.market, &m.mint_b, &TOKEN);
-    let watched = [
-        t.input, t.output, m.vault_a, m.vault_b, fee_a, fee_b, integrator,
-    ];
-    let admin = env.admin.pubkey();
-    let pause = |paused| {
-        client::update_config(
-            &admin,
-            &client::UpdateConfigArgs {
-                paused: Some(paused),
-                ..Default::default()
-            },
-        )
-    };
-    env.send(&[pause(true)], &[]).unwrap();
-
-    let need = cp_in(RESERVE, 2 * RESERVE, 100_000, 30);
-    let mut with_integrator = cp_accounts(&m, &t, true);
-    with_integrator.integrator_fee_account = Some(integrator);
-    let mut integrator_args = exact_in(1_000, 0);
-    integrator_args.integrator_fee_bps = 100;
-    let mut missing_integrator = exact_in(1_000, 0);
-    missing_integrator.integrator_fee_bps = 100;
-    let mut wrong_fee = client::swap(&cp_accounts(&m, &t, true), &exact_in(1_000, 0));
-    wrong_fee.accounts[ix::FEE_ACCOUNT].pubkey = integrator;
-    let cases = vec![
-        (
-            "exact-in",
-            client::swap(&cp_accounts(&m, &t, true), &exact_in(1_000, 0)),
-        ),
-        (
-            "exact-out",
-            client::swap(
-                &cp_accounts(&m, &t, true),
-                &exact_out(need * 2, 100_000, 100_000),
-            ),
-        ),
-        (
-            "integrator",
-            client::swap(&with_integrator, &integrator_args),
-        ),
-        ("wrong fee account", wrong_fee),
-        (
-            "missing integrator account",
-            client::swap(&cp_accounts(&m, &t, true), &missing_integrator),
-        ),
-    ];
-    for (label, ix) in &cases {
-        let before = balances(&env, &watched);
-        let lamports = env.lamports(&t.keypair.pubkey());
-        assert_fails_with(send_swap(&mut env, ix.clone(), &t.keypair), "Paused");
-        assert_eq!(balances(&env, &watched), before, "{label}: balances moved");
-        assert_eq!(env.lamports(&t.keypair.pubkey()), lamports, "{label}");
-    }
-
-    env.send(&[pause(false)], &[]).unwrap();
-    for (label, ix) in &cases[..3] {
-        send_swap(&mut env, ix.clone(), &t.keypair)
-            .unwrap_or_else(|e| panic!("{label} after unpause: {:?}", e.err));
     }
 }
 
@@ -461,7 +385,7 @@ fn bok_inv_swap_13_input_equal_to_output_is_refused() {
     // Same account and the same mint on both sides.
     let mut ix = client::swap(&cp_accounts(&m, &t, true), &exact_in(1_000, 0));
     ix.accounts[ix::TRADER_OUTPUT].pubkey = t.input;
-    ix.accounts[9].pubkey = m.mint_a;
+    ix.accounts[8].pubkey = m.mint_a;
     assert_fails_with(send_swap(&mut env, ix, &t.keypair), "SameMint");
     assert_eq!(balances(&env, &watched), before);
 }

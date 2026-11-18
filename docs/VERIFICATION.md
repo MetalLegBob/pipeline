@@ -6,6 +6,10 @@ skill) and audited with Stronghold of Security (see [`SECURITY-AUDIT.md`](SECURI
 This page covers the verification: 47 properties (invariants) that the router's arithmetic
 and money movements must always satisfy, and how each one is established.
 
+> **Change since this run (2026-11-13).** The router's pause was removed (no `paused`
+> flag, no `lift_pause`), so the properties about it were retired with their tests and
+> are no longer listed below. The count of 47 is the original run's.
+
 **Result: no counterexample anywhere.** Every arithmetic property is proven for every
 possible input; every account-level property passes its tests against the real router.
 
@@ -118,7 +122,6 @@ yourself as above.
 | Property | How |
 |---|---|
 | Pipeline's fee goes only to this market's fee account for the input mint | LiteSVM |
-| When paused, a swap fails before anything moves | LiteSVM |
 | The event and return data equal what actually moved | LiteSVM |
 | Every account aliasing the checks allow either fails or keeps the guarantees above | LiteSVM |
 | Exact-out: refused if unsupported; a refund lowers the fee base exactly | LiteSVM, Proptest |
@@ -130,7 +133,6 @@ yourself as above.
 |---|---|
 | The listing fee is 0 or between the rent-exempt minimum and the cap, on every path | LiteSVM, Proptest |
 | Registration charges exactly the configured fee, never above the registrant's maximum | LiteSVM |
-| Pausing works only while the router is upgradeable; `lift_pause` only once it's frozen | LiteSVM, Proptest |
 | Creating a market costs the creator at most `max_creator_lamports` plus rent; the setup payer ends empty | LiteSVM |
 | Only fresh, non-creator accounts keep their signature in market creation; swaps forward none | LiteSVM, Proptest |
 | Market info: 2–4 distinct mints with one vault each, from the strategy itself; decoding never panics | LiteSVM, Proptest |

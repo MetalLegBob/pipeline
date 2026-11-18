@@ -148,7 +148,7 @@ async function createMintWithBalance(admin: KeyPairSigner, decimals: number, amo
     return mint.address;
 }
 
-/** The constant-product strategy's `deposit` custom action (no LP shares; playground only). */
+/** The constant-product strategy's own `deposit` instruction (no LP shares; playground only). */
 function depositInstruction(
     depositor: Address,
     pool: Address,

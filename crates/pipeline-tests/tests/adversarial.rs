@@ -299,18 +299,18 @@ fn mismatched_mints_and_token_accounts_are_rejected() {
 
     // Output mint equal to input mint.
     let mut ix = evil_swap(&market, &t, HONEST, 1_000, vec![]);
-    ix.accounts[9].pubkey = market.mint_a;
+    ix.accounts[8].pubkey = market.mint_a;
     assert_fails_with(env.send(&[ix], &[&t.keypair]), "SameMint");
 
     // A mint the market does not trade.
     let other = env.create_mint(&TOKEN, 6, None, None);
     let mut ix = evil_swap(&market, &t, HONEST, 1_000, vec![]);
-    ix.accounts[9].pubkey = other;
+    ix.accounts[8].pubkey = other;
     assert_fails_with(env.send(&[ix], &[&t.keypair]), "MintNotInMarket");
 
     // Trader "input" account that holds the output mint.
     let mut ix = evil_swap(&market, &t, HONEST, 1_000, vec![]);
-    ix.accounts[5].pubkey = t.account_b;
+    ix.accounts[4].pubkey = t.account_b;
     assert_fails_with(env.send(&[ix], &[&t.keypair]), "BadTokenAccount");
     assert_trader_untouched(&env, &t);
 }

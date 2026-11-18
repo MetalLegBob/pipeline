@@ -51,7 +51,7 @@ on devnet, where the template's `scripts/deploy-devnet.ts` does steps 2 to 4 for
 1. **Deploy** your program to devnet as usual (`solana program deploy`).
 2. **Register** it with the router's `register_strategy`, signed by the program's upgrade
    authority. This pays the 0.01 SOL listing fee. TypeScript: `registerStrategy`.
-3. **Publish metadata** (name, image, links, custom actions; see
+3. **Publish metadata** (name, image, links, how to create a market; see
    [`STRATEGY-GUIDE.md`](STRATEGY-GUIDE.md) section 7) and point your registration at it
    with `update_metadata`.
 4. **Create a market** with the router's `create_market`, plus `init_fee_account` for each

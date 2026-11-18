@@ -3,8 +3,8 @@
 //! Every account `swap` reads or pays into must be bound to the market: the market
 //! (owner, discriminator, seeds from the passed strategy program and market state,
 //! stored bump), the strategy program, the market state, both mints, both token
-//! programs, the input vault, the fee authority and the fee account, the config, and
-//! the trader's token accounts. The integrator account is free, but the token program
+//! programs, the input vault, the fee authority and the fee account, and the trader's
+//! token accounts (`swap` no longer takes the config account). The integrator account is free, but the token program
 //! must still refuse one in the wrong mint or program.
 //!
 //! The world has three constant-product markets (two on the same SPL mints, one with a
@@ -33,17 +33,16 @@ const AMOUNT: u64 = 1_000;
 
 /// Positions of `swap`'s named accounts in `client::swap`'s instruction.
 mod at {
-    pub const CONFIG: usize = 1;
-    pub const STRATEGY_PROGRAM: usize = 2;
-    pub const MARKET: usize = 3;
-    pub const MARKET_STATE: usize = 4;
-    pub const TRADER_INPUT: usize = 5;
-    pub const TRADER_OUTPUT: usize = 6;
-    pub const INPUT_VAULT: usize = 7;
-    pub const INPUT_MINT: usize = 8;
-    pub const OUTPUT_MINT: usize = 9;
-    pub const FEE_AUTHORITY: usize = 12;
-    pub const FEE_ACCOUNT: usize = 13;
+    pub const STRATEGY_PROGRAM: usize = 1;
+    pub const MARKET: usize = 2;
+    pub const MARKET_STATE: usize = 3;
+    pub const TRADER_INPUT: usize = 4;
+    pub const TRADER_OUTPUT: usize = 5;
+    pub const INPUT_VAULT: usize = 6;
+    pub const INPUT_MINT: usize = 7;
+    pub const OUTPUT_MINT: usize = 8;
+    pub const FEE_AUTHORITY: usize = 11;
+    pub const FEE_ACCOUNT: usize = 12;
 }
 
 struct World {
@@ -237,10 +236,10 @@ impl World {
     }
 }
 
-/// H012, market / strategy / market-state / config / fee-authority identity: every
+/// H012, market / strategy / market-state / fee-authority identity: every
 /// substitution that would pair a strategy with another market's state, a market with
-/// another strategy, a forged or wrong-type market, a forged config or another
-/// market's fee authority fails in Anchor's account validation and moves nothing.
+/// another strategy, a forged or wrong-type market or another market's fee authority
+/// fails in Anchor's account validation and moves nothing.
 #[test]
 fn sos2_h012_market_identity_substitutions_are_refused() {
     let mut w = world();
@@ -318,28 +317,6 @@ fn sos2_h012_market_identity_substitutions_are_refused() {
         "market = strategy PDA",
         ix,
         Some("AccountDiscriminatorMismatch"),
-    );
-
-    // Config substitutions.
-    let ix = w.m1_ix_with(at::CONFIG, pda::strategy(&CP_PROGRAM_ID));
-    w.refused(
-        "config = strategy PDA",
-        ix,
-        Some("AccountDiscriminatorMismatch"),
-    );
-    let mut config = w.env.svm.get_account(&pda::config()).unwrap();
-    let config_copy = Pubkey::new_unique();
-    w.env.svm.set_account(config_copy, config.clone()).unwrap();
-    let ix = w.m1_ix_with(at::CONFIG, config_copy);
-    w.refused("config = router-owned copy", ix, Some("ConstraintSeeds"));
-    config.owner = EVIL_ID;
-    let foreign_config = Pubkey::new_unique();
-    w.env.svm.set_account(foreign_config, config).unwrap();
-    let ix = w.m1_ix_with(at::CONFIG, foreign_config);
-    w.refused(
-        "config = EVIL-owned copy",
-        ix,
-        Some("AccountOwnedByWrongProgram"),
     );
 
     // Another market's fee authority together with that market's fee account.
