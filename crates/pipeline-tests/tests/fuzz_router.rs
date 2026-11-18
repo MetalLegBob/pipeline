@@ -27,8 +27,8 @@
 //!   lost during the call, what the input vault kept))`, rebuilt from balances; every
 //!   swap pays `ceil(net_sent × 25 / 10,000)` (and the integrator's rate) into the
 //!   market's own fee account;
-//! - the trader's output account gains `received ≥ min_amount_out`, and the event and
-//!   the return data report what really moved;
+//! - the trader's output account never falls and gains `received ≥ min_amount_out`, and
+//!   the event and the return data report what really moved;
 //! - fee accounts lose tokens only to a sweep, and only into the treasury;
 //! - router accounts change only through their instructions: markets never, the config
 //!   only by its admin, strategies only by their owner or a new market; every event matches the accounts it describes, and
@@ -1396,8 +1396,8 @@ impl World {
                 0 => 0,
                 1 => rent0 - 1,
                 2 => rent0,
-                3 => 1_000_000_000_000,
-                4 => 1_000_000_000_001,
+                3 => 10_000_000_000,
+                4 => 10_000_000_001,
                 5 => u64::MAX,
                 _ => tape.u64(),
             });
@@ -1960,11 +1960,6 @@ fn check_success(
                         balance(before, &output).ok_or("output not a token account")?;
                     let out_after = balance(after, &output).ok_or("output closed")?;
                     let moved = out_after as i128 - out_before as i128;
-                    let output_mint = event.output_mint;
-                    let delegated = world
-                        .mints
-                        .iter()
-                        .any(|m| m.key == output_mint && m.permanent_delegate);
                     let refilled_after =
                         refilled && output == refill_target && moved > event.received as i128;
                     if refilled_after {
@@ -1973,26 +1968,6 @@ fn check_success(
                         ctx.notes
                             .borrow_mut()
                             .push("a hook topped up the output after measurement".into());
-                    } else if moved < 0 && event.received == 0 && delegated {
-                        // Known: a permanent delegate on the market PDA lets the strategy
-                        // take the trader's output balance; `received` floors at 0.
-                        ctx.notes
-                            .borrow_mut()
-                            .push("output balance fell through a permanent delegate".into());
-                    } else if moved < 0
-                        && event.received == 0
-                        && before
-                            .get(&output)
-                            .and_then(|a| a.as_ref())
-                            .and_then(token_state)
-                            .is_some_and(|t| controlled(&t.owner))
-                    {
-                        // The "trader's output account" is one the strategy controls (a
-                        // substituted vault), so it can take from it; `received` floors
-                        // at 0. Nobody but the strategy loses.
-                        ctx.notes
-                            .borrow_mut()
-                            .push("output account is the strategy's and fell".into());
                     } else if moved != event.received as i128 {
                         return Err(format!(
                             "swap {i}: trader output moved {moved} but the event says received {}",

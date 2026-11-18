@@ -16,7 +16,7 @@ use solana_signer::Signer;
 use solana_transaction::Transaction;
 
 /// `MAX_LISTING_FEE_LAMPORTS` in programs/pipeline/src/lib.rs.
-const MAX_FEE: u64 = 1_000_000_000_000;
+const MAX_FEE: u64 = 10_000_000_000;
 /// `8 + Strategy::INIT_SPACE`: discriminator, program id, String(200), version,
 /// registered_at, market_count, bump.
 const STRATEGY_SPACE: usize = 8 + 32 + 4 + 200 + 1 + 8 + 8 + 1;

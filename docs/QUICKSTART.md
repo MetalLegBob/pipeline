@@ -71,7 +71,7 @@ Pipeline is live on devnet ([`DEVNET.md`](DEVNET.md)):
    node deploy-devnet.ts https://<where you published>/metadata.json
    ```
 
-   It registers the strategy (`register_strategy`, signed by your upgrade authority, 0.01 devnet SOL), points it at your metadata, creates a market and records it with `init_fee_account` for each mint in one transaction, adds liquidity with the `deposit` action from your metadata, then quotes and swaps through the router. A market the router hasn't recorded is invisible to everything built on Pipeline (`docs/STRATEGY-GUIDE.md` section 6).
+   It registers the strategy (`register_strategy`, signed by your upgrade authority, 0.01 devnet SOL), points it at your metadata, creates a market and records it with `init_fee_account` for each mint in one transaction, adds liquidity by calling your program's `deposit` instruction directly, then quotes and swaps through the router. A market the router hasn't recorded is invisible to everything built on Pipeline (`docs/STRATEGY-GUIDE.md` section 6).
 4. **Check it** the way integrators will, and publish the report:
 
    ```sh

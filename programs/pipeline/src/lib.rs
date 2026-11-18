@@ -26,9 +26,9 @@ mod token;
 
 declare_id!("PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34");
 
-/// Hard ceiling on the admin-adjustable listing fee. Placeholder until the mainnet
-/// price is chosen.
-pub const MAX_LISTING_FEE_LAMPORTS: u64 = 1_000_000_000_000;
+/// Hard ceiling on the admin-adjustable listing fee: 10 SOL, ten times the 1 SOL mainnet
+/// listing fee.
+pub const MAX_LISTING_FEE_LAMPORTS: u64 = 10_000_000_000;
 pub const MAX_METADATA_URI_LEN: usize = 200;
 
 #[program]
@@ -485,6 +485,14 @@ pub mod pipeline {
                 &accounts.input_token_program.key(),
             )?,
         };
+        // A swap never lowers what the trader already held in the output mint. Without
+        // this, a strategy holding the output mint's permanent delegate could pay the
+        // trader and take more back, and with a zero minimum the swap would still pass
+        // (`received` floors at 0).
+        require!(
+            measured.output_after >= measured.output_before,
+            PipelineError::OutputDecreased
+        );
         // The fee base is the trader's net spend, or what the market's input vault kept
         // if that is more (other code, such as the output mint's transfer hook, could top
         // up the trader's input account during the call), at most `amount_in`. See
@@ -1278,4 +1286,6 @@ pub enum PipelineError {
     NothingSwapped,
     #[msg("A non-zero listing fee must be at least the rent-exempt minimum")]
     ListingFeeBelowRent,
+    #[msg("The trader's output balance fell during the swap")]
+    OutputDecreased,
 }

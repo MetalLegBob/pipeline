@@ -55,6 +55,10 @@ pub enum Behaviour {
     /// Pulls one more unit of input from the trader using the market signer, which works
     /// only if the market PDA is the input mint's Token-2022 permanent delegate.
     PullAsDelegate = 10,
+    /// Pays out 1:1, then takes one more unit than it paid back out of the trader's
+    /// output account using the market signer, which works only if the market PDA is
+    /// the output mint's Token-2022 permanent delegate.
+    PullOutputAsDelegate = 11,
 }
 
 /// `info_mode` values that attack the setup payer or other accounts during setup.
@@ -611,6 +615,18 @@ fn swap<'a>(
                 &accounts[ix::INPUT_VAULT],
                 &accounts[ix::MARKET_SIGNER],
                 1,
+                &[],
+            )
+        }
+        b if b == Behaviour::PullOutputAsDelegate as u8 => {
+            pay(&accounts[ix::TRADER_OUTPUT], amount)?;
+            token_transfer(
+                &accounts[ix::OUTPUT_TOKEN_PROGRAM],
+                &accounts[ix::TRADER_OUTPUT],
+                &accounts[ix::OUTPUT_MINT],
+                output_vault,
+                &accounts[ix::MARKET_SIGNER],
+                amount + 1,
                 &[],
             )
         }

@@ -222,10 +222,7 @@ fn h005_fee_change_in_the_same_transaction_both_orders() {
     assert!(env.svm.get_account(&pda::strategy(&r.program)).is_none());
 
     // Register with max F, then raise to the cap: the old fee is paid.
-    let ixs = [
-        register_ix(&env, &r, fee),
-        fee_update(&env, 1_000_000_000_000),
-    ];
+    let ixs = [register_ix(&env, &r, fee), fee_update(&env, 10_000_000_000)];
     env.send(&ixs, &[&r.owner, &r.sponsor])
         .expect("register then raise");
     assert_eq!(
@@ -234,9 +231,9 @@ fn h005_fee_change_in_the_same_transaction_both_orders() {
         "H005: register-then-raise"
     );
     assert_eq!(s0 - env.lamports(&r.sponsor.pubkey()), fee + strategy_rent);
-    assert_eq!(stored_fee(&env), 1_000_000_000_000);
+    assert_eq!(stored_fee(&env), 10_000_000_000);
 
-    // At the 1,000 SOL fee, a cut to F/2 first and a max of F pays F/2.
+    // At the 10 SOL cap, a cut to F/2 first and a max of F pays F/2.
     let r = new_registration(&mut env);
     let (s0, r0) = (env.lamports(&r.sponsor.pubkey()), env.lamports(&recipient));
     let ixs = [fee_update(&env, fee / 2), register_ix(&env, &r, fee)];

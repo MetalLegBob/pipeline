@@ -106,8 +106,9 @@ registration. `swap`, `create_market` and `register_existing_market` don't read 
      transfer-fee token the vault keeps less than the trader spent, and the trader's spend
      counts.
    - `received` = the trader's output balance after minus before.
-   - Require `received ≥ min_amount_out`, `trader_spent ≤ amount_in`, and `net_sent > 0`
-     (no output for no input, and no empty swaps).
+   - Require that the trader's output balance didn't fall (even through a permanent
+     delegate), `received ≥ min_amount_out`, `trader_spent ≤ amount_in`, and
+     `net_sent > 0` (no output for no input, and no empty swaps).
    - This step is `pipeline_strategy_interface::settlement::settle`, a pure function, so
      quoters can share it and its guarantees can be proven for every input.
 6. **Charge fees** from the trader: `ceil(net_sent × 0.25%)` into the market's fee account,

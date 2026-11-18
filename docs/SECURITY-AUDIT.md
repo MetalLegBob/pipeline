@@ -15,6 +15,11 @@ Line references are to these three files at `73e5ca0`. `lib.rs` means `programs/
 > the pause (audit #1 H007 and this audit's H001, H002, H046, H048 and H060, and the
 > freeze runbook's `lift_pause` step) describes the audited version and no longer
 > applies; the tests for those items were removed with the code.
+>
+> **Change since this audit (2026-11-18).** The router also refuses a swap that lowers the
+> trader's output balance (`OutputDecreased`), closing the output-side counterpart of the
+> permanent-delegate case the router already guarded on the input side. `MAX_LISTING_FEE_LAMPORTS`
+> is now 10 SOL (H047's placeholder was 1,000 SOL).
 
 ---
 

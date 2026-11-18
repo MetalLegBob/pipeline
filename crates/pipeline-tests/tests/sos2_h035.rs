@@ -338,14 +338,14 @@ fn h035_admin_handover_to_dead_key_freezes_config_only() {
 
 /// `listing_fee_lamports`: at most the cap and either 0 or at least the rent floor.
 /// Nothing but `register_strategy` reads it. At the cap, every swap, sweep and market
-/// creation still works; registration costs 1,000 SOL (deterrent only: H005).
+/// creation still works; registration costs the 10 SOL cap (deterrent only: H005).
 #[test]
 fn h035_listing_fee_is_bounded_and_read_only_by_registration() {
     let mut env = Env::new();
     let (market, trader, swap) = trade(&mut env);
     freeze(&mut env);
 
-    let cap = 1_000_000_000_000u64;
+    let cap = 10_000_000_000u64;
     let fail = |env: &mut Env, fee: u64, needle: &str| {
         let r = update(
             env,
@@ -439,7 +439,7 @@ fn h035_hostile_config_does_not_touch_swaps_markets_or_sweeps() {
         &mut env,
         client::UpdateConfigArgs {
             admin: Some(Pubkey::default()),
-            listing_fee_lamports: Some(1_000_000_000_000),
+            listing_fee_lamports: Some(10_000_000_000),
             listing_fee_recipient: Some(Pubkey::default()),
             ..Default::default()
         },
@@ -466,7 +466,7 @@ fn h035_hostile_config_does_not_touch_swaps_markets_or_sweeps() {
     env.send(&[metadata], &[&reg_owner])
         .expect("H035: update_metadata blocked by hostile config");
 
-    // Registration is the one thing that fails (fee 1,000 SOL / dead recipient: H027).
+    // Registration is the one thing that fails (fee at the 10 SOL cap / dead recipient: H027).
     let program = Pubkey::new_unique();
     let owner2 = env.funded_keypair();
     env.deploy_strategy(&program, "test_strategy_cp", &owner2.pubkey());

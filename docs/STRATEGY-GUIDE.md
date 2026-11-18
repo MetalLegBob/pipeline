@@ -77,7 +77,7 @@ The router does not enforce these, but quoting and trading depend on them.
 
 ## 3. What your strategy cannot do in a Pipeline swap
 
-- **Take more from the trader.** You never get the trader's signature, and the router fails any swap where the trader parts with more input than `amount_in`, even through a token's permanent delegate. Attempts fail the whole transaction (see `crates/pipeline-tests/tests/adversarial.rs` and `security.rs`).
+- **Take more from the trader.** You never get the trader's signature, and the router fails any swap where the trader parts with more input than `amount_in` or ends with less of the output mint than they started with, even through a token's permanent delegate. Attempts fail the whole transaction (see `crates/pipeline-tests/tests/adversarial.rs` and `security.rs`).
 - **Deliver output without keeping any input.** The router rejects it.
 - **Touch Pipeline's fees.** Fee accounts belong to a separate PDA you never receive.
 - **Call back into the router.** Solana forbids re-entrancy.

@@ -87,22 +87,29 @@ fn pre_deposited_input_is_a_donation_not_fee_free_input() {
     );
 }
 
-/// M1: a Token-2022 mint whose permanent delegate is the market PDA lets the strategy
-/// pull extra input; the router caps what the trader parts with at `amount_in`.
-#[test]
-fn router_caps_trader_spend_even_with_a_permanent_delegate() {
-    let mut env = Env::new();
-    env.register(&EVIL_ID, "test_strategy_evil");
-    let mint_b = env.create_mint(&TOKEN, 6, None, None);
+/// An evil market between a Token-2022 mint whose permanent delegate is the market PDA
+/// and a plain SPL mint, with the plain mint's vault funded. `delegated_first` puts the
+/// delegated mint first (as mint A).
+struct DelegatedMarket {
+    state: Pubkey,
+    delegated: Pubkey,
+    plain: Pubkey,
+    delegated_vault: Pubkey,
+    plain_vault: Pubkey,
+}
 
-    // The input mint's permanent delegate is the market PDA, which can be computed
-    // before the market exists.
-    let mint_a = Keypair::new();
-    let state = Pubkey::find_program_address(
-        &[b"evil", mint_a.pubkey().as_ref(), mint_b.as_ref()],
-        &EVIL_ID,
-    )
-    .0;
+fn delegated_market(env: &mut Env, delegated_first: bool) -> DelegatedMarket {
+    env.register(&EVIL_ID, "test_strategy_evil");
+    let plain = env.create_mint(&TOKEN, 6, None, None);
+    // The market PDA can be computed before the market exists.
+    let delegated = Keypair::new();
+    let (mint_a, mint_b) = if delegated_first {
+        (delegated.pubkey(), plain)
+    } else {
+        (plain, delegated.pubkey())
+    };
+    let state =
+        Pubkey::find_program_address(&[b"evil", mint_a.as_ref(), mint_b.as_ref()], &EVIL_ID).0;
     let market = pda::market(&EVIL_ID, &state);
     let space = spl_token_2022_interface::extension::ExtensionType::try_calculate_account_len::<
         spl_token_2022_interface::state::Mint,
@@ -114,33 +121,38 @@ fn router_caps_trader_spend_even_with_a_permanent_delegate() {
         &[
             solana_system_interface::instruction::create_account(
                 &admin,
-                &mint_a.pubkey(),
+                &delegated.pubkey(),
                 rent,
                 space as u64,
                 &TOKEN_2022,
             ),
             spl_token_2022_interface::instruction::initialize_permanent_delegate(
                 &TOKEN_2022,
-                &mint_a.pubkey(),
+                &delegated.pubkey(),
                 &market,
             )
             .unwrap(),
             spl_token_2022_interface::instruction::initialize_mint2(
                 &TOKEN_2022,
-                &mint_a.pubkey(),
+                &delegated.pubkey(),
                 &admin,
                 None,
                 6,
             )
             .unwrap(),
         ],
-        &[&mint_a],
+        &[&delegated],
     )
     .unwrap();
-    let mint_a = mint_a.pubkey();
+    let delegated = delegated.pubkey();
 
-    let vault_a = env.create_ata(&state, &mint_a, &TOKEN_2022);
-    let vault_b = env.create_ata(&state, &mint_b, &TOKEN);
+    let delegated_vault = env.create_ata(&state, &delegated, &TOKEN_2022);
+    let plain_vault = env.create_ata(&state, &plain, &TOKEN);
+    let (vault_a, vault_b) = if delegated_first {
+        (delegated_vault, plain_vault)
+    } else {
+        (plain_vault, delegated_vault)
+    };
     let creator = env.funded_keypair();
     let create = client::create_market(&client::CreateMarket {
         creator: creator.pubkey(),
@@ -159,28 +171,44 @@ fn router_caps_trader_spend_even_with_a_permanent_delegate() {
     env.send(
         &[
             create,
-            client::init_fee_account(&admin, &market, &mint_a, &TOKEN_2022),
+            client::init_fee_account(&admin, &market, &delegated, &TOKEN_2022),
+            client::init_fee_account(&admin, &market, &plain, &TOKEN),
         ],
         &[&creator],
     )
     .unwrap();
-    env.mint_to(&mint_b, &TOKEN, &vault_b, 1_000_000_000);
+    env.mint_to(&plain, &TOKEN, &plain_vault, 1_000_000_000);
+    env.mint_to(&delegated, &TOKEN_2022, &delegated_vault, 1_000_000_000);
+    DelegatedMarket {
+        state,
+        delegated,
+        plain,
+        delegated_vault,
+        plain_vault,
+    }
+}
 
-    let (trader, trader_a) = env.trader_with(&mint_a, &TOKEN_2022, 10_000_000);
-    let trader_b = env.create_ata(&trader.pubkey(), &mint_b, &TOKEN);
+/// M1: a Token-2022 mint whose permanent delegate is the market PDA lets the strategy
+/// pull extra input; the router caps what the trader parts with at `amount_in`.
+#[test]
+fn router_caps_trader_spend_even_with_a_permanent_delegate() {
+    let mut env = Env::new();
+    let m = delegated_market(&mut env, true);
+    let (trader, trader_in) = env.trader_with(&m.delegated, &TOKEN_2022, 10_000_000);
+    let trader_out = env.create_ata(&trader.pubkey(), &m.plain, &TOKEN);
     let accounts = client::SwapAccounts {
         trader: trader.pubkey(),
         strategy_program: EVIL_ID,
-        market_state: state,
-        trader_input: trader_a,
-        trader_output: trader_b,
-        input_vault: vault_a,
-        input_mint: mint_a,
-        output_mint: mint_b,
+        market_state: m.state,
+        trader_input: trader_in,
+        trader_output: trader_out,
+        input_vault: m.delegated_vault,
+        input_mint: m.delegated,
+        output_mint: m.plain,
         input_token_program: TOKEN_2022,
         output_token_program: TOKEN,
         integrator_fee_account: None,
-        strategy_accounts: vec![AccountMeta::new(vault_b, false)],
+        strategy_accounts: vec![AccountMeta::new(m.plain_vault, false)],
         input_hook_accounts: vec![],
     };
     let mut args = exact_in(1_000, 0);
@@ -189,7 +217,48 @@ fn router_caps_trader_spend_even_with_a_permanent_delegate() {
         env.send(&[client::swap(&accounts, &args)], &[&trader]),
         "SpendLimitExceeded",
     );
-    assert_eq!(env.token_balance(&trader_a), 10_000_000);
+    assert_eq!(env.token_balance(&trader_in), 10_000_000);
+}
+
+/// The output side of M1: a strategy holding the output mint's permanent delegate pays
+/// the trader, then takes back more than it paid. With a zero minimum the swap used to
+/// pass with `received` floored at 0 while the trader's existing balance fell; the
+/// router now refuses it. An honest swap through the same market still works.
+#[test]
+fn a_swap_cannot_lower_the_traders_output_balance() {
+    let mut env = Env::new();
+    let m = delegated_market(&mut env, false);
+    let (trader, trader_in) = env.trader_with(&m.plain, &TOKEN, 10_000_000);
+    let trader_out = env.create_ata(&trader.pubkey(), &m.delegated, &TOKEN_2022);
+    env.mint_to(&m.delegated, &TOKEN_2022, &trader_out, 5_000);
+    let accounts = client::SwapAccounts {
+        trader: trader.pubkey(),
+        strategy_program: EVIL_ID,
+        market_state: m.state,
+        trader_input: trader_in,
+        trader_output: trader_out,
+        input_vault: m.plain_vault,
+        input_mint: m.plain,
+        output_mint: m.delegated,
+        input_token_program: TOKEN,
+        output_token_program: TOKEN_2022,
+        integrator_fee_account: None,
+        strategy_accounts: vec![AccountMeta::new(m.delegated_vault, false)],
+        input_hook_accounts: vec![],
+    };
+    let mut args = exact_in(1_000, 0);
+    args.extra = vec![11]; // PullOutputAsDelegate
+    assert_fails_with(
+        env.send(&[client::swap(&accounts, &args)], &[&trader]),
+        "OutputDecreased",
+    );
+    assert_eq!(env.token_balance(&trader_in), 10_000_000);
+    assert_eq!(env.token_balance(&trader_out), 5_000);
+
+    args.extra = vec![0]; // Honest
+    env.send(&[client::swap(&accounts, &args)], &[&trader])
+        .expect("an honest swap through the same market");
+    assert_eq!(env.token_balance(&trader_out), 6_000);
 }
 
 /// M2: creating a pool's vault accounts in advance cannot block the pool, and pools

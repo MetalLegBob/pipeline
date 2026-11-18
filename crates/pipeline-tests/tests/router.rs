@@ -49,7 +49,7 @@ fn only_admin_updates_config_and_fee_is_capped() {
     let too_high = client::update_config(
         &admin,
         &client::UpdateConfigArgs {
-            listing_fee_lamports: Some(1_000_000_000_001),
+            listing_fee_lamports: Some(10_000_000_001),
             ..Default::default()
         },
     );
