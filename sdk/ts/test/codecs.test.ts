@@ -5,17 +5,24 @@ import {
     decodeConfig,
     decodeExact,
     decodeMarket,
+    decodeMarketInfo,
+    decodeMarketInfoReturnData,
+    decodeMarketLookupTable,
     decodeReturnData,
     decodeStrategy,
     encodeAccount,
+    encodeMarketInfo,
     getAccountRefCodec,
     getConfigArgsCodec,
     getConfigCodec,
     getMarketCodec,
     getMarketInfoCodec,
+    getMarketLookupTableCodec,
     getQuoteResultCodec,
     getResolveRequestCodec,
     getResolveResultCodec,
+    getRouteArgsCodec,
+    getRouteResultCodec,
     getStrategyCodec,
     getSwapArgsCodec,
     getSwapRequestCodec,
@@ -23,7 +30,9 @@ import {
     getTradeRequestCodec,
     getUpdateConfigArgsCodec,
     instructionData,
+    marketFeeMint,
     marketMints,
+    NO_FEE_MINT,
     marketVaultFor,
     parseInstruction,
     STRATEGY_DISCRIMINATORS,
@@ -44,6 +53,8 @@ const CODECS: Record<string, () => Codec<any>> = {
     UpdateConfigArgs: getUpdateConfigArgsCodec,
     SwapArgs: getSwapArgsCodec,
     SwapResult: getSwapResultCodec,
+    RouteArgs: getRouteArgsCodec,
+    RouteResult: getRouteResultCodec,
 };
 
 describe('wire types match Rust Borsh', () => {
@@ -152,15 +163,17 @@ describe('router accounts', () => {
         Config: decodeConfig,
         Strategy: decodeStrategy,
         Market: decodeMarket,
+        MarketLookupTable: decodeMarketLookupTable,
     };
     const codecs: Record<string, () => Codec<any>> = {
         Config: getConfigCodec,
         Strategy: getStrategyCodec,
         Market: getMarketCodec,
+        MarketLookupTable: getMarketLookupTableCodec,
     };
 
     for (const fixture of fixtures.accounts) {
-        const name = fixture.type as 'Config' | 'Strategy' | 'Market';
+        const name = fixture.type as 'Config' | 'Strategy' | 'Market' | 'MarketLookupTable';
 
         it(`${name} decodes to the Rust value and re-encodes to the Rust bytes`, () => {
             const decoded = decoders[name]!(unhex(fixture.hex));
@@ -186,5 +199,54 @@ describe('router accounts', () => {
         expect(marketMints(market)).toEqual([key(13), key(14), key(15)]);
         expect(marketVaultFor(market, key(14))).toBe(key(17));
         expect(marketVaultFor(market, key(0))).toBeNull();
+    });
+
+    it('market fee mint is the mint at feeMintIndex, if any', () => {
+        const market = decodeMarket(unhex(fixtures.accounts.find((e) => e.type === 'Market')!.hex)) as Market;
+        expect(marketFeeMint(market)).toBe(key(14));
+        expect(marketFeeMint({ ...market, feeMintIndex: NO_FEE_MINT })).toBeNull();
+        // An index past the market's mints declares nothing.
+        expect(marketFeeMint({ ...market, feeMintIndex: 3 })).toBeNull();
+    });
+
+    it('a Market in the layout before fee mints does not decode', () => {
+        const bytes = unhex(fixtures.accounts.find((e) => e.type === 'Market')!.hex);
+        expect(decodeMarket(bytes.subarray(0, bytes.length - 1))).toBeNull();
+    });
+});
+
+describe('market info with an optional fee mint matches Rust', () => {
+    for (const [i, fixture] of fixtures.marketInfos.entries()) {
+        it(`#${i} (fee mint ${fixture.feeMint}) decodes and re-encodes`, () => {
+            const decoded = decodeMarketInfo(unhex(fixture.hex))!;
+            expect(toJson(decoded.info)).toEqual(fixture.info);
+            expect(decoded.feeMint).toBe(fixture.feeMint);
+            expect(hex(encodeMarketInfo(decoded.info, decoded.feeMint))).toBe(fixture.hex);
+        });
+    }
+
+    const bare = unhex(fixtures.marketInfos.find((f) => f.feeMint === null)!.hex);
+
+    it('accepts an explicit None and rejects anything else after the info', () => {
+        expect(decodeMarketInfo(new Uint8Array([...bare, 0]))?.feeMint).toBeNull();
+        expect(decodeMarketInfo(new Uint8Array([...bare, 0, 0]))).toBeNull();
+        expect(decodeMarketInfo(new Uint8Array([...bare, 1]))).toBeNull();
+        expect(decodeMarketInfo(new Uint8Array([...bare, 1, 0, 0]))).toBeNull();
+        expect(decodeMarketInfo(new Uint8Array([...bare, 2, 0]))).toBeNull();
+        expect(decodeMarketInfo(bare.subarray(1))).toBeNull();
+    });
+
+    it('reads RPC return data with its trailing zeros dropped', () => {
+        const trim = (bytes: Uint8Array) => {
+            let end = bytes.length;
+            while (end > 0 && bytes[end - 1] === 0) end--;
+            return bytes.subarray(0, end);
+        };
+        for (const fixture of fixtures.marketInfos) {
+            const decoded = decodeMarketInfoReturnData(trim(unhex(fixture.hex)))!;
+            expect(toJson(decoded.info)).toEqual(fixture.info);
+            expect(decoded.feeMint).toBe(fixture.feeMint);
+        }
+        expect(decodeMarketInfoReturnData(new Uint8Array([...bare, 2]))).toBeNull();
     });
 });

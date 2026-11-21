@@ -61,6 +61,11 @@ export function eventAuthorityPda(): Promise<Address> {
     return find(PIPELINE_PROGRAM_ADDRESS, [SEEDS.eventAuthority]);
 }
 
+/** The record of a market's address lookup table (`record_lookup_table`). */
+export function lookupTableRecordPda(market: Address): Promise<Address> {
+    return find(PIPELINE_PROGRAM_ADDRESS, [SEEDS.lookupTable, bytes(market)]);
+}
+
 /** A loader-v3 program's ProgramData account. */
 export function programDataPda(program: Address): Promise<Address> {
     return find(BPF_LOADER_UPGRADEABLE_PROGRAM_ADDRESS, [bytes(program)]);

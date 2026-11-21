@@ -117,6 +117,48 @@ fn swap_args_json(args: &client::SwapArgs) -> Value {
     })
 }
 
+/// A swap's accounts as the SDK's `SwapAccounts` takes them.
+fn swap_accounts_json(accounts: &client::SwapAccounts) -> Value {
+    json!({
+        "trader": addr(&accounts.trader),
+        "strategyProgram": addr(&accounts.strategy_program),
+        "marketState": addr(&accounts.market_state),
+        "traderInput": addr(&accounts.trader_input),
+        "traderOutput": addr(&accounts.trader_output),
+        "inputVault": addr(&accounts.input_vault),
+        "inputMint": addr(&accounts.input_mint),
+        "outputMint": addr(&accounts.output_mint),
+        "inputTokenProgram": addr(&accounts.input_token_program),
+        "outputTokenProgram": addr(&accounts.output_token_program),
+        "integratorFeeAccount": opt_addr(&accounts.integrator_fee_account),
+        "strategyAccounts": metas(&accounts.strategy_accounts),
+        "inputHookAccounts": metas(&accounts.input_hook_accounts),
+    })
+}
+
+fn fee_side_json(side: client::FeeSide) -> Value {
+    match side {
+        client::FeeSide::Input => json!("input"),
+        client::FeeSide::Output => json!("output"),
+    }
+}
+
+/// The smallest amount arriving in the trader's output that leaves at least `kept` after
+/// Pipeline's fee is taken from it, computed from the definition: `None` above a u64.
+fn received_for_kept(kept: u64) -> Option<u64> {
+    let fee = |r: u128| (r * psi::PIPELINE_FEE_BPS as u128).div_ceil(psi::BPS_DENOMINATOR as u128);
+    let kept = kept as u128;
+    let mut r = (kept * psi::BPS_DENOMINATOR as u128)
+        .div_ceil((psi::BPS_DENOMINATOR - psi::PIPELINE_FEE_BPS) as u128);
+    while r - fee(r) < kept {
+        r += 1;
+    }
+    while r > kept && r - 1 - fee(r - 1) >= kept {
+        r -= 1;
+    }
+    u64::try_from(r).ok()
+}
+
 fn swap_event_json(event: &events::SwapEvent) -> Value {
     json!({
         "market": addr(&event.market),
@@ -132,6 +174,7 @@ fn swap_event_json(event: &events::SwapEvent) -> Value {
         "integratorFee": big(event.integrator_fee),
         "slot": big(event.slot),
         "unixTimestamp": signed(event.unix_timestamp),
+        "feeMint": addr(&event.fee_mint),
     })
 }
 
@@ -162,6 +205,9 @@ fn discriminators() -> Value {
         "init_fee_account",
         "swap",
         "sweep_fees",
+        "migrate_market",
+        "route",
+        "record_lookup_table",
     ];
     let instructions: serde_json::Map<String, Value> = router_instructions
         .iter()
@@ -172,15 +218,16 @@ fn discriminators() -> Value {
             )
         })
         .collect();
-    let accounts: serde_json::Map<String, Value> = ["Config", "Strategy", "Market"]
-        .iter()
-        .map(|name| {
-            (
-                name.to_string(),
-                json!(hex(&client::account_discriminator(name))),
-            )
-        })
-        .collect();
+    let accounts: serde_json::Map<String, Value> =
+        ["Config", "Strategy", "Market", "MarketLookupTable"]
+            .iter()
+            .map(|name| {
+                (
+                    name.to_string(),
+                    json!(hex(&client::account_discriminator(name))),
+                )
+            })
+            .collect();
     json!({
         "routerInstructions": instructions,
         "accounts": accounts,
@@ -198,6 +245,7 @@ fn discriminators() -> Value {
             "MarketCreated": hex(&events::discriminator::MARKET_CREATED),
             "FeesSwept": hex(&events::discriminator::FEES_SWEPT),
             "ConfigChanged": hex(&events::discriminator::CONFIG_CHANGED),
+            "LookupTableRecorded": hex(&events::discriminator::LOOKUP_TABLE_RECORDED),
         },
         "eventIxTag": hex(&events::EVENT_IX_TAG),
     })
@@ -241,6 +289,11 @@ fn pdas() -> Value {
             "kind": "feeAccount",
             "inputs": { "market": addr(&market), "mint": addr(&mint), "tokenProgram": addr(&client::TOKEN_2022_PROGRAM_ID) },
             "address": addr(&pda::fee_account(&market, &mint, &client::TOKEN_2022_PROGRAM_ID)),
+        },
+        {
+            "kind": "lookupTableRecord",
+            "inputs": { "market": addr(&market) },
+            "address": addr(&pda::lookup_table_record(&market)),
         },
         {
             "kind": "register",
@@ -444,30 +497,158 @@ fn router_instructions() -> Value {
             extra: vec![],
         },
     );
-    for (accounts, args) in [full_swap, plain_swap] {
+    // `feeSide: null` uses the builder's default: the output side when the output is
+    // wrapped SOL, the input side otherwise.
+    let sol_out = client::SwapAccounts {
+        output_mint: client::wallet::NATIVE_MINT,
+        ..plain_swap.0.clone()
+    };
+    let swaps = [
+        (full_swap.0.clone(), full_swap.1.clone(), None),
+        (plain_swap.0.clone(), plain_swap.1.clone(), None),
+        (sol_out.clone(), plain_swap.1.clone(), None),
+        (sol_out, plain_swap.1.clone(), Some(client::FeeSide::Input)),
+        (
+            full_swap.0.clone(),
+            full_swap.1.clone(),
+            Some(client::FeeSide::Output),
+        ),
+    ];
+    for (accounts, args, side) in swaps {
+        let ix = match side {
+            None => client::swap(&accounts, &args),
+            Some(side) => client::swap_with_fee_side(&accounts, &args, side),
+        };
         cases.push(instruction(
             "swap",
             json!({
-                "accounts": {
-                    "trader": addr(&accounts.trader),
-                    "strategyProgram": addr(&accounts.strategy_program),
-                    "marketState": addr(&accounts.market_state),
-                    "traderInput": addr(&accounts.trader_input),
-                    "traderOutput": addr(&accounts.trader_output),
-                    "inputVault": addr(&accounts.input_vault),
-                    "inputMint": addr(&accounts.input_mint),
-                    "outputMint": addr(&accounts.output_mint),
-                    "inputTokenProgram": addr(&accounts.input_token_program),
-                    "outputTokenProgram": addr(&accounts.output_token_program),
-                    "integratorFeeAccount": opt_addr(&accounts.integrator_fee_account),
-                    "strategyAccounts": metas(&accounts.strategy_accounts),
-                    "inputHookAccounts": metas(&accounts.input_hook_accounts),
-                },
+                "accounts": swap_accounts_json(&accounts),
                 "args": swap_args_json(&args),
+                "feeSide": side.map(fee_side_json),
             }),
-            &client::swap(&accounts, &args),
+            &ix,
         ));
     }
+
+    // Routes: two plain hops, and four hops with strategy and hook accounts, an
+    // integrator and both fee sides.
+    let hop = |n: u8, input_mint: Pubkey, output_mint: Pubkey| client::SwapAccounts {
+        trader: key(30),
+        strategy_program: key(7),
+        market_state: key(8 + n),
+        trader_input: key(31 + n),
+        trader_output: key(32 + n),
+        input_vault: key(16 + n),
+        input_mint,
+        output_mint,
+        input_token_program: client::TOKEN_PROGRAM_ID,
+        output_token_program: client::TOKEN_PROGRAM_ID,
+        integrator_fee_account: None,
+        strategy_accounts: vec![],
+        input_hook_accounts: vec![],
+    };
+    let two_hops = vec![
+        client::RouteHopSpec {
+            accounts: hop(0, key(13), client::wallet::NATIVE_MINT),
+            fee_side: client::FeeSide::Output,
+            extra: vec![],
+        },
+        client::RouteHopSpec {
+            accounts: hop(1, client::wallet::NATIVE_MINT, key(14)),
+            fee_side: client::FeeSide::Input,
+            extra: vec![],
+        },
+    ];
+    let four_hops = vec![
+        client::RouteHopSpec {
+            accounts: client::SwapAccounts {
+                input_token_program: client::TOKEN_2022_PROGRAM_ID,
+                strategy_accounts: vec![
+                    AccountMeta::new(key(21), false),
+                    AccountMeta::new_readonly(key(22), false),
+                ],
+                input_hook_accounts: vec![AccountMeta::new_readonly(key(23), false)],
+                ..hop(0, key(13), key(14))
+            },
+            fee_side: client::FeeSide::Input,
+            extra: vec![1, 2, 3],
+        },
+        client::RouteHopSpec {
+            accounts: hop(1, key(14), client::wallet::NATIVE_MINT),
+            fee_side: client::FeeSide::Output,
+            extra: vec![],
+        },
+        client::RouteHopSpec {
+            accounts: client::SwapAccounts {
+                strategy_accounts: vec![AccountMeta::new(key(24), false)],
+                ..hop(2, client::wallet::NATIVE_MINT, key(15))
+            },
+            fee_side: client::FeeSide::Input,
+            extra: vec![],
+        },
+        client::RouteHopSpec {
+            accounts: client::SwapAccounts {
+                output_token_program: client::TOKEN_2022_PROGRAM_ID,
+                input_hook_accounts: vec![
+                    AccountMeta::new_readonly(key(25), false),
+                    AccountMeta::new(key(26), false),
+                ],
+                ..hop(3, key(15), key(16))
+            },
+            fee_side: client::FeeSide::Output,
+            extra: vec![255; 40],
+        },
+    ];
+    let routes = [
+        (two_hops, None, 1_000_000u64, 990_000u64, 0u16),
+        (four_hops, Some(key(20)), u64::MAX, 1, 9_999),
+    ];
+    for (hops, integrator, amount_in, min_amount_out, bps) in routes {
+        let hops_json: Vec<Value> = hops
+            .iter()
+            .map(|h| {
+                json!({
+                    "accounts": swap_accounts_json(&h.accounts),
+                    "feeSide": fee_side_json(h.fee_side),
+                    "extra": hex(&h.extra),
+                })
+            })
+            .collect();
+        cases.push(instruction(
+            "route",
+            json!({
+                "trader": addr(&key(30)),
+                "integratorFeeAccount": opt_addr(&integrator),
+                "amountIn": big(amount_in),
+                "minAmountOut": big(min_amount_out),
+                "integratorFeeBps": bps,
+                "hops": hops_json,
+            }),
+            &client::route(&key(30), integrator, &hops, amount_in, min_amount_out, bps),
+        ));
+    }
+
+    for mints in [
+        vec![key(13), key(14)],
+        vec![key(13), key(14), key(15), key(16)],
+    ] {
+        cases.push(instruction(
+            "recordLookupTable",
+            json!({
+                "payer": addr(&key(1)),
+                "market": addr(&market),
+                "table": addr(&key(35)),
+                "mints": mints.iter().map(addr).collect::<Vec<_>>(),
+            }),
+            &client::record_lookup_table(&key(1), &market, &key(35), &mints),
+        ));
+    }
+
+    cases.push(instruction(
+        "migrateMarket",
+        json!({ "payer": addr(&key(1)), "market": addr(&market) }),
+        &client::migrate_market(&key(1), &market),
+    ));
 
     let sweeps = [
         (
@@ -703,9 +884,36 @@ fn fee_cases() -> Value {
         }
     }
 
+    let received_for_kept_cases: Vec<Value> = [
+        0,
+        1,
+        2,
+        398,
+        399,
+        400,
+        997,
+        998,
+        1_000,
+        10_000,
+        123_456_789,
+        max / 2,
+        max - max / 400,
+        max - max / 400 + 1,
+        max,
+    ]
+    .iter()
+    .map(|&kept| {
+        json!({
+            "kept": big(kept),
+            "result": opt_big(received_for_kept(kept)),
+        })
+    })
+    .collect();
+
     json!({
         "ceilBps": ceil_bps,
         "pipelineFee": pipeline_fee,
+        "receivedForKept": received_for_kept_cases,
         "maxTotalSpend": max_total_spend,
         "amountForBudget": amount_for_budget,
     })
@@ -778,6 +986,52 @@ fn encodings() -> Value {
             "supportsExactOut": info.supports_exact_out,
         }),
         &borsh::to_vec(&info).unwrap(),
+    ));
+
+    let route_args = client::RouteArgs {
+        amount_in: u64::MAX,
+        min_amount_out: 7,
+        integrator_fee_bps: 50,
+        hops: vec![
+            client::RouteHop {
+                strategy_accounts: 2,
+                input_hook_accounts: 1,
+                extra: vec![9, 8],
+            },
+            client::RouteHop {
+                strategy_accounts: 0,
+                input_hook_accounts: 0,
+                extra: vec![],
+            },
+        ],
+    };
+    cases.push(encoding(
+        "RouteArgs",
+        json!({
+            "amountIn": big(route_args.amount_in),
+            "minAmountOut": big(route_args.min_amount_out),
+            "integratorFeeBps": route_args.integrator_fee_bps,
+            "hops": route_args.hops.iter().map(|h| json!({
+                "strategyAccounts": h.strategy_accounts,
+                "inputHookAccounts": h.input_hook_accounts,
+                "extra": hex(&h.extra),
+            })).collect::<Vec<_>>(),
+        }),
+        &borsh::to_vec(&route_args).unwrap(),
+    ));
+    let route_result = client::RouteResult {
+        net_sent: 1_000_000,
+        amount_out: 0,
+        integrator_fee: u64::MAX,
+    };
+    cases.push(encoding(
+        "RouteResult",
+        json!({
+            "netSent": big(route_result.net_sent),
+            "amountOut": big(route_result.amount_out),
+            "integratorFee": big(route_result.integrator_fee),
+        }),
+        &borsh::to_vec(&route_result).unwrap(),
     ));
 
     let resolve_request = psi::ResolveRequest {
@@ -884,6 +1138,7 @@ fn encodings() -> Value {
         received: 9_000,
         pipeline_fee: 25,
         integrator_fee: u64::MAX,
+        fee_mint: key(14),
     };
     cases.push(encoding(
         "SwapResult",
@@ -892,6 +1147,7 @@ fn encodings() -> Value {
             "received": big(swap_result.received),
             "pipelineFee": big(swap_result.pipeline_fee),
             "integratorFee": big(swap_result.integrator_fee),
+            "feeMint": addr(&swap_result.fee_mint),
         }),
         &borsh::to_vec(&swap_result).unwrap(),
     ));
@@ -934,6 +1190,12 @@ fn router_accounts() -> Value {
         created_at: 1_760_000_000,
         bump: 252,
         fee_authority_bump: 251,
+        fee_mint_index: 1,
+    };
+    let lookup = client::MarketLookupTable {
+        market: key(40),
+        table: key(35),
+        bump: 249,
     };
 
     json!([
@@ -974,10 +1236,90 @@ fn router_accounts() -> Value {
                 "createdAt": signed(market.created_at),
                 "bump": market.bump,
                 "feeAuthorityBump": market.fee_authority_bump,
+                "feeMintIndex": market.fee_mint_index,
             }),
             &account_bytes("Market", &market),
         ),
+        encoding(
+            "MarketLookupTable",
+            json!({
+                "market": addr(&lookup.market),
+                "table": addr(&lookup.table),
+                "bump": lookup.bump,
+            }),
+            &account_bytes("MarketLookupTable", &lookup),
+        ),
     ])
+}
+
+/// `pipeline_market_info` return data with and without a declared fee mint.
+fn market_infos() -> Value {
+    let info = psi::MarketInfo {
+        mints: vec![key(13).to_bytes(), client::wallet::NATIVE_MINT.to_bytes()],
+        vaults: vec![key(16).to_bytes(), key(17).to_bytes()],
+        supports_exact_out: false,
+    };
+    let info_json = json!({
+        "mints": info.mints.iter().map(|m| addr(&Pubkey::new_from_array(*m))).collect::<Vec<_>>(),
+        "vaults": info.vaults.iter().map(|v| addr(&Pubkey::new_from_array(*v))).collect::<Vec<_>>(),
+        "supportsExactOut": info.supports_exact_out,
+    });
+    let cases: Vec<Value> = [None, Some(0u8), Some(1)]
+        .iter()
+        .map(|&fee_mint| {
+            let bytes = psi::encode_market_info(&info, fee_mint);
+            assert_eq!(
+                psi::decode_market_info(&bytes),
+                Some((info.clone(), fee_mint))
+            );
+            json!({ "info": info_json, "feeMint": fee_mint, "hex": hex(&bytes) })
+        })
+        .collect();
+    Value::Array(cases)
+}
+
+/// `lookup_table_addresses` for a market account. The second case shares a token program
+/// and a fee account's owner between mints, so duplicates are dropped.
+fn lookup_tables() -> Value {
+    let market = client::Market {
+        strategy_program: key(7),
+        market_state: key(8),
+        mint_count: 3,
+        mints: [key(13), key(14), key(15), Pubkey::default()],
+        vaults: [key(16), key(17), key(18), Pubkey::default()],
+        supports_exact_out: true,
+        created_by: key(1),
+        created_at: 1_760_000_000,
+        bump: 252,
+        fee_authority_bump: 251,
+        fee_mint_index: client::NO_FEE_MINT,
+    };
+    let mut account = client::account_discriminator("Market").to_vec();
+    market.serialize(&mut account).unwrap();
+    let address = pda::market(&market.strategy_program, &market.market_state);
+    let cases: Vec<Value> = [
+        vec![
+            client::TOKEN_PROGRAM_ID,
+            client::TOKEN_2022_PROGRAM_ID,
+            client::TOKEN_PROGRAM_ID,
+        ],
+        vec![client::TOKEN_PROGRAM_ID; 3],
+        vec![client::TOKEN_2022_PROGRAM_ID],
+    ]
+    .iter()
+    .map(|token_programs| {
+        json!({
+            "marketAddress": addr(&address),
+            "market": hex(&account),
+            "tokenPrograms": token_programs.iter().map(addr).collect::<Vec<_>>(),
+            "addresses": client::lookup_table_addresses(&address, &market, token_programs)
+                .iter()
+                .map(addr)
+                .collect::<Vec<_>>(),
+        })
+    })
+    .collect();
+    Value::Array(cases)
 }
 
 /// Router events as they appear in a self-CPI instruction's data.
@@ -1009,6 +1351,7 @@ fn router_events() -> Value {
             integrator_fee: 5_000,
             slot: 123_456_789,
             unix_timestamp: 1_760_000_000,
+            fee_mint: key(13),
         },
         events::SwapEvent {
             market: key(40),
@@ -1024,6 +1367,7 @@ fn router_events() -> Value {
             integrator_fee: 0,
             slot: 1,
             unix_timestamp: -5,
+            fee_mint: key(13),
         },
     ];
     for event in &swaps {
@@ -1113,6 +1457,16 @@ fn router_events() -> Value {
         &event_bytes(events::discriminator::CONFIG_CHANGED, &changed),
     ));
 
+    let recorded = events::LookupTableRecorded {
+        market: key(40),
+        table: key(35),
+    };
+    cases.push(encoding(
+        "LookupTableRecorded",
+        json!({ "market": addr(&recorded.market), "table": addr(&recorded.table) }),
+        &event_bytes(events::discriminator::LOOKUP_TABLE_RECORDED, &recorded),
+    ));
+
     Value::Array(cases)
 }
 
@@ -1127,6 +1481,10 @@ fn main() {
             "minMarketMints": psi::MIN_MARKET_MINTS,
             "maxMarketMints": psi::MAX_MARKET_MINTS,
             "maxResolveRounds": psi::MAX_RESOLVE_ROUNDS,
+            "maxRouteHops": client::MAX_ROUTE_HOPS,
+            "noFeeMint": client::NO_FEE_MINT,
+            "nativeMint": addr(&client::wallet::NATIVE_MINT),
+            "nativeMintBytes": hex(&psi::NATIVE_MINT),
         },
         "discriminators": discriminators(),
         "pdas": pdas(),
@@ -1134,6 +1492,8 @@ fn main() {
         "strategyInstructions": strategy_instructions(),
         "fees": fee_cases(),
         "encodings": encodings(),
+        "marketInfos": market_infos(),
+        "lookupTables": lookup_tables(),
         "accounts": router_accounts(),
         "events": router_events(),
     });

@@ -26,7 +26,10 @@ export function ceilBps(amount: bigint, bps: bigint): bigint | null {
     return fee > U64_MAX ? null : fee;
 }
 
-/** Pipeline's fee on the input a trader actually parted with. */
+/**
+ * Pipeline's fee on what it is measured on: the input the trader parted with, or, when
+ * the fee is taken in the output, what arrived in the trader's output account.
+ */
 export function pipelineFee(netSent: bigint): bigint {
     // 25 bps of any u64 fits in a u64.
     return ceilBps(netSent, PIPELINE_FEE_BPS)!;
@@ -64,4 +67,32 @@ export function amountForBudget(budget: bigint, integratorFeeBps: number): bigin
         amount -= 1n;
     }
     return amount;
+}
+
+/**
+ * With Pipeline's fee taken in the output: the smallest amount `r` arriving in the trader's
+ * output account that leaves them at least `kept` after the fee (`r - pipelineFee(r) >=
+ * kept`). This is what an exact-out quote asks the strategy for. `null` if it exceeds a u64.
+ */
+export function receivedForKept(kept: bigint): bigint | null {
+    assertU64('kept', kept);
+    if (kept === 0n) {
+        return 0n;
+    }
+    // Start from the exact-rate estimate, then step past rounding.
+    const rate = BPS_DENOMINATOR - PIPELINE_FEE_BPS;
+    let received = (kept * BPS_DENOMINATOR + rate - 1n) / rate;
+    const fee = (amount: bigint) => (amount * PIPELINE_FEE_BPS + BPS_DENOMINATOR - 1n) / BPS_DENOMINATOR;
+    while (received - fee(received) < kept) {
+        received += 1n;
+    }
+    while (received > kept && received - 1n - fee(received - 1n) >= kept) {
+        received -= 1n;
+    }
+    return received > U64_MAX ? null : received;
+}
+
+/** With Pipeline's fee taken in the output: what the trader keeps of `received`. */
+export function keptAfterOutputFee(received: bigint): bigint {
+    return received - pipelineFee(received);
 }

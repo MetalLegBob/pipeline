@@ -5,16 +5,30 @@ import {
     buildQuoteInstruction,
     buildResolveAccountsInstruction,
     createMarket,
+    decodeMarket,
+    feeSideByDefault,
+    feeSideOf,
     initFeeAccount,
     initializeConfig,
+    lookupTableAddresses,
+    marketViewFeeSide,
+    marketViewFromMarket,
+    migrateMarket,
+    NATIVE_MINT_ADDRESS,
+    recordLookupTable,
     registerExistingMarket,
     registerStrategy,
+    route,
     swap,
+    swapFeeAccount,
     sweepFees,
     updateConfig,
     updateMetadata,
+    type Market,
     type MarketView,
     type PipelineInstruction,
+    type SwapAccounts,
+    type SwapInstructionArgs,
     type TradeRequest,
 } from '../src/index.js';
 import {
@@ -23,10 +37,42 @@ import {
     instructionJson,
     optionalAddress,
     optionalBigint,
+    key,
     toMetas,
     unhex,
     type FixtureInstruction,
 } from './helpers.js';
+
+function swapAccounts(a: any): SwapAccounts {
+    return {
+        trader: address(a.trader),
+        strategyProgram: address(a.strategyProgram),
+        marketState: address(a.marketState),
+        traderInput: address(a.traderInput),
+        traderOutput: address(a.traderOutput),
+        inputVault: address(a.inputVault),
+        inputMint: address(a.inputMint),
+        outputMint: address(a.outputMint),
+        inputTokenProgram: address(a.inputTokenProgram),
+        outputTokenProgram: address(a.outputTokenProgram),
+        integratorFeeAccount: optionalAddress(a.integratorFeeAccount),
+        strategyAccounts: toMetas(a.strategyAccounts),
+        inputHookAccounts: toMetas(a.inputHookAccounts),
+    };
+}
+
+function swapArgs(args: any): SwapInstructionArgs {
+    return {
+        mode: args.mode,
+        amountIn: BigInt(args.amountIn),
+        amountOut: BigInt(args.amountOut),
+        minAmountOut: BigInt(args.minAmountOut),
+        integratorFeeBps: args.integratorFeeBps,
+        // Deliberately wrong: the builder must overwrite it from the accounts.
+        inputHookAccounts: args.inputHookAccounts,
+        extra: unhex(args.extra),
+    };
+}
 
 /** Calls the SDK builder for a fixture, converting its JSON inputs. */
 function build(fixture: FixtureInstruction): Promise<PipelineInstruction> {
@@ -90,36 +136,32 @@ function build(fixture: FixtureInstruction): Promise<PipelineInstruction> {
                 mint: address(i.mint),
                 tokenProgram: address(i.tokenProgram),
             });
-        case 'swap': {
-            const a = i.accounts;
-            return swap(
-                {
-                    trader: address(a.trader),
-                    strategyProgram: address(a.strategyProgram),
-                    marketState: address(a.marketState),
-                    traderInput: address(a.traderInput),
-                    traderOutput: address(a.traderOutput),
-                    inputVault: address(a.inputVault),
-                    inputMint: address(a.inputMint),
-                    outputMint: address(a.outputMint),
-                    inputTokenProgram: address(a.inputTokenProgram),
-                    outputTokenProgram: address(a.outputTokenProgram),
-                    integratorFeeAccount: optionalAddress(a.integratorFeeAccount),
-                    strategyAccounts: toMetas(a.strategyAccounts),
-                    inputHookAccounts: toMetas(a.inputHookAccounts),
-                },
-                {
-                    mode: i.args.mode,
-                    amountIn: BigInt(i.args.amountIn),
-                    amountOut: BigInt(i.args.amountOut),
-                    minAmountOut: BigInt(i.args.minAmountOut),
-                    integratorFeeBps: i.args.integratorFeeBps,
-                    // Deliberately wrong: the builder must overwrite it from the accounts.
-                    inputHookAccounts: i.args.inputHookAccounts,
-                    extra: unhex(i.args.extra),
-                },
-            );
-        }
+        case 'swap':
+            return i.feeSide === null
+                ? swap(swapAccounts(i.accounts), swapArgs(i.args))
+                : swap(swapAccounts(i.accounts), swapArgs(i.args), i.feeSide);
+        case 'route':
+            return route({
+                trader: address(i.trader),
+                integratorFeeAccount: optionalAddress(i.integratorFeeAccount),
+                amountIn: BigInt(i.amountIn),
+                minAmountOut: BigInt(i.minAmountOut),
+                integratorFeeBps: i.integratorFeeBps,
+                hops: i.hops.map((hop: any) => ({
+                    accounts: swapAccounts(hop.accounts),
+                    feeSide: hop.feeSide,
+                    extra: unhex(hop.extra),
+                })),
+            });
+        case 'recordLookupTable':
+            return recordLookupTable({
+                payer: address(i.payer),
+                market: address(i.market),
+                table: address(i.table),
+                mints: i.mints.map(address),
+            });
+        case 'migrateMarket':
+            return migrateMarket({ payer: address(i.payer), market: address(i.market) });
         case 'sweepFees':
             return sweepFees({
                 market: address(i.market),
@@ -135,7 +177,7 @@ function build(fixture: FixtureInstruction): Promise<PipelineInstruction> {
 
 describe('router instruction builders match Rust', () => {
     it('cover every builder', () => {
-        expect(new Set(fixtures.instructions.map((f) => f.name)).size).toBe(9);
+        expect(new Set(fixtures.instructions.map((f) => f.name)).size).toBe(12);
     });
 
     for (const [n, fixture] of fixtures.instructions.entries()) {
@@ -152,6 +194,58 @@ describe('router instruction builders match Rust', () => {
         // Data: discriminator (8), mode (1), three u64s (24), u16 (2), then the hook count.
         expect(instruction.data[8 + 1 + 24 + 2]).toBe(fixture.inputs.accounts.inputHookAccounts.length);
     });
+
+    it('swap pays the fee in the output by default only when the output is wrapped SOL', async () => {
+        const solOut = fixtures.instructions.find(
+            (f) =>
+                f.name === 'swap' && f.inputs.feeSide === null && f.inputs.accounts.outputMint === NATIVE_MINT_ADDRESS,
+        )!;
+        const accounts = swapAccounts(solOut.inputs.accounts);
+        const feeAccount = (await swap(accounts, swapArgs(solOut.inputs.args))).accounts[12]!.address;
+        expect(feeAccount).toBe(await swapFeeAccount(accounts, 'output'));
+        expect(feeSideByDefault(NATIVE_MINT_ADDRESS)).toBe('output');
+        expect(feeSideByDefault(accounts.inputMint)).toBe('input');
+    });
+
+    it('route rejects zero or more than four hops', async () => {
+        const fixture = fixtures.instructions.find((f) => f.name === 'route' && f.inputs.hops.length === 4)!;
+        const hop = { accounts: swapAccounts(fixture.inputs.hops[0].accounts) };
+        const base = { trader: key(30), amountIn: 1n, minAmountOut: 1n, integratorFeeBps: 0 };
+        await expect(route({ ...base, hops: [] })).rejects.toThrow(RangeError);
+        await expect(route({ ...base, hops: [hop, hop, hop, hop, hop] })).rejects.toThrow(RangeError);
+    });
+});
+
+describe('fee side', () => {
+    const market = decodeMarket(unhex(fixtures.accounts.find((e) => e.type === 'Market')!.hex)) as Market;
+
+    it('is the output only for trades into the market fee mint', () => {
+        expect(feeSideOf(market, key(14))).toBe('output');
+        expect(feeSideOf(market, key(13))).toBe('input');
+        expect(feeSideOf({ ...market, feeMintIndex: 255 }, key(14))).toBe('input');
+    });
+
+    it('carries through a MarketView', () => {
+        const view = marketViewFromMarket(key(40), market, [key(2), key(2), key(2)]);
+        expect(view.feeMint).toBe(key(14));
+        expect(marketViewFeeSide(view, key(14))).toBe('output');
+        expect(marketViewFeeSide(view, key(15))).toBe('input');
+        expect(marketViewFeeSide({ ...view, feeMint: undefined }, key(14))).toBe('input');
+    });
+});
+
+describe('lookupTableAddresses matches Rust', () => {
+    for (const [n, fixture] of fixtures.lookupTables.entries()) {
+        it(`#${n}`, async () => {
+            const market = decodeMarket(unhex(fixture.market)) as Market;
+            const addresses = await lookupTableAddresses(
+                address(fixture.marketAddress),
+                market,
+                fixture.tokenPrograms.map(address),
+            );
+            expect(addresses).toEqual(fixture.addresses);
+        });
+    }
 });
 
 function marketView(json: any): MarketView {

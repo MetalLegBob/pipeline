@@ -47,8 +47,9 @@ fn lamport_gift(env: &mut Env, from: &solana_keypair::Keypair, to: &Pubkey, lamp
 }
 
 /// 1. Honest CP swap SPL X -> wSOL. The trader's wSOL output account holds `UNSYNCED`
-///    lamports that were never synced. `received` is the strategy's payout only; the
-///    unsynced lamports are untouched and do not count toward `min_amount_out`.
+///    lamports that were never synced. `received` is the strategy's payout only, and
+///    Pipeline's fee (taken in the wSOL output) is charged on that alone; the unsynced
+///    lamports are untouched and do not count toward `min_amount_out`.
 #[test]
 fn h031_unsynced_lamports_on_the_output_are_not_received() {
     let mut env = Env::new();
@@ -74,6 +75,7 @@ fn h031_unsynced_lamports_on_the_output_are_not_received() {
     );
     let lamports_before = env.lamports(&trader_out);
     let payout = cp_out(RESERVE, RESERVE, AMOUNT, POOL_FEE_BPS);
+    let kept = payout - fees::pipeline_fee(payout);
 
     let accounts = cp_swap_accounts(
         &m,
@@ -83,10 +85,10 @@ fn h031_unsynced_lamports_on_the_output_are_not_received() {
         &NATIVE_MINT,
         &trader_out,
     );
-    // The unsynced lamports must not satisfy a min_out above the strategy's payout.
+    // The unsynced lamports must not satisfy a min_out above what the payout leaves.
     let too_high = send_swap(
         &mut env,
-        client::swap(&accounts, &exact_in(AMOUNT, payout + 1)),
+        client::swap(&accounts, &exact_in(AMOUNT, kept + 1)),
         &trader,
     );
     assert!(
@@ -96,16 +98,17 @@ fn h031_unsynced_lamports_on_the_output_are_not_received() {
 
     let meta = send_swap(
         &mut env,
-        client::swap(&accounts, &exact_in(AMOUNT, payout)),
+        client::swap(&accounts, &exact_in(AMOUNT, kept)),
         &trader,
     )
     .unwrap_or_else(|e| panic!("setup: swap must succeed: {:?}", e.err));
     let (r, _) = reported(&meta);
     assert_eq!(r.received, payout, "H031: received is the strategy payout");
-    assert_eq!(env.token_balance(&trader_out), payout);
+    assert_eq!(r.pipeline_fee, fees::pipeline_fee(payout), "H031");
+    assert_eq!(env.token_balance(&trader_out), kept);
     assert_eq!(
         env.lamports(&trader_out) - lamports_before,
-        payout,
+        kept,
         "the unsynced lamports stay where they were"
     );
     assert_eq!(r.net_sent, AMOUNT);
@@ -162,11 +165,13 @@ fn h031_unsynced_lamports_on_input_and_vault_do_not_move_the_fee_base() {
 ///    mint whose hook, during the router's transfer-in, moves a wSOL stash (the trader's
 ///    own tokens, parked beforehand) into `trader_output`, the same effect on `amount`
 ///    as wrapping lamports and running `SyncNative` there. The strategy pays only its
-///    quote `P`; `received = P + REFILL`, so a `min_amount_out` of `P + REFILL` passes.
+///    quote `P`; `received = P + REFILL`. wSOL is the market's fee mint, so Pipeline's
+///    fee is taken from that output, and a `min_amount_out` of what remains passes.
 ///
 ///    This is pinned, not asserted as a bug: the credited tokens are the trader's own
 ///    (the hook can only move what the trader parked or approved), `min_amount_out` is
-///    "the trader's output balance must rise by this much", and that holds.
+///    "the trader's output balance must rise by this much", and that holds. The trader
+///    pays the fee on the credit too, which costs only themselves.
 #[test]
 fn h031_in_window_credit_of_wsol_output_counts_as_received() {
     let mut env = Env::new();
@@ -196,6 +201,8 @@ fn h031_in_window_credit_of_wsol_output_counts_as_received() {
     assert_eq!(env.token_balance(&trader_out), 0, "setup: output empty");
 
     let payout = cp_out(RESERVE, RESERVE, AMOUNT, POOL_FEE_BPS);
+    let fee = fees::pipeline_fee(payout + REFILL);
+    let kept = payout + REFILL - fee;
     let mut accounts = cp_swap_accounts(
         &m,
         &trader.pubkey(),
@@ -207,7 +214,7 @@ fn h031_in_window_credit_of_wsol_output_counts_as_received() {
     accounts.input_hook_accounts = hook.accounts.clone();
     let meta = send_swap(
         &mut env,
-        client::swap(&accounts, &exact_in(AMOUNT, payout + REFILL)),
+        client::swap(&accounts, &exact_in(AMOUNT, kept)),
         &trader,
     )
     .unwrap_or_else(|e| panic!("setup: swap must succeed: {:?}", e.err));
@@ -219,12 +226,13 @@ fn h031_in_window_credit_of_wsol_output_counts_as_received() {
         r.received,
         env.token_balance(&trader_out)
     );
-    // Pinned behaviour: received counts the in-window credit, and matches the balance.
+    // Pinned behaviour: received counts the in-window credit; the trader keeps it less
+    // the fee.
     assert_eq!(r.received, payout + REFILL);
-    assert_eq!(env.token_balance(&trader_out), payout + REFILL);
+    assert_eq!(r.pipeline_fee, fee);
+    assert_eq!(env.token_balance(&trader_out), kept);
     // The input side is unaffected.
     assert_eq!(r.net_sent, AMOUNT);
-    assert_eq!(r.pipeline_fee, fees::pipeline_fee(AMOUNT));
 }
 
 /// Shared setup for (b) and (c): honest CP swap, wSOL input, refill-hooked Token-2022

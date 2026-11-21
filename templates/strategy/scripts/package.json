@@ -11,7 +11,7 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
-        "@pipeline-sol/sdk": "^0.2.0",
+        "@pipeline-sol/sdk": "^0.3.0",
         "@solana-program/system": "^0.16.0",
         "@solana-program/token": "^0.18.0",
         "@solana/kit": "^8.4.0"

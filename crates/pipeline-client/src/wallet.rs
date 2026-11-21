@@ -2,8 +2,8 @@
 //! accounts, wrapping native SOL before and unwrapping it after.
 
 use crate::{
-    init_fee_account, pda, swap, AccountMeta, Instruction, Pubkey, SwapAccounts, SwapArgs,
-    ASSOCIATED_TOKEN_PROGRAM_ID, SYSTEM_PROGRAM_ID, TOKEN_PROGRAM_ID,
+    init_fee_account, pda, swap_with_fee_side, AccountMeta, FeeSide, Instruction, Pubkey,
+    SwapAccounts, SwapArgs, ASSOCIATED_TOKEN_PROGRAM_ID, SYSTEM_PROGRAM_ID, TOKEN_PROGRAM_ID,
 };
 use pipeline_strategy_interface::fees;
 
@@ -79,17 +79,35 @@ pub fn close_token_account(
 /// 1. create the trader's output token account if it doesn't exist;
 /// 2. if `wrap_sol` and the input is wrapped SOL: create the trader's wrapped-SOL account
 ///    if needed and wrap enough SOL for the most the swap can spend, including fees;
-/// 3. create the market's fee account for the input mint if it doesn't exist;
+/// 3. create the market's fee account for the mint the fee is taken in, if it doesn't exist;
 /// 4. the swap;
 /// 5. if `wrap_sol`: close the trader's wrapped-SOL input and/or output account, so any
 ///    unspent input and all SOL output arrive as native SOL.
 ///
 /// The trader pays for everything and is the only signer. With `wrap_sol`, any wrapped
 /// SOL the trader already held in that account is unwrapped too.
+///
+/// The fee goes on the side the router uses for a market that declares no fee mint; use
+/// [`swap_with_setup_fee_side`] for a market that declares one.
 pub fn swap_with_setup(
     accounts: &SwapAccounts,
     args: &SwapArgs,
     wrap_sol: bool,
+) -> Vec<Instruction> {
+    swap_with_setup_fee_side(
+        accounts,
+        args,
+        wrap_sol,
+        FeeSide::by_default(&accounts.output_mint),
+    )
+}
+
+/// [`swap_with_setup`], paying Pipeline's fee on `side` (see [`FeeSide::of`]).
+pub fn swap_with_setup_fee_side(
+    accounts: &SwapAccounts,
+    args: &SwapArgs,
+    wrap_sol: bool,
+    side: FeeSide,
 ) -> Vec<Instruction> {
     let trader = accounts.trader;
     let market = pda::market(&accounts.strategy_program, &accounts.market_state);
@@ -115,13 +133,17 @@ pub fn swap_with_setup(
         instructions.push(system_transfer(&trader, &accounts.trader_input, most));
         instructions.push(sync_native(&accounts.trader_input));
     }
+    let (fee_mint, fee_token_program) = match side {
+        FeeSide::Input => (&accounts.input_mint, &accounts.input_token_program),
+        FeeSide::Output => (&accounts.output_mint, &accounts.output_token_program),
+    };
     instructions.push(init_fee_account(
         &trader,
         &market,
-        &accounts.input_mint,
-        &accounts.input_token_program,
+        fee_mint,
+        fee_token_program,
     ));
-    instructions.push(swap(accounts, args));
+    instructions.push(swap_with_fee_side(accounts, args, side));
     if wrap_input {
         instructions.push(close_token_account(
             &accounts.trader_input,

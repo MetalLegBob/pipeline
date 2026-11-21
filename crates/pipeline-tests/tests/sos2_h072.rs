@@ -78,7 +78,7 @@ fn h072_router_discriminators_are_distinct_and_avoid_strategy_and_event_tags() {
     let names = router_instruction_names();
     assert_eq!(
         names.len(),
-        9,
+        12,
         "router instructions parsed from source: {names:?}"
     );
 

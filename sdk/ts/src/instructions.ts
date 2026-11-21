@@ -19,16 +19,23 @@ import {
     getBorshBytesCodec,
     getBorshStringCodec,
     getConfigArgsCodec,
+    getRouteArgsCodec,
     getSwapArgsCodec,
     getUpdateConfigArgsCodec,
     instructionData,
+    marketFeeMint,
+    marketMints,
     type ConfigArgs,
+    type Market,
+    type RouteHop,
     type SwapArgs,
     type UpdateConfigArgs,
 } from './codecs.js';
 import {
     ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
     INTERFACE_VERSION,
+    MAX_ROUTE_HOPS,
+    NATIVE_MINT_ADDRESS,
     PIPELINE_PROGRAM_ADDRESS,
     ROUTER_INSTRUCTION_DISCRIMINATORS as DISCRIMINATORS,
     SYSTEM_PROGRAM_ADDRESS,
@@ -39,6 +46,7 @@ import {
     eventAuthorityPda,
     feeAccountPda,
     feeAuthorityPda,
+    lookupTableRecordPda,
     setupPayerPda,
     marketPda,
     programDataPda,
@@ -265,40 +273,226 @@ export type SwapAccounts = {
 /** `swap` arguments; `inputHookAccounts` is always set from the accounts. */
 export type SwapInstructionArgs = Omit<SwapArgs, 'inputHookAccounts'> & { inputHookAccounts?: number };
 
-/** `swap`. `args.inputHookAccounts` is set from `accounts.inputHookAccounts`. */
-export async function swap(accounts: SwapAccounts, args: SwapInstructionArgs): Promise<PipelineInstruction> {
+/**
+ * Which side of a trade pays Pipeline's fee. The router takes it in the output when the
+ * output is the market's fee mint, and in the input otherwise.
+ */
+export type FeeSide = 'input' | 'output';
+
+/**
+ * The side the router uses for a market that declares no fee mint: the output when it is
+ * wrapped SOL, the input otherwise.
+ */
+export function feeSideByDefault(outputMint: Address): FeeSide {
+    return outputMint === NATIVE_MINT_ADDRESS ? 'output' : 'input';
+}
+
+/** The side a trade into `outputMint` pays on, given the market's record. */
+export function feeSideOf(market: Market, outputMint: Address): FeeSide {
+    return marketFeeMint(market) === outputMint ? 'output' : 'input';
+}
+
+/** The market's fee account a swap pays Pipeline's fee into. */
+export async function swapFeeAccount(accounts: SwapAccounts, side: FeeSide): Promise<Address> {
     const market = await marketPda(accounts.strategyProgram, accounts.marketState);
-    const hookAccounts = accounts.inputHookAccounts ?? [];
-    if (hookAccounts.length > 0xff) {
-        throw new RangeError(`at most 255 input hook accounts, got ${hookAccounts.length}`);
+    return side === 'output'
+        ? feeAccountPda(market, accounts.outputMint, accounts.outputTokenProgram)
+        : feeAccountPda(market, accounts.inputMint, accounts.inputTokenProgram);
+}
+
+function hookCount(accounts: SwapAccounts): number {
+    const count = (accounts.inputHookAccounts ?? []).length;
+    if (count > 0xff) {
+        throw new RangeError(`at most 255 input hook accounts, got ${count}`);
     }
+    return count;
+}
+
+/** The accounts from `strategy_program` to `fee_authority`, shared by `swap` and each `route` hop. */
+async function tradeAccounts(accounts: SwapAccounts, market: Address): Promise<AccountMeta[]> {
+    return [
+        readonly(accounts.strategyProgram),
+        readonly(market),
+        writable(accounts.marketState),
+        writable(accounts.traderInput),
+        writable(accounts.traderOutput),
+        writable(accounts.inputVault),
+        readonly(accounts.inputMint),
+        readonly(accounts.outputMint),
+        readonly(accounts.inputTokenProgram),
+        readonly(accounts.outputTokenProgram),
+        readonly(await feeAuthorityPda(market)),
+    ];
+}
+
+/** Anchor encodes a missing optional account as the program ID. */
+function integratorAccount(account: Address | null | undefined): AccountMeta {
+    return account ? writable(account) : readonly(PIPELINE_PROGRAM_ADDRESS);
+}
+
+/**
+ * `swap`, paying Pipeline's fee on `feeSide`. Pass {@link feeSideOf} with the market's
+ * record; the default is {@link feeSideByDefault}, the side the router uses for a market
+ * that declares no fee mint. The router refuses the swap (`WrongFeeAccount`) if the side
+ * doesn't match the market. `args.inputHookAccounts` is set from `accounts.inputHookAccounts`.
+ */
+export async function swap(
+    accounts: SwapAccounts,
+    args: SwapInstructionArgs,
+    feeSide: FeeSide = feeSideByDefault(accounts.outputMint),
+): Promise<PipelineInstruction> {
+    const market = await marketPda(accounts.strategyProgram, accounts.marketState);
+    const hooks = hookCount(accounts);
     return routerInstruction(
         [
             readonlySigner(accounts.trader),
-            readonly(accounts.strategyProgram),
-            readonly(market),
-            writable(accounts.marketState),
-            writable(accounts.traderInput),
-            writable(accounts.traderOutput),
-            writable(accounts.inputVault),
-            readonly(accounts.inputMint),
-            readonly(accounts.outputMint),
-            readonly(accounts.inputTokenProgram),
-            readonly(accounts.outputTokenProgram),
-            readonly(await feeAuthorityPda(market)),
-            writable(await feeAccountPda(market, accounts.inputMint, accounts.inputTokenProgram)),
-            // Anchor encodes a missing optional account as the program ID.
-            accounts.integratorFeeAccount
-                ? writable(accounts.integratorFeeAccount)
-                : readonly(PIPELINE_PROGRAM_ADDRESS),
+            ...(await tradeAccounts(accounts, market)),
+            writable(await swapFeeAccount(accounts, feeSide)),
+            integratorAccount(accounts.integratorFeeAccount),
             ...(await eventCpiAccounts()),
             ...(accounts.strategyAccounts ?? []),
-            ...hookAccounts,
+            ...(accounts.inputHookAccounts ?? []),
         ],
-        instructionData(DISCRIMINATORS.swap, getSwapArgsCodec(), {
-            ...args,
-            inputHookAccounts: hookAccounts.length,
+        instructionData(DISCRIMINATORS.swap, getSwapArgsCodec(), { ...args, inputHookAccounts: hooks }),
+    );
+}
+
+/**
+ * One hop of a `route`: the same accounts as a single swap (its `trader` and
+ * `integratorFeeAccount` are ignored; the route's apply), the side the hop pays Pipeline's
+ * fee on (default {@link feeSideByDefault}), and the strategy's `extra` data.
+ */
+export type RouteHopInput = {
+    accounts: SwapAccounts;
+    feeSide?: FeeSide;
+    extra?: ReadonlyUint8Array;
+};
+
+/**
+ * `route`: up to {@link MAX_ROUTE_HOPS} exact-in hops in one instruction. Each hop's input
+ * account and mint must be the previous hop's output account and mint (the trader's own
+ * accounts). `amountIn` is what the first hop sends; later hops spend what the previous
+ * one left the trader. `minAmountOut` applies to what the trader keeps from the last hop;
+ * an integrator fee is charged once, on the first hop's input.
+ */
+export async function route(input: {
+    trader: Address;
+    integratorFeeAccount?: Address | null;
+    hops: readonly RouteHopInput[];
+    amountIn: bigint;
+    minAmountOut: bigint;
+    integratorFeeBps: number;
+}): Promise<PipelineInstruction> {
+    if (input.hops.length === 0 || input.hops.length > MAX_ROUTE_HOPS) {
+        throw new RangeError(`a route has 1 to ${MAX_ROUTE_HOPS} hops, got ${input.hops.length}`);
+    }
+    const accounts: AccountMeta[] = [
+        readonlySigner(input.trader),
+        integratorAccount(input.integratorFeeAccount),
+        ...(await eventCpiAccounts()),
+    ];
+    const hops: RouteHop[] = [];
+    for (const hop of input.hops) {
+        const a = hop.accounts;
+        const market = await marketPda(a.strategyProgram, a.marketState);
+        const strategyAccounts = a.strategyAccounts ?? [];
+        if (strategyAccounts.length > 0xff) {
+            throw new RangeError(`at most 255 strategy accounts per hop, got ${strategyAccounts.length}`);
+        }
+        const hooks = hookCount(a);
+        accounts.push(
+            ...(await tradeAccounts(a, market)),
+            writable(await swapFeeAccount(a, hop.feeSide ?? feeSideByDefault(a.outputMint))),
+            ...strategyAccounts,
+            ...(a.inputHookAccounts ?? []),
+        );
+        hops.push({
+            strategyAccounts: strategyAccounts.length,
+            inputHookAccounts: hooks,
+            extra: hop.extra ?? new Uint8Array(),
+        });
+    }
+    return routerInstruction(
+        accounts,
+        instructionData(DISCRIMINATORS.route, getRouteArgsCodec(), {
+            amountIn: input.amountIn,
+            minAmountOut: input.minAmountOut,
+            integratorFeeBps: input.integratorFeeBps,
+            hops,
         }),
+    );
+}
+
+/**
+ * `record_lookup_table`: records `table` as the market's address lookup table. `mints` are
+ * the market's mints in order (the router reads their token programs). The table must hold
+ * {@link lookupTableAddresses}.
+ */
+export async function recordLookupTable(input: {
+    payer: Address;
+    market: Address;
+    table: Address;
+    mints: readonly Address[];
+}): Promise<PipelineInstruction> {
+    return routerInstruction(
+        [
+            writableSigner(input.payer),
+            readonly(input.market),
+            readonly(input.table),
+            writable(await lookupTableRecordPda(input.market)),
+            readonly(SYSTEM_PROGRAM_ADDRESS),
+            ...(await eventCpiAccounts()),
+            ...input.mints.map(readonly),
+        ],
+        discriminatorOnly(DISCRIMINATORS.recordLookupTable),
+    );
+}
+
+/**
+ * The addresses a market's lookup table must hold for `record_lookup_table` to accept it:
+ * the router, its event authority, the market, its state, strategy program and fee
+ * authority, then each mint's address, vault, token program and fee account, without
+ * duplicates. `tokenPrograms` gives each mint's owning program, in mint order.
+ */
+export async function lookupTableAddresses(
+    marketAddress: Address,
+    market: Market,
+    tokenPrograms: readonly Address[],
+): Promise<Address[]> {
+    const feeAuthority = await feeAuthorityPda(marketAddress);
+    const addresses: Address[] = [
+        PIPELINE_PROGRAM_ADDRESS,
+        await eventAuthorityPda(),
+        marketAddress,
+        market.marketState,
+        market.strategyProgram,
+        feeAuthority,
+    ];
+    const mints = marketMints(market);
+    for (const [i, mint] of mints.entries()) {
+        const tokenProgram = tokenPrograms[i];
+        if (tokenProgram === undefined) {
+            break;
+        }
+        addresses.push(
+            mint,
+            market.vaults[i]!,
+            tokenProgram,
+            await associatedTokenAddress(feeAuthority, mint, tokenProgram),
+        );
+    }
+    return [...new Set(addresses)];
+}
+
+/**
+ * `migrate_market`: moves a market recorded before fee mints existed to the current
+ * layout. Anyone can call it; `payer` covers the extra rent. A market in the old layout
+ * can't be traded (or decoded by {@link decodeMarket}) until it is migrated.
+ */
+export async function migrateMarket(input: { payer: Address; market: Address }): Promise<PipelineInstruction> {
+    return routerInstruction(
+        [writableSigner(input.payer), writable(input.market), readonly(SYSTEM_PROGRAM_ADDRESS)],
+        discriminatorOnly(DISCRIMINATORS.migrateMarket),
     );
 }
 

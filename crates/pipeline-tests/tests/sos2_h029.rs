@@ -55,6 +55,7 @@ fn forged_swap_event_data() -> Vec<u8> {
         integrator_fee: 0,
         slot: 1,
         unix_timestamp: 1,
+        fee_mint: Pubkey::new_unique(),
     };
     let mut data = EVENT_IX_TAG.to_vec();
     data.extend_from_slice(&discriminator::SWAP);
@@ -86,8 +87,11 @@ fn h029_no_router_instruction_discriminator_collides_with_the_event_tag() {
         "update_metadata",
         "create_market",
         "register_existing_market",
+        "migrate_market",
         "init_fee_account",
         "swap",
+        "route",
+        "record_lookup_table",
         "sweep_fees",
     ];
     for name in names {

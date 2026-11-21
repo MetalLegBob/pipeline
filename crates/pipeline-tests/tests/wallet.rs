@@ -85,7 +85,7 @@ fn trader_swaps_native_sol_in_and_out() {
     );
     assert!(env.svm.get_account(&trader_wsol).is_none());
 
-    // Sell half the tokens. The SOL arrives as native SOL.
+    // Sell half the tokens. The SOL arrives as native SOL, less Pipeline's fee taken in it.
     let (sol_now, token_now) = (
         env.token_balance(&market.vault(&NATIVE_MINT)),
         env.token_balance(&market.vault(&token)),
@@ -105,9 +105,10 @@ fn trader_swaps_native_sol_in_and_out() {
         &[&trader],
     )
     .expect("sell for SOL");
+    let sold_for = cp_out(token_now, sol_now, sell, FEE_BPS);
     assert_eq!(
         env.lamports(&trader.pubkey()) - before,
-        cp_out(token_now, sol_now, sell, FEE_BPS)
+        sold_for - fees::pipeline_fee(sold_for)
     );
     assert!(env.svm.get_account(&trader_wsol).is_none());
 }

@@ -25,7 +25,7 @@ export type FixtureEncoding = { type: string; value: Record<string, Json>; hex: 
 export type Fixtures = {
     keys: string[];
     programIds: Record<string, string>;
-    constants: Record<string, number>;
+    constants: Record<string, number | string>;
     discriminators: {
         routerInstructions: Record<string, string>;
         accounts: Record<string, string>;
@@ -41,10 +41,13 @@ export type Fixtures = {
         pipelineFee: { netSent: string; result: string }[];
         maxTotalSpend: { amountSent: string; integratorFeeBps: number; result: string | null }[];
         amountForBudget: { budget: string; integratorFeeBps: number; result: string }[];
+        receivedForKept: { kept: string; result: string | null }[];
     };
     encodings: FixtureEncoding[];
     accounts: FixtureEncoding[];
     events: FixtureEncoding[];
+    marketInfos: { info: Record<string, Json>; feeMint: number | null; hex: string }[];
+    lookupTables: { marketAddress: string; market: string; tokenPrograms: string[]; addresses: string[] }[];
 };
 
 export const fixtures: Fixtures = JSON.parse(readFileSync(new URL('./fixtures.json', import.meta.url), 'utf8'));

@@ -20,7 +20,7 @@ pub const PIPELINE_PROGRAM_ID: [u8; 32] = [
 /// Version of this interface that a strategy declares at registration.
 pub const INTERFACE_VERSION: u8 = 1;
 
-/// Pipeline's fee on every swap's input, in basis points.
+/// Pipeline's fee on every swap, in basis points.
 pub const PIPELINE_FEE_BPS: u64 = 25;
 pub const BPS_DENOMINATOR: u64 = 10_000;
 
@@ -30,6 +30,13 @@ pub const MAX_MARKET_MINTS: usize = 4;
 
 /// Clients stop asking a strategy for more accounts after this many rounds.
 pub const MAX_RESOLVE_ROUNDS: u8 = 4;
+
+/// Wrapped SOL (`So11111111111111111111111111111111111111112`). A market that trades it
+/// and declares no fee mint pays Pipeline's fee in it.
+pub const NATIVE_MINT: [u8; 32] = [
+    6, 155, 136, 87, 254, 171, 129, 132, 251, 104, 127, 99, 70, 24, 192, 53, 218, 196, 57, 220, 26,
+    235, 59, 85, 152, 160, 240, 0, 0, 0, 0, 1,
+];
 
 /// PDA seeds used by the router.
 pub mod seeds {
@@ -45,6 +52,8 @@ pub mod seeds {
     /// `["pipeline-register"]` derived from the strategy program itself. Lets a program
     /// without an upgrade authority register by signing through a CPI.
     pub const REGISTER: &[u8] = b"pipeline-register";
+    /// `["lookup", market]`: the market's recorded address lookup table.
+    pub const LOOKUP_TABLE: &[u8] = b"lookup";
 }
 
 /// Instruction discriminators: `sha256("global:<name>")[..8]`.
@@ -205,6 +214,33 @@ pub struct MarketInfo {
     /// The token account that receives input for each mint, in the same order as `mints`.
     pub vaults: Vec<[u8; 32]>,
     pub supports_exact_out: bool,
+}
+
+/// Encodes `pipeline_market_info` return data: the [`MarketInfo`], then, if the strategy
+/// declares one, the market's fee mint as a Borsh `Option<u8>` index into `mints`. The fee
+/// mint is the mint Pipeline takes its fee in when it is one side of a trade. Without a
+/// declaration the router uses wrapped SOL if the market trades it, and otherwise each
+/// trade's input mint.
+pub fn encode_market_info(info: &MarketInfo, fee_mint: Option<u8>) -> Vec<u8> {
+    let mut data = borsh::to_vec(info).expect("serialising into a Vec cannot fail");
+    if let Some(index) = fee_mint {
+        data.extend_from_slice(&[1, index]);
+    }
+    data
+}
+
+/// Decodes `pipeline_market_info` return data written by [`encode_market_info`], or by a
+/// strategy that predates the fee mint and returns a bare [`MarketInfo`]. Returns the
+/// declared fee mint index, if any; `None` if the data doesn't decode or has bytes left over.
+pub fn decode_market_info(data: &[u8]) -> Option<(MarketInfo, Option<u8>)> {
+    let mut rest = data;
+    let info = MarketInfo::deserialize(&mut rest).ok()?;
+    let fee_mint = if rest.is_empty() {
+        None
+    } else {
+        Option::<u8>::deserialize(&mut rest).ok()?
+    };
+    rest.is_empty().then_some((info, fee_mint))
 }
 
 /// Argument of `pipeline_resolve_accounts`.
@@ -398,6 +434,25 @@ pub mod settlement {
         })
     }
 
+    /// Like [`settle`], for a trade whose output is the market's fee mint: Pipeline's fee is
+    /// `ceil(received × 25 / 10,000)`, taken from the output, and the trader's minimum
+    /// applies to what they keep, `received - pipeline_fee`. Everything else, including the
+    /// integrator fee on `net_sent`, is as in [`settle`].
+    pub fn settle_fee_on_output(
+        measured: &Measured,
+        amount_in: u64,
+        min_amount_out: u64,
+        integrator_fee_bps: u16,
+    ) -> Result<Settlement, SettleError> {
+        let mut settlement = settle(measured, amount_in, 0, integrator_fee_bps)?;
+        settlement.pipeline_fee = fees::pipeline_fee(settlement.received);
+        // `pipeline_fee(r) <= r` for every r, so this cannot underflow.
+        if settlement.received - settlement.pipeline_fee < min_amount_out {
+            return Err(SettleError::InsufficientOutput);
+        }
+        Ok(settlement)
+    }
+
     /// Where the input mint's `hook_count` transfer-hook accounts start in a swap's
     /// remaining accounts (they are the last ones), or `None` if there are fewer.
     pub fn hook_split(remaining_len: usize, hook_count: u8) -> Option<usize> {
@@ -550,6 +605,87 @@ mod tests {
             settle(&measured(10, 1, 10), u64::MAX, 0, u16::MAX).map(|s| s.integrator_fee),
             Ok(66)
         );
+    }
+
+    #[test]
+    fn settle_fee_on_output_charges_what_arrived_and_checks_what_is_kept() {
+        use settlement::{settle_fee_on_output, SettleError::*};
+        // 1,000 in, 990 out: the fee is ceil(990 × 25 / 10,000) = 3, the trader keeps 987.
+        let s = settle_fee_on_output(&measured(1_000, 990, 1_000), 1_000, 987, 10).unwrap();
+        assert_eq!((s.net_sent, s.received, s.pipeline_fee), (1_000, 990, 3));
+        // The integrator fee stays on net_sent.
+        assert_eq!(s.integrator_fee, 1);
+        // The minimum applies to what the trader keeps.
+        assert_eq!(
+            settle_fee_on_output(&measured(1_000, 990, 1_000), 1_000, 988, 0),
+            Err(InsufficientOutput)
+        );
+        // One unit received pays one unit, and the trader keeps nothing.
+        let s = settle_fee_on_output(&measured(10, 1, 10), 10, 0, 0).unwrap();
+        assert_eq!((s.received, s.pipeline_fee), (1, 1));
+        // Nothing received, nothing charged; refusals are as in `settle`.
+        assert_eq!(
+            settle_fee_on_output(&measured(10, 0, 10), 10, 0, 0).map(|s| s.pipeline_fee),
+            Ok(0)
+        );
+        assert_eq!(
+            settle_fee_on_output(&measured(1_001, 9, 1_001), 1_000, 0, 0),
+            Err(SpendLimitExceeded)
+        );
+    }
+
+    #[test]
+    fn market_info_round_trips_with_and_without_a_fee_mint() {
+        let info = MarketInfo {
+            mints: vec![[1; 32], NATIVE_MINT],
+            vaults: vec![[3; 32], [4; 32]],
+            supports_exact_out: true,
+        };
+        let bare = encode_market_info(&info, None);
+        assert_eq!(bare, borsh::to_vec(&info).unwrap());
+        assert_eq!(decode_market_info(&bare), Some((info.clone(), None)));
+        let declared = encode_market_info(&info, Some(1));
+        assert_eq!(decode_market_info(&declared), Some((info.clone(), Some(1))));
+        // An explicit `None` (tag 0) is accepted too; anything else after it is not.
+        let mut explicit_none = bare.clone();
+        explicit_none.push(0);
+        assert_eq!(
+            decode_market_info(&explicit_none),
+            Some((info.clone(), None))
+        );
+        let mut trailing = declared.clone();
+        trailing.push(7);
+        assert_eq!(decode_market_info(&trailing), None);
+        assert_eq!(decode_market_info(&declared[..declared.len() - 1]), None);
+    }
+
+    #[test]
+    fn native_mint_is_wrapped_sol() {
+        assert_eq!(
+            bs58_encode(&NATIVE_MINT),
+            "So11111111111111111111111111111111111111112"
+        );
+    }
+
+    fn bs58_encode(bytes: &[u8; 32]) -> String {
+        const ALPHABET: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+        let mut digits: Vec<u8> = vec![];
+        for &byte in bytes {
+            let mut carry = byte as u32;
+            for digit in digits.iter_mut() {
+                carry += (*digit as u32) << 8;
+                *digit = (carry % 58) as u8;
+                carry /= 58;
+            }
+            while carry > 0 {
+                digits.push((carry % 58) as u8);
+                carry /= 58;
+            }
+        }
+        let zeros = bytes.iter().take_while(|&&b| b == 0).count();
+        let mut out = "1".repeat(zeros);
+        out.extend(digits.iter().rev().map(|&d| ALPHABET[d as usize] as char));
+        out
     }
 
     #[test]

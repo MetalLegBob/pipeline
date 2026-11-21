@@ -13,7 +13,7 @@ import { fixtures, hex, key, toJson, unhex } from './helpers.js';
 
 describe('events match Rust', () => {
     it('cover every event type', () => {
-        expect(new Set(fixtures.events.map((e) => e.type)).size).toBe(6);
+        expect(new Set(fixtures.events.map((e) => e.type)).size).toBe(7);
     });
 
     for (const [n, fixture] of fixtures.events.entries()) {
@@ -24,6 +24,17 @@ describe('events match Rust', () => {
             expect(hex(encodeEvent(event!))).toBe(fixture.hex);
         });
     }
+});
+
+describe('swap events from before the fee mint', () => {
+    it('decode with the fee in the input mint', () => {
+        const fixture = fixtures.events.find((e) => e.type === 'Swap')!;
+        const current = unhex(fixture.hex);
+        // The old layout is the same without the trailing 32-byte fee mint.
+        const event = decodeEvent(current.subarray(0, current.length - 32));
+        expect(event?.type).toBe('Swap');
+        expect(toJson(event?.data)).toEqual({ ...fixture.value, feeMint: fixture.value.inputMint });
+    });
 });
 
 describe('decodeEvent rejects other data', () => {

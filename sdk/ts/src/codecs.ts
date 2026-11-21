@@ -25,7 +25,7 @@ import {
     type ReadonlyUint8Array,
 } from '@solana/kit';
 
-import { ACCOUNT_DISCRIMINATORS, MAX_MARKET_MINTS, MAX_RETURN_DATA } from './constants.js';
+import { ACCOUNT_DISCRIMINATORS, MAX_MARKET_MINTS, MAX_RETURN_DATA, NO_FEE_MINT } from './constants.js';
 
 // ---------------------------------------------------------------------------------------
 // Borsh primitives
@@ -274,6 +274,80 @@ export function getMarketInfoCodec(): Codec<MarketInfo> {
     ]);
 }
 
+/**
+ * `pipeline_market_info` return data: the {@link MarketInfo}, then, if the strategy
+ * declares one, its fee mint as a Borsh `Option<u8>` index into `mints`. A bare
+ * `MarketInfo` (a strategy that predates fee mints) declares none.
+ */
+export function encodeMarketInfo(info: MarketInfo, feeMint: number | null): Uint8Array {
+    const body = getMarketInfoCodec().encode(info);
+    if (feeMint === null) {
+        return Uint8Array.from(body);
+    }
+    const data = new Uint8Array(body.length + 2);
+    data.set(body);
+    data.set([1, u8().encode(feeMint)[0]!], body.length);
+    return data;
+}
+
+/**
+ * Decodes `pipeline_market_info` return data written by {@link encodeMarketInfo}, as the
+ * router does: a bare `MarketInfo`, or one followed by `Option<u8>` (an explicit `None`
+ * is accepted). `null` if the data doesn't decode or has bytes left over.
+ *
+ * For return data reported by RPC, which drops trailing zero bytes, use
+ * {@link decodeMarketInfoReturnData}.
+ */
+export function decodeMarketInfo(data: ReadonlyUint8Array): { info: MarketInfo; feeMint: number | null } | null {
+    let info: MarketInfo;
+    let end: number;
+    try {
+        [info, end] = getMarketInfoCodec().read(data, 0);
+    } catch {
+        return null;
+    }
+    const rest = data.subarray(end);
+    if (rest.length === 0 || (rest.length === 1 && rest[0] === 0)) {
+        return { info, feeMint: null };
+    }
+    if (rest.length === 2 && rest[0] === 1) {
+        return { info, feeMint: rest[1]! };
+    }
+    return null;
+}
+
+/**
+ * {@link decodeMarketInfo} for return data reported by RPC, where the runtime has dropped
+ * trailing zero bytes: missing bytes are read as zeros, so `[1]` after the info is a fee
+ * mint at index 0.
+ */
+export function decodeMarketInfoReturnData(
+    data: ReadonlyUint8Array,
+): { info: MarketInfo; feeMint: number | null } | null {
+    if (data.length > MAX_RETURN_DATA) {
+        return null;
+    }
+    const padded = new Uint8Array(MAX_RETURN_DATA);
+    padded.set(data);
+    let info: MarketInfo;
+    let end: number;
+    try {
+        [info, end] = getMarketInfoCodec().read(padded, 0);
+    } catch {
+        return null;
+    }
+    // Whatever survives after the info, with its dropped trailing zeros put back: nothing
+    // (no declaration), or `[1]` / `[1, i]` (`Some(0)` / `Some(i)`).
+    const rest = data.subarray(Math.min(end, data.length));
+    if (rest.length === 0) {
+        return { info, feeMint: null };
+    }
+    if (rest[0] === 1 && rest.length <= 2) {
+        return { info, feeMint: rest[1] ?? 0 };
+    }
+    return null;
+}
+
 /** Argument of `pipeline_resolve_accounts`. */
 export type ResolveRequest = {
     trade: TradeRequest;
@@ -381,8 +455,11 @@ export function getSwapArgsCodec(): Codec<SwapArgs> {
 export type SwapResult = {
     netSent: bigint;
     received: bigint;
+    /** In `feeMint`: the input mint, or the output mint when the fee is taken there. */
     pipelineFee: bigint;
     integratorFee: bigint;
+    /** The mint Pipeline's fee was taken in. */
+    feeMint: Address;
 };
 
 export function getSwapResultCodec(): Codec<SwapResult> {
@@ -390,6 +467,55 @@ export function getSwapResultCodec(): Codec<SwapResult> {
         ['netSent', u64()],
         ['received', u64()],
         ['pipelineFee', u64()],
+        ['integratorFee', u64()],
+        ['feeMint', pubkey()],
+    ]);
+}
+
+/** One hop of a `route`: how many strategy and input-hook accounts follow its fixed accounts. */
+export type RouteHop = {
+    strategyAccounts: number;
+    inputHookAccounts: number;
+    extra: ReadonlyUint8Array;
+};
+
+export function getRouteHopCodec(): Codec<RouteHop> {
+    return getStructCodec([
+        ['strategyAccounts', u8()],
+        ['inputHookAccounts', u8()],
+        ['extra', bytes()],
+    ]);
+}
+
+/** Arguments of the router's `route`. */
+export type RouteArgs = {
+    amountIn: bigint;
+    minAmountOut: bigint;
+    integratorFeeBps: number;
+    hops: RouteHop[];
+};
+
+export function getRouteArgsCodec(): Codec<RouteArgs> {
+    return getStructCodec([
+        ['amountIn', u64()],
+        ['minAmountOut', u64()],
+        ['integratorFeeBps', u16()],
+        ['hops', getBorshVecCodec(getRouteHopCodec())],
+    ]);
+}
+
+/** Return data of the router's `route`. */
+export type RouteResult = {
+    netSent: bigint;
+    /** What the trader keeps from the last hop. */
+    amountOut: bigint;
+    integratorFee: bigint;
+};
+
+export function getRouteResultCodec(): Codec<RouteResult> {
+    return getStructCodec([
+        ['netSent', u64()],
+        ['amountOut', u64()],
         ['integratorFee', u64()],
     ]);
 }
@@ -452,6 +578,8 @@ export type Market = {
     createdAt: bigint;
     bump: number;
     feeAuthorityBump: number;
+    /** Index into `mints` of the market's fee mint, or {@link NO_FEE_MINT}. See {@link marketFeeMint}. */
+    feeMintIndex: number;
 };
 
 export function getMarketCodec(): Codec<Market> {
@@ -466,6 +594,7 @@ export function getMarketCodec(): Codec<Market> {
         ['createdAt', i64()],
         ['bump', u8()],
         ['feeAuthorityBump', u8()],
+        ['feeMintIndex', u8()],
     ]);
 }
 
@@ -474,10 +603,36 @@ export function marketMints(market: Market): Address[] {
     return market.mints.slice(0, market.mintCount);
 }
 
+/**
+ * The mint Pipeline takes its fee in when it is one side of a trade, or `null`
+ * ({@link NO_FEE_MINT}, or an index past the market's mints).
+ */
+export function marketFeeMint(market: Market): Address | null {
+    if (market.feeMintIndex === NO_FEE_MINT) {
+        return null;
+    }
+    return marketMints(market)[market.feeMintIndex] ?? null;
+}
+
 /** The input vault for `mint`, or `null` if the market does not trade it. */
 export function marketVaultFor(market: Market, mint: Address): Address | null {
     const index = marketMints(market).indexOf(mint);
     return index < 0 ? null : (market.vaults[index] ?? null);
+}
+
+/** A market's recorded address lookup table (PDA `["lookup", market]`). */
+export type MarketLookupTable = {
+    market: Address;
+    table: Address;
+    bump: number;
+};
+
+export function getMarketLookupTableCodec(): Codec<MarketLookupTable> {
+    return getStructCodec([
+        ['market', pubkey()],
+        ['table', pubkey()],
+        ['bump', u8()],
+    ]);
 }
 
 export type RouterAccountName = keyof typeof ACCOUNT_DISCRIMINATORS;
@@ -509,4 +664,8 @@ export function decodeStrategy(data: ReadonlyUint8Array): Strategy | null {
 
 export function decodeMarket(data: ReadonlyUint8Array): Market | null {
     return decodeAccount('Market', getMarketCodec(), data);
+}
+
+export function decodeMarketLookupTable(data: ReadonlyUint8Array): MarketLookupTable | null {
+    return decodeAccount('MarketLookupTable', getMarketLookupTableCodec(), data);
 }

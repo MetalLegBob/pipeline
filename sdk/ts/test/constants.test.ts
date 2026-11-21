@@ -13,6 +13,9 @@ import {
     INTERFACE_VERSION,
     MAX_MARKET_MINTS,
     MAX_RESOLVE_ROUNDS,
+    MAX_ROUTE_HOPS,
+    NATIVE_MINT_ADDRESS,
+    NO_FEE_MINT,
     MIN_MARKET_MINTS,
     PIPELINE_FEE_BPS,
     PIPELINE_PROGRAM_ADDRESS,
@@ -52,6 +55,10 @@ describe('constants', () => {
         expect(MIN_MARKET_MINTS).toBe(fixtures.constants.minMarketMints);
         expect(MAX_MARKET_MINTS).toBe(fixtures.constants.maxMarketMints);
         expect(MAX_RESOLVE_ROUNDS).toBe(fixtures.constants.maxResolveRounds);
+        expect(MAX_ROUTE_HOPS).toBe(fixtures.constants.maxRouteHops);
+        expect(NO_FEE_MINT).toBe(fixtures.constants.noFeeMint);
+        expect(NATIVE_MINT_ADDRESS).toBe(fixtures.constants.nativeMint);
+        expect(hex(getAddressEncoder().encode(NATIVE_MINT_ADDRESS))).toBe(fixtures.constants.nativeMintBytes);
     });
 });
 
@@ -79,6 +86,9 @@ describe('discriminators', () => {
     });
 
     it('accounts match Rust and sha256("account:<Name>")', () => {
+        expect(Object.keys(ACCOUNT_DISCRIMINATORS).sort()).toEqual(
+            Object.keys(fixtures.discriminators.accounts).sort(),
+        );
         for (const [name, bytes] of Object.entries(ACCOUNT_DISCRIMINATORS)) {
             expect(hex(bytes)).toBe(fixtures.discriminators.accounts[name]);
             expect(hex(bytes)).toBe(sha256Prefix(`account:${name}`));
@@ -87,6 +97,7 @@ describe('discriminators', () => {
 
     it('events match Rust and sha256("event:<Name>")', () => {
         expect(hex(EVENT_IX_TAG)).toBe(fixtures.discriminators.eventIxTag);
+        expect(Object.keys(EVENT_DISCRIMINATORS).length).toBe(Object.keys(fixtures.discriminators.events).length);
         for (const [type, bytes] of Object.entries(EVENT_DISCRIMINATORS)) {
             const name = type === 'Swap' ? 'SwapEvent' : type;
             expect(hex(bytes)).toBe(fixtures.discriminators.events[name]);

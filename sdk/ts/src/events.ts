@@ -44,11 +44,14 @@ export type SwapEvent = {
     netSent: bigint;
     /** Output that arrived in the trader's output account. */
     received: bigint;
+    /** In `feeMint`: the input mint, or the output mint when the fee is taken there. */
     pipelineFee: bigint;
     integrator: Address | null;
     integratorFee: bigint;
     slot: bigint;
     unixTimestamp: bigint;
+    /** The mint Pipeline's fee was taken in. */
+    feeMint: Address;
 };
 
 export type StrategyRegistered = {
@@ -83,6 +86,11 @@ export type ConfigChanged = {
     treasuryOwner: Address;
 };
 
+export type LookupTableRecorded = {
+    market: Address;
+    table: Address;
+};
+
 /** A decoded router event, tagged by `type`. */
 export type PipelineEvent =
     | { type: 'Swap'; data: SwapEvent }
@@ -90,14 +98,20 @@ export type PipelineEvent =
     | { type: 'MetadataUpdated'; data: MetadataUpdated }
     | { type: 'MarketCreated'; data: MarketCreated }
     | { type: 'FeesSwept'; data: FeesSwept }
-    | { type: 'ConfigChanged'; data: ConfigChanged };
+    | { type: 'ConfigChanged'; data: ConfigChanged }
+    | { type: 'LookupTableRecorded'; data: LookupTableRecorded };
 
 export type PipelineEventType = PipelineEvent['type'];
 
 const pubkey = getAddressCodec;
 
 export function getSwapEventCodec(): Codec<SwapEvent> {
-    return getStructCodec([
+    return getStructCodec([...swapEventV1Fields(), ['feeMint', pubkey()]]);
+}
+
+// The swap event's fields before the fee mint was added.
+function swapEventV1Fields() {
+    return [
         ['market', pubkey()],
         ['strategy', pubkey()],
         ['trader', pubkey()],
@@ -111,7 +125,20 @@ export function getSwapEventCodec(): Codec<SwapEvent> {
         ['integratorFee', getU64Codec()],
         ['slot', getU64Codec()],
         ['unixTimestamp', getI64Codec()],
-    ]);
+    ] as const;
+}
+
+/**
+ * Decodes a swap event body in the current layout, or in the layout before the fee mint
+ * (its fee was always in the input mint), so indexers can read a router's whole history.
+ */
+function decodeSwapEvent(body: ReadonlyUint8Array): SwapEvent | null {
+    const current = decodeExact(getSwapEventCodec(), body);
+    if (current !== null) {
+        return current;
+    }
+    const v1 = decodeExact(getStructCodec([...swapEventV1Fields()]), body);
+    return v1 === null ? null : { ...v1, feeMint: v1.inputMint };
 }
 
 export function getStrategyRegisteredCodec(): Codec<StrategyRegistered> {
@@ -156,6 +183,13 @@ export function getConfigChangedCodec(): Codec<ConfigChanged> {
     ]);
 }
 
+export function getLookupTableRecordedCodec(): Codec<LookupTableRecorded> {
+    return getStructCodec([
+        ['market', pubkey()],
+        ['table', pubkey()],
+    ]);
+}
+
 type EventData<T extends PipelineEventType> = Extract<PipelineEvent, { type: T }>['data'];
 
 const EVENT_CODECS: { [T in PipelineEventType]: () => Codec<EventData<T>> } = {
@@ -165,6 +199,7 @@ const EVENT_CODECS: { [T in PipelineEventType]: () => Codec<EventData<T>> } = {
     MarketCreated: getMarketCreatedCodec,
     FeesSwept: getFeesSweptCodec,
     ConfigChanged: getConfigChangedCodec,
+    LookupTableRecorded: getLookupTableRecordedCodec,
 };
 
 const EVENT_TYPES = Object.keys(EVENT_DISCRIMINATORS) as PipelineEventType[];
@@ -182,6 +217,10 @@ export function decodeEvent(data: ReadonlyUint8Array): PipelineEvent | null {
         const discriminator = EVENT_DISCRIMINATORS[type];
         if (startsWith(rest, discriminator)) {
             const body = rest.subarray(discriminator.length);
+            if (type === 'Swap') {
+                const swap = decodeSwapEvent(body);
+                return swap === null ? null : { type, data: swap };
+            }
             // The codec table is keyed by type, so the decoded data matches `type`.
             const decoded = decodeExact(EVENT_CODECS[type]() as Codec<unknown>, body);
             return decoded === null ? null : ({ type, data: decoded } as PipelineEvent);

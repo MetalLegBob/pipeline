@@ -4,10 +4,11 @@
 //! against one world, sends each one, and checks the router's guarantees after every
 //! transaction, whether it succeeded or not. The world has the router; a registered
 //! scriptable strategy (`test-strategy-script`, which runs a script from the tape during
-//! market setup and every swap, so it can behave like any program, honest or not); six
+//! market setup and every swap, so it can behave like any program, honest or not); eight
 //! markets of two to four mints over SPL Token and Token-2022 mints with a transfer fee,
 //! a permanent delegate on a market, a strategy-held mint and freeze authority, an
-//! allow-all transfer hook and a hostile hook that refills the trader's input account;
+//! allow-all transfer hook and a hostile hook that refills the trader's input account,
+//! and wrapped SOL (one market pairs it, another declares a different fee mint over it);
 //! traders, a bystander, a treasury and an integrator.
 //!
 //! Transactions mix every router instruction (with valid, substituted and garbage
@@ -25,10 +26,14 @@
 //!   and nothing from any other account;
 //! - a lone swap's `net_sent` is exactly `min(amount_in, max(what the trader's input
 //!   lost during the call, what the input vault kept))`, rebuilt from balances; every
-//!   swap pays `ceil(net_sent × 25 / 10,000)` (and the integrator's rate) into the
-//!   market's own fee account;
-//! - the trader's output account never falls and gains `received ≥ min_amount_out`, and
-//!   the event and the return data report what really moved;
+//!   swap pays `ceil(net_sent × 25 / 10,000)`, or `ceil(received × 25 / 10,000)` out of
+//!   the output when the output is the market's fee mint, into the market's own fee
+//!   account for that mint, and the integrator's rate on `net_sent`;
+//! - every market's fee mint is the strategy's declaration, else wrapped SOL if it
+//!   trades it, else none;
+//! - the trader's output account never falls and keeps `received` (less an output-side
+//!   fee) `≥ min_amount_out`, and the event and the return data report what really
+//!   moved;
 //! - fee accounts lose tokens only to a sweep, and only into the treasury;
 //! - router accounts change only through their instructions: markets never, the config
 //!   only by its admin, strategies only by their owner or a new market; every event matches the accounts it describes, and
@@ -302,13 +307,18 @@ fn nonce_from(n: u64) -> [u8; 32] {
     nonce
 }
 
-fn market_info_bytes(mints: &[Pubkey], vaults: &[Pubkey], exact_out: bool) -> Vec<u8> {
-    borsh::to_vec(&psi::MarketInfo {
+fn market_info_bytes(
+    mints: &[Pubkey],
+    vaults: &[Pubkey],
+    exact_out: bool,
+    fee_mint: Option<u8>,
+) -> Vec<u8> {
+    let info = psi::MarketInfo {
         mints: mints.iter().map(|k| k.to_bytes()).collect(),
         vaults: vaults.iter().map(|k| k.to_bytes()).collect(),
         supports_exact_out: exact_out,
-    })
-    .unwrap()
+    };
+    psi::encode_market_info(&info, fee_mint)
 }
 
 /// `pipeline_init_market` data for the script strategy.
@@ -481,7 +491,7 @@ fn build_world() -> World {
     let strategy_owner = env.register(&SCRIPT_ID, "test_strategy_script");
 
     // Market nonces are fixed so mints can name market PDAs before the markets exist.
-    let nonces: Vec<[u8; 32]> = (0..6).map(nonce_from).collect();
+    let nonces: Vec<[u8; 32]> = (0..8).map(nonce_from).collect();
     let states: Vec<Pubkey> = nonces.iter().map(state_address).collect();
     let market_pdas: Vec<Pubkey> = states.iter().map(|s| pda::market(&SCRIPT_ID, s)).collect();
     env.svm
@@ -537,15 +547,27 @@ fn build_world() -> World {
         TOKEN_2022,
         false,
     );
+    // Mint 8 is wrapped SOL, every market's default fee mint.
+    add_mint(client::wallet::NATIVE_MINT, TOKEN, false);
+    // Wrapping SOL for the traders' and vaults' balances spends the admin's lamports,
+    // more than the test faucet holds.
+    let admin_key = env.admin.pubkey();
+    let mut admin_account = env.svm.get_account(&admin_key).unwrap();
+    admin_account.lamports += 3 * VAULT_FUNDS + 10 * TRADER_FUNDS;
+    env.svm.set_account(admin_key, admin_account).unwrap();
 
-    let market_mints: [Vec<usize>; 6] = [
+    let market_mints: [Vec<usize>; 8] = [
         vec![0, 1],
         vec![4, 0],
         vec![1, 5, 3],
         vec![2, 3, 0, 1],
         vec![6, 0, 1],
         vec![0, 7],
+        vec![8, 0],
+        vec![3, 1, 8],
     ];
+    // Market 7 declares its transfer-fee mint as its fee mint, over wrapped SOL.
+    let declared_fee_mints: [Option<u8>; 8] = [None, None, None, None, None, None, None, Some(0)];
 
     let traders: Vec<Keypair> = (0..3).map(|_| env.funded_keypair()).collect();
     let victim = Pubkey::new_unique();
@@ -583,7 +605,7 @@ fn build_world() -> World {
             &creator.pubkey(),
             &SCRIPT_ID,
             &nonces[i],
-            &market_info_bytes(&keys, &vaults, i % 2 == 1),
+            &market_info_bytes(&keys, &vaults, i % 2 == 1, declared_fee_mints[i]),
             &[],
             MAX_SETUP_LAMPORTS,
             vec![],
@@ -739,6 +761,9 @@ enum Kind {
     InitFee,
     CreateMarket {
         max_creator_lamports: u64,
+        /// The fee mint the market info declares, if known (`None` when the info or the
+        /// setup script is random).
+        declared_fee_mint: Option<Option<u8>>,
     },
     RegisterExisting,
     UpdateConfig,
@@ -1118,7 +1143,28 @@ impl World {
             strategy_accounts,
             input_hook_accounts,
         };
-        let mut ix = client::swap(&accounts, &args);
+        // Pay the fee on the side the market's record says, and now and then on the
+        // other side (the router must refuse the wrong fee account).
+        let real_side = self
+            .svm
+            .get_account(&market.market)
+            .and_then(|a| client::decode_market(&a.data))
+            .map_or(client::FeeSide::Input, |m| {
+                client::FeeSide::of(&m, &self.mints[out_mint].key)
+            });
+        let side = if tape.chance(5) {
+            match real_side {
+                client::FeeSide::Input => client::FeeSide::Output,
+                client::FeeSide::Output => client::FeeSide::Input,
+            }
+        } else {
+            real_side
+        };
+        let fee_mint = match side {
+            client::FeeSide::Input => in_mint,
+            client::FeeSide::Output => out_mint,
+        };
+        let mut ix = client::swap_with_fee_side(&accounts, &args, side);
         let mut args = args;
         args.input_hook_accounts = accounts.input_hook_accounts.len() as u8;
         if tape.chance(12) {
@@ -1127,7 +1173,7 @@ impl World {
                 0 => (swap_meta::TRADER_INPUT, in_mint),
                 1 => (swap_meta::TRADER_OUTPUT, out_mint),
                 2 => (swap_meta::INPUT_VAULT, in_mint),
-                3 => (swap_meta::FEE_ACCOUNT, in_mint),
+                3 => (swap_meta::FEE_ACCOUNT, fee_mint),
                 _ => (swap_meta::INTEGRATOR, in_mint),
             };
             ix.accounts[slot].pubkey = tape.pick(&self.token_accounts_of(mint));
@@ -1188,8 +1234,13 @@ impl World {
     }
 
     /// Market info the strategy will report: mostly valid, sometimes broken. Returns the
-    /// bytes and, if valid, the market's mints and vaults.
-    fn gen_info(&self, tape: &mut Tape, state: &Pubkey) -> (Vec<u8>, Option<ValidInfo>) {
+    /// bytes, the market's mints and vaults if valid, and the fee mint the bytes declare
+    /// (`None` for random bytes).
+    fn gen_info(
+        &self,
+        tape: &mut Tape,
+        state: &Pubkey,
+    ) -> (Vec<u8>, Option<ValidInfo>, Option<Option<u8>>) {
         // Distinct mints: a random start and stride (coprime with the count when the
         // count is prime; duplicates are dropped otherwise), so it ends on any tape.
         let n = self.mints.len();
@@ -1218,6 +1269,12 @@ impl World {
             })
             .collect();
         let exact_out = tape.chance(50);
+        // Mostly no declaration; sometimes one of the market's mints, or out of range.
+        let fee_mint = match tape.u8() % 8 {
+            0 | 1 => Some(tape.below(keys.len()) as u8),
+            2 => Some(keys.len() as u8 + tape.u8() % 3),
+            _ => None,
+        };
         match tape.u8() % 12 {
             0 => keys.push(keys[0]),
             1 => keys.truncate(1),
@@ -1226,7 +1283,7 @@ impl World {
             }
             3 => {
                 let len = tape.below(80);
-                return (tape.bytes(len), None);
+                return (tape.bytes(len), None, None);
             }
             4 => {
                 while keys.len() < 5 {
@@ -1236,11 +1293,16 @@ impl World {
             }
             5 => keys[1] = self.pool_pick(tape),
             _ => {
-                let info = market_info_bytes(&keys, &vaults, exact_out);
-                return (info, Some((mint_ids, vaults)));
+                let info = market_info_bytes(&keys, &vaults, exact_out, fee_mint);
+                let valid = fee_mint.is_none_or(|index| (index as usize) < keys.len());
+                return (info, valid.then_some((mint_ids, vaults)), Some(fee_mint));
             }
         }
-        (market_info_bytes(&keys, &vaults, exact_out), None)
+        (
+            market_info_bytes(&keys, &vaults, exact_out, fee_mint),
+            None,
+            Some(fee_mint),
+        )
     }
 
     fn gen_create_market(&mut self, tape: &mut Tape) -> (Step, Option<Pending>, Vec<Keypair>) {
@@ -1248,7 +1310,7 @@ impl World {
         self.svm.airdrop(&creator.pubkey(), 10 * SOL).unwrap();
         let nonce = nonce_from(1_000 + tape.u16() as u64);
         let state = state_address(&nonce);
-        let (info, valid) = self.gen_info(tape, &state);
+        let (info, valid, mut declared_fee_mint) = self.gen_info(tape, &state);
         let mut remaining = self.pool_metas(tape, 4);
         // Where the creator sits among the strategy's accounts, if passed (signing).
         let creator_at = tape.chance(20).then(|| {
@@ -1269,8 +1331,10 @@ impl World {
                 init_script.extend(tape.amount(SOL).to_le_bytes());
             }
             1 => {
+                // A random script may rewrite the state the market info is read from.
                 let len = tape.below(24);
                 init_script.extend(tape.bytes(len));
+                declared_fee_mint = None;
             }
             2 | 3 => {
                 // Take the creator's SOL, which works only if the router passed on the
@@ -1319,6 +1383,7 @@ impl World {
             Step {
                 kind: Kind::CreateMarket {
                     max_creator_lamports,
+                    declared_fee_mint,
                 },
                 ix,
             },
@@ -1332,7 +1397,7 @@ impl World {
         let nonce = nonce_from(100_000 + tape.u16() as u64);
         let (state, bump) = Pubkey::find_program_address(&[script::STATE_SEED, &nonce], &SCRIPT_ID);
         if self.svm.get_account(&state).is_none() {
-            let (info, _) = self.gen_info(tape, &state);
+            let (info, _, _) = self.gen_info(tape, &state);
             let mut data = vec![0u8; script::STATE_LEN];
             data[..32].copy_from_slice(&nonce);
             data[32] = bump;
@@ -1468,15 +1533,18 @@ impl World {
     }
 
     fn gen_raw(&self, tape: &mut Tape) -> Step {
-        const NAMES: [&str; 10] = [
+        const NAMES: [&str; 13] = [
             "initialize_config",
             "update_config",
             "register_strategy",
             "update_metadata",
             "create_market",
             "register_existing_market",
+            "migrate_market",
             "init_fee_account",
             "swap",
+            "route",
+            "record_lookup_table",
             "sweep_fees",
             "idl_write",
         ];
@@ -1886,10 +1954,29 @@ fn check_success(
                         event.net_sent, args.amount_in
                     ));
                 }
-                if event.pipeline_fee as u128 != ceil_bps(event.net_sent, 25) {
+                let market_record = before
+                    .get(&event.market)
+                    .and_then(|a| a.as_ref())
+                    .and_then(|a| client::decode_market(&a.data))
+                    .ok_or("swap through an unknown market")?;
+                // The fee is in the output when the output is the market's fee mint.
+                let fee_on_output = client::FeeSide::of(&market_record, &event.output_mint)
+                    == client::FeeSide::Output;
+                let (fee_mint, fee_base) = if fee_on_output {
+                    (event.output_mint, event.received)
+                } else {
+                    (event.input_mint, event.net_sent)
+                };
+                if event.fee_mint != fee_mint {
                     return Err(format!(
-                        "swap {i}: pipeline fee {} on net_sent {}",
-                        event.pipeline_fee, event.net_sent
+                        "swap {i}: fee taken in {} but the market's fee side says {fee_mint}",
+                        event.fee_mint
+                    ));
+                }
+                if event.pipeline_fee as u128 != ceil_bps(fee_base, 25) {
+                    return Err(format!(
+                        "swap {i}: pipeline fee {} on {fee_base} (fee on output: {fee_on_output})",
+                        event.pipeline_fee
                     ));
                 }
                 if event.integrator_fee as u128
@@ -1903,30 +1990,27 @@ fn check_success(
                 if event.integrator_fee > 0 && integrator.is_none() {
                     return Err(format!("swap {i}: integrator fee without an integrator"));
                 }
-                if event.received < args.min_amount_out {
+                let output_fee = if fee_on_output { event.pipeline_fee } else { 0 };
+                let kept = event.received - output_fee;
+                if kept < args.min_amount_out {
                     return Err(format!(
-                        "swap {i}: received {} < min {}",
+                        "swap {i}: received {} (keeping {kept}) < min {}",
                         event.received, args.min_amount_out
                     ));
                 }
-                // Fees go to the market's own fee account for the input mint.
-                let input_program = after
-                    .get(&event.input_mint)
+                // Fees go to the market's own fee account for the fee mint.
+                let fee_program = after
+                    .get(&fee_mint)
                     .and_then(|a| a.as_ref())
                     .map(|a| a.owner)
-                    .ok_or("input mint missing")?;
-                let expected = pda::fee_account(&event.market, &event.input_mint, &input_program);
+                    .ok_or("fee mint missing")?;
+                let expected = pda::fee_account(&event.market, &fee_mint, &fee_program);
                 if key(swap_meta::FEE_ACCOUNT) != expected {
                     return Err(format!(
                         "swap {i}: fee paid to {} instead of the market's fee account {expected}",
                         key(swap_meta::FEE_ACCOUNT)
                     ));
                 }
-                let market_record = before
-                    .get(&event.market)
-                    .and_then(|a| a.as_ref())
-                    .and_then(|a| client::decode_market(&a.data))
-                    .ok_or("swap through an unknown market")?;
                 if market_record.vault_for(&event.input_mint) != Some(key(swap_meta::INPUT_VAULT))
                     || !market_record.mints().contains(&event.output_mint)
                     || key(swap_meta::STRATEGY) != market_record.strategy_program
@@ -1938,19 +2022,24 @@ fn check_success(
                 }
                 let input = key(swap_meta::TRADER_INPUT);
                 let fee_account = key(swap_meta::FEE_ACCOUNT);
+                let input_side_fee = if fee_on_output {
+                    0
+                } else {
+                    ceil_bps(args.amount_in, 25)
+                };
                 let max_spend = args.amount_in as u128
-                    + ceil_bps(args.amount_in, 25)
+                    + input_side_fee
                     + ceil_bps(args.amount_in, args.integrator_fee_bps as u64);
                 *allowance.entry(input).or_default() += max_spend;
 
-                let input_mint = event.input_mint;
-                let cut = |fee: u64| {
-                    fee.saturating_sub(transfer_fee_cut(mint_account(&input_mint), ctx.epoch, fee))
+                let cut = |mint: &Pubkey, fee: u64| {
+                    fee.saturating_sub(transfer_fee_cut(mint_account(mint), ctx.epoch, fee))
                 };
-                *min_fee_gain.entry(fee_account).or_default() += cut(event.pipeline_fee) as u128;
+                *min_fee_gain.entry(fee_account).or_default() +=
+                    cut(&fee_mint, event.pipeline_fee) as u128;
                 if let Some(integrator) = integrator {
                     *min_fee_gain.entry(integrator).or_default() +=
-                        cut(event.integrator_fee) as u128;
+                        cut(&event.input_mint, event.integrator_fee) as u128;
                 }
 
                 // Exact accounting when the swap is alone in its transaction.
@@ -1961,23 +2050,23 @@ fn check_success(
                     let out_after = balance(after, &output).ok_or("output closed")?;
                     let moved = out_after as i128 - out_before as i128;
                     let refilled_after =
-                        refilled && output == refill_target && moved > event.received as i128;
+                        refilled && output == refill_target && moved > kept as i128;
                     if refilled_after {
                         // The refill hook topped up the output account during the
                         // router's fee transfers, after `received` was measured.
                         ctx.notes
                             .borrow_mut()
                             .push("a hook topped up the output after measurement".into());
-                    } else if moved != event.received as i128 {
+                    } else if moved != kept as i128 {
                         return Err(format!(
-                            "swap {i}: trader output moved {moved} but the event says received {}",
+                            "swap {i}: trader output moved {moved} but the event says received {} and fee on output {output_fee}",
                             event.received
                         ));
                     }
                     let in_before = balance(before, &input).ok_or("input not a token account")?;
                     let in_after = balance(after, &input).ok_or("input closed")?;
                     let lost = in_before as i128 - in_after as i128;
-                    let mut fees = event.pipeline_fee as i128;
+                    let mut fees = (event.pipeline_fee - output_fee) as i128;
                     if integrator != Some(input) {
                         fees += event.integrator_fee as i128;
                     }
@@ -2017,11 +2106,13 @@ fn check_success(
                             result.received,
                             result.pipeline_fee,
                             result.integrator_fee,
+                            result.fee_mint,
                         ) != (
                             event.net_sent,
                             event.received,
                             event.pipeline_fee,
                             event.integrator_fee,
+                            event.fee_mint,
                         ) {
                             return Err(format!(
                                 "swap {i}: return data {result:?} != event {event:?}"
@@ -2071,6 +2162,7 @@ fn check_success(
             }
             Kind::CreateMarket {
                 max_creator_lamports,
+                declared_fee_mint,
             } => {
                 let creator = ix.accounts[0].pubkey;
                 let lost = lamports(before, &creator) as i128 - lamports(after, &creator) as i128;
@@ -2087,6 +2179,26 @@ fn check_success(
                         "create_market {i}: setup payer kept {} lamports",
                         lamports(after, &setup_payer)
                     ));
+                }
+                // The fee mint is the declaration, else wrapped SOL if traded, else none.
+                let record = after
+                    .get(&market)
+                    .and_then(|a| a.as_ref())
+                    .and_then(|a| client::decode_market(&a.data));
+                if let (Some(declared), Some(record)) = (declared_fee_mint, record) {
+                    let expected = declared.unwrap_or_else(|| {
+                        record
+                            .mints()
+                            .iter()
+                            .position(|m| *m == client::wallet::NATIVE_MINT)
+                            .map_or(client::NO_FEE_MINT, |index| index as u8)
+                    });
+                    if record.fee_mint_index != expected {
+                        return Err(format!(
+                            "create_market {i}: fee mint index {} but expected {expected}",
+                            record.fee_mint_index
+                        ));
+                    }
                 }
             }
             Kind::RegisterExisting => {}
@@ -2404,6 +2516,15 @@ fn check_success(
         if !(2..=4).contains(&mints.len()) || unique.len() != mints.len() {
             return Err(format!("new market {key} has mints {mints:?}"));
         }
+        if market.fee_mint_index != client::NO_FEE_MINT
+            && market.fee_mint_index as usize >= mints.len()
+        {
+            return Err(format!(
+                "new market {key} has fee mint index {} of {} mints",
+                market.fee_mint_index,
+                mints.len()
+            ));
+        }
         if pda::market(&market.strategy_program, &market.market_state) != *key {
             return Err(format!("new market {key} is not at its PDA"));
         }
@@ -2502,7 +2623,7 @@ fn run_case(base: &World, tape_bytes: &[u8], stats: &mut Stats, trace: bool) -> 
         bytes: tape_bytes,
         pos: 0,
     };
-    let market_rent = world.svm.minimum_balance_for_rent_exemption(8 + 364);
+    let market_rent = world.svm.minimum_balance_for_rent_exemption(8 + 365);
     for step_no in 0..MAX_STEPS {
         if tape.done() {
             break;

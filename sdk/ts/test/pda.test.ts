@@ -12,6 +12,7 @@ import {
     programDataPda,
     registerPda,
     strategyPda,
+    lookupTableRecordPda,
 } from '../src/index.js';
 import { fixtures } from './helpers.js';
 
@@ -32,6 +33,8 @@ async function derive(kind: string, inputs: Record<string, string>): Promise<str
             return setupPayerPda(a('market'));
         case 'feeAccount':
             return feeAccountPda(a('market'), a('mint'), a('tokenProgram'));
+        case 'lookupTableRecord':
+            return lookupTableRecordPda(a('market'));
         case 'register':
             return registerPda(a('strategyProgram'));
         case 'programData':
@@ -45,7 +48,7 @@ async function derive(kind: string, inputs: Record<string, string>): Promise<str
 
 describe('PDAs', () => {
     it('cover every kind in the fixtures', () => {
-        expect(new Set(fixtures.pdas.map((p) => p.kind)).size).toBe(10);
+        expect(new Set(fixtures.pdas.map((p) => p.kind)).size).toBe(11);
     });
 
     for (const [i, pda] of fixtures.pdas.entries()) {

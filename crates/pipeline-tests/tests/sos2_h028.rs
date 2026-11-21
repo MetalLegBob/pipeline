@@ -4,7 +4,8 @@
 //! Property: no sequence of pre-deposits, donations, dust swaps, ExactOut with an
 //! overstated `amount_in`, or hops lets a trader trade value V through Pipeline for
 //! less than `ceil(25 bps x V)`, where V is the input the strategy actually priced
-//! (measured from the vault, not from what the router or strategy claims).
+//! (measured from the vault, not from what the router or strategy claims), or, for a
+//! sell into wrapped SOL (the market's fee mint), the SOL the strategy delivered.
 //!
 //! Every test asserts the safe behaviour. A failure names H028.
 
@@ -189,7 +190,8 @@ impl Rng {
 
 /// Move almost all of the intended input straight into the vault earlier in the same
 /// transaction, then swap 1 unit through Pipeline. The strategy must credit 1 (so
-/// price(1) is paid out) and Pipeline must take the fee on the whole 1 (>= 1 unit).
+/// price(1) is paid out) and Pipeline must take the fee on the whole 1 (>= 1 unit) for a
+/// buy, or on the SOL delivered for a sell.
 #[test]
 fn predeposit_then_one_unit_swap_credits_one_and_pays_fee() {
     let mut env = Env::new();
@@ -206,8 +208,8 @@ fn predeposit_then_one_unit_swap_credits_one_and_pays_fee() {
         } else {
             (tr.token, tr.wsol)
         };
-        let in_mint = if buying { NATIVE_MINT } else { mint };
-        let fee_acct = v.fee_account(&in_mint);
+        // The fee is in wrapped SOL both ways: the buy's input, the sell's output.
+        let fee_acct = v.fee_account(&NATIVE_MINT);
         for pre in [
             1_000u64,
             1_000_000,
@@ -239,16 +241,23 @@ fn predeposit_then_one_unit_swap_credits_one_and_pays_fee() {
                 ev.net_sent
             );
             assert_eq!(ev.net_sent, 1, "H028: net_sent must be the router-sent 1");
+            let (fee_base, fee_from_input) = if buying { (1, fee) } else { (expected_out, 0) };
             assert!(
-                fee >= fees::pipeline_fee(1),
-                "H028: fee below ceil(25bps*1)"
+                fee >= fees::pipeline_fee(fee_base),
+                "H028: fee below ceil(25bps x {fee_base})"
             );
             assert_eq!(fee, ev.pipeline_fee);
+            assert_eq!(ev.received, expected_out);
             assert_eq!(
-                got, expected_out,
+                got + (fee - fee_from_input),
+                expected_out,
                 "H028: output must be price(1), not price of pre-deposit"
             );
-            assert_eq!(spent, pre + 1 + fee, "H028: trader's spend ledger");
+            assert_eq!(
+                spent,
+                pre + 1 + fee_from_input,
+                "H028: trader's spend ledger"
+            );
             assert_eq!(vault_gain, pre + 1);
             // Reserve ledger grew by exactly 1 beyond the donation.
             assert_eq!(v.reserve(&env, side), ri + 1, "H028: reserve credited != 1");
@@ -262,7 +271,8 @@ fn predeposit_then_one_unit_swap_credits_one_and_pays_fee() {
 /// swaps with a heavily overstated `amount_in`, standing and in-transaction
 /// donations, in both directions. For every swap, the input the strategy priced is
 /// measured from the vault (vault delta minus the donation), and Pipeline's fee must
-/// be at least `ceil(25 bps x priced)`, and the fee account must receive it.
+/// be at least `ceil(25 bps x priced)` for a buy, or `ceil(25 bps x delivered)` for a
+/// sell (which pays in its wrapped-SOL output), and the fee account must receive it.
 #[test]
 fn random_trace_fee_covers_priced_input() {
     let mut env = Env::new();
@@ -273,7 +283,7 @@ fn random_trace_fee_covers_priced_input() {
     buy_big(&mut env, &v, &tr, 20 * SOL);
     let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
 
-    let mut priced_total = [0u64; 2];
+    let mut fee_base_total = [0u64; 2];
     let mut fee_total = [0u64; 2];
     let mut swaps = 0u32;
     for step in 0..70 {
@@ -284,8 +294,8 @@ fn random_trace_fee_covers_priced_input() {
         } else {
             (tr.token, tr.wsol)
         };
-        let in_mint = if buying { NATIVE_MINT } else { mint };
-        let fee_acct = v.fee_account(&in_mint);
+        // Wrapped SOL is the fee mint: the buy's input, the sell's output.
+        let fee_acct = v.fee_account(&NATIVE_MINT);
         let vault_in = v.vault(side);
 
         // Standing donation now and then.
@@ -301,11 +311,22 @@ fn random_trace_fee_covers_priced_input() {
 
         let ri = v.reserve(&env, side);
         let ro = v.reserve(&env, other);
+        // `expected_out` is what the strategy delivers; a sell keeps that less the fee.
         let (a, expected_priced, expected_out) = if exact_out {
             let want = amount.min(ro / 2);
-            let need = cp_in(ri, ro, want, FEE_BPS);
+            // A sell asks for enough to keep `want` after the fee.
+            let deliver = if buying {
+                want
+            } else {
+                received_for_kept(want)
+            };
+            let need = cp_in(ri, ro, deliver, FEE_BPS);
             let max_in = need * 40 + 100;
-            (args(TradeMode::ExactOut, max_in, want, want), need, want)
+            (
+                args(TradeMode::ExactOut, max_in, deliver, want),
+                need,
+                deliver,
+            )
         } else {
             (
                 args(TradeMode::ExactIn, amount, 0, 0),
@@ -347,29 +368,35 @@ fn random_trace_fee_covers_priced_input() {
             priced, expected_priced,
             "H028: strategy priced a different input"
         );
-        assert_eq!(got, expected_out);
+        let (fee_base, fee_from_input) = if buying {
+            (priced, fee_paid)
+        } else {
+            (expected_out, 0)
+        };
+        assert_eq!(ev.received, expected_out);
+        assert_eq!(got + (fee_paid - fee_from_input), expected_out);
         assert!(priced >= 1 || got == 0, "H028: output on zero priced input");
         assert!(
-            fee_paid >= fees::pipeline_fee(priced),
-            "H028: fee {fee_paid} below ceil(25bps x priced {priced})"
+            fee_paid >= fees::pipeline_fee(fee_base),
+            "H028: fee {fee_paid} below ceil(25bps x {fee_base})"
         );
         assert_eq!(fee_paid, ev.pipeline_fee, "H028: event vs fee account");
         assert_eq!(ev.net_sent, priced, "H028: net_sent vs priced");
         assert_eq!(
             spent,
-            tx_don + priced + fee_paid,
+            tx_don + priced + fee_from_input,
             "H028: trader spend ledger"
         );
-        priced_total[side] += priced;
+        fee_base_total[side] += fee_base;
         fee_total[side] += fee_paid;
     }
     assert!(swaps >= 40, "trace too sparse: {swaps} swaps ran");
     for s in [T, Q] {
         assert!(
-            fee_total[s] >= fees::pipeline_fee(priced_total[s]),
-            "H028: aggregate fee {} below ceil(25bps x total priced {})",
+            fee_total[s] >= fees::pipeline_fee(fee_base_total[s]),
+            "H028: aggregate fee {} below ceil(25bps x total {})",
             fee_total[s],
-            priced_total[s]
+            fee_base_total[s]
         );
     }
 }
@@ -422,7 +449,8 @@ fn dust_splitting_pays_at_least_the_whole_swap_fee() {
 
 /// wSOL -> token on one CP market and token -> wSOL on a second CP market (different
 /// pool fee) in a single transaction, with a donation to each hop's input vault.
-/// Each hop pays `ceil(25 bps)` of its own input, so the round trip cannot avoid fees.
+/// Each hop pays `ceil(25 bps)`: the buy of its input, the sell of the wrapped SOL it
+/// delivers. The round trip cannot avoid fees.
 #[test]
 fn two_hop_round_trip_pays_every_hop() {
     let mut env = Env::new();
@@ -451,13 +479,15 @@ fn two_hop_round_trip_pays_every_hop() {
         ),
     ];
     let f1 = v1.fee_account(&NATIVE_MINT);
-    let f2 = v2.fee_account(&mint);
+    let f2 = v2.fee_account(&NATIVE_MINT);
     let (f1_0, f2_0) = (env.token_balance(&f1), env.token_balance(&f2));
     let meta = env.send(&ixs, &[&tr.kp]).expect("setup: two-hop route");
     let evs = swap_events(&meta);
     assert_eq!(evs.len(), 2);
     let paid = [env.token_balance(&f1) - f1_0, env.token_balance(&f2) - f2_0];
     let ins = [hop1_in, hop2_in];
+    let fee_bases = [hop1_in, evs[1].received];
+    assert!(fee_on_output(&evs[1]));
     for i in 0..2 {
         println!(
             "[H028 hop{}] net_sent={} fee={} account_delta={}",
@@ -469,9 +499,10 @@ fn two_hop_round_trip_pays_every_hop() {
         assert_eq!(evs[i].net_sent, ins[i], "H028: hop {} net_sent", i + 1);
         assert_eq!(
             paid[i],
-            fees::pipeline_fee(ins[i]),
+            fees::pipeline_fee(fee_bases[i]),
             "H028: hop {} fee",
             i + 1
         );
+        assert_eq!(paid[i], evs[i].pipeline_fee);
     }
 }

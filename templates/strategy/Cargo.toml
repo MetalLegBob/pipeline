@@ -17,8 +17,8 @@ edition = "2021"
 # The Pipeline crates, from crates.io.
 [workspace.dependencies]
 pipeline-strategy-interface = "0.1"
-pipeline-client = "0.2"
-pipeline-check = { version = "0.2", default-features = false }
+pipeline-client = "0.3"
+pipeline-check = { version = "0.3", default-features = false }
 
 # Platform tools for cargo-build-sbf. Older ones bring a Cargo that can't read crates
 # published with edition 2024, which a fresh dependency resolution can pull in.

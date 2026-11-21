@@ -65,7 +65,7 @@ than the cluster's.
 Example (devnet, 2026-11-09):
 
 ```
-Pipeline check 0.1.0
+Pipeline check 0.3.0
   market    2u5ep2aLFzp2SACkG5ZLUrAkEY7vCzm2vL56Q6YiQxb9
   strategy  9mAV3pMKXx67poy98jHizWM6TEeKJ5g48ZeD83xFa1UF  sha256 062e4c0bf1c8fa0151f2d49599ae577b3fc923affb466f39a05a5fb23e8b1cfa
   router    PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34  sha256 2558d884788d5bb8df3113836dc937858249ed4f4823852b251208f5eb32237e
@@ -137,7 +137,7 @@ it works but integrators or traders should know something.
 | `resolve_accounts` | Resolution completes within 4 rounds for every case | It fails for some sizes | It fails for every size in some direction |
 | `transaction_size` | One swap plus a compute-limit instruction fits in 1,232 bytes | It needs a v0 transaction with a lookup table | More than 64 accounts, or too big even with a lookup table |
 | `quotes` | Every non-dust quote succeeds | Some fail, or the strategy refuses every quote (expected for closed or not-yet-open markets) | Every quote fails and at least one ran out of the quote compute cap or returned malformed data |
-| `quote_matches_swap` | Each swap's `received`, `net_sent` and fee from the router, and the trader's balance changes, equal the quote | — | Any difference, or a quoted trade whose swap fails |
+| `quote_matches_swap` | Each swap's `net_sent`, Pipeline fee and fee mint from the router, what the trader keeps of the output (all of `received`, less Pipeline's fee when the market takes it in the output), and the trader's balance changes, equal the quote | — | Any difference, or a quoted trade whose swap fails |
 | `min_out_enforced` | Swapping with `min_amount_out = quote + 1` fails in every direction | — | It succeeds |
 | `determinism` | The same quote twice agrees, and two traders get the anonymous quote. Clock-dependent pricing is noted, not judged | Quotes depend on the trader (allowed) | The same quote in the same state differs |
 | `compute` | Router swaps stay under `compute_warn_units` (the strategy's share is shown) | Above it | A swap runs out of the 1.4M maximum |
@@ -158,7 +158,7 @@ new fields and new checks may be added within version 1. Addresses are base58 st
 | `source` | `kind` (`"svm"` for a caller's VM, `"rpc"` for a clone), `cluster` (`"devnet"`, `"mainnet-beta"`, `"testnet"` or `null`), `genesis_hash`, `slot`, `unix_timestamp`. The RPC URL is not recorded, since URLs often carry API keys |
 | `router`, `strategy` | `program_id`, `loader`, `executable_sha256`, `executable_len`, `upgrade_authority` (`null` if frozen), `deploy_slot` |
 | `strategy_metadata_uri` | The registered metadata URL, or `null` |
-| `market` | `address`, `market_state`, `supports_exact_out`, and per mint: `address`, `token_program`, `decimals`, `mint_authority`, `freeze_authority`, `extensions`, `vault`, `vault_balance`, `fee_account`, `fee_account_exists` |
+| `market` | `address`, `market_state`, `supports_exact_out`, `fee_mint` (the mint Pipeline takes its fee in when it is one side of a trade, or null), and per mint: `address`, `token_program`, `decimals`, `mint_authority`, `freeze_authority`, `extensions`, `vault`, `vault_balance`, `fee_account`, `fee_account_exists` |
 | `options` | `amounts`, `extra` (hex), `quote_compute_limit` |
 | `summary` | `result` (the most serious status), and counts `pass`, `warn`, `fail`, `skip` |
 | `checks` | In the order above: `id`, `title`, `status` (`"pass"`, `"warn"`, `"fail"`, `"skip"`), `message`, `details` (check-specific numbers; informational, fields may be added) |

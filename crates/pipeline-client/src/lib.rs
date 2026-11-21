@@ -70,6 +70,11 @@ pub mod pda {
         Pubkey::find_program_address(&[seeds::REGISTER], strategy_program).0
     }
 
+    /// A market's recorded address lookup table (`record_lookup_table`).
+    pub fn lookup_table_record(market: &Pubkey) -> Pubkey {
+        Pubkey::find_program_address(&[seeds::LOOKUP_TABLE, market.as_ref()], &PROGRAM_ID).0
+    }
+
     pub fn event_authority() -> Pubkey {
         Pubkey::find_program_address(&[b"__event_authority"], &PROGRAM_ID).0
     }
@@ -155,6 +160,8 @@ pub struct SwapResult {
     pub received: u64,
     pub pipeline_fee: u64,
     pub integrator_fee: u64,
+    /// The mint `pipeline_fee` was taken in.
+    pub fee_mint: Pubkey,
 }
 
 // ---------------------------------------------------------------------------------------
@@ -194,11 +201,21 @@ pub struct Market {
     pub created_at: i64,
     pub bump: u8,
     pub fee_authority_bump: u8,
+    /// Index into `mints` of the market's fee mint, or [`NO_FEE_MINT`].
+    pub fee_mint_index: u8,
 }
+
+/// `Market::fee_mint_index` when the market has no fee mint.
+pub const NO_FEE_MINT: u8 = u8::MAX;
 
 impl Market {
     pub fn mints(&self) -> &[Pubkey] {
         &self.mints[..self.mint_count as usize]
+    }
+
+    /// The mint Pipeline takes its fee in when it is one side of a trade, if any.
+    pub fn fee_mint(&self) -> Option<Pubkey> {
+        self.mints().get(self.fee_mint_index as usize).copied()
     }
 
     pub fn vault_for(&self, mint: &Pubkey) -> Option<Pubkey> {
@@ -225,6 +242,53 @@ pub fn decode_strategy(data: &[u8]) -> Option<Strategy> {
 
 pub fn decode_market(data: &[u8]) -> Option<Market> {
     decode_account("Market", data)
+}
+
+/// A market's recorded address lookup table.
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
+pub struct MarketLookupTable {
+    pub market: Pubkey,
+    pub table: Pubkey,
+    pub bump: u8,
+}
+
+pub fn decode_market_lookup_table(data: &[u8]) -> Option<MarketLookupTable> {
+    decode_account("MarketLookupTable", data)
+}
+
+/// The addresses a market's lookup table must hold for `record_lookup_table` to accept
+/// it: the router, its event authority, the market, its state, strategy program and fee
+/// authority, and each mint's address, vault, token program and fee account.
+/// `token_programs` gives each mint's owning program, in mint order.
+pub fn lookup_table_addresses(
+    market_address: &Pubkey,
+    market: &Market,
+    token_programs: &[Pubkey],
+) -> Vec<Pubkey> {
+    let fee_authority = pda::fee_authority(market_address);
+    let mut addresses = vec![
+        PROGRAM_ID,
+        pda::event_authority(),
+        *market_address,
+        market.market_state,
+        market.strategy_program,
+        fee_authority,
+    ];
+    for (i, (mint, token_program)) in market.mints().iter().zip(token_programs).enumerate() {
+        addresses.extend([
+            *mint,
+            market.vaults[i],
+            *token_program,
+            pda::associated_token(&fee_authority, mint, token_program),
+        ]);
+    }
+    let mut unique = vec![];
+    for address in addresses {
+        if !unique.contains(&address) {
+            unique.push(address);
+        }
+    }
+    unique
 }
 
 // ---------------------------------------------------------------------------------------
@@ -418,8 +482,62 @@ pub struct SwapAccounts {
     pub input_hook_accounts: Vec<AccountMeta>,
 }
 
-/// `swap`. `args.input_hook_accounts` is set from `accounts.input_hook_accounts`.
+/// Which side of a trade pays Pipeline's fee. The router takes it in the output when the
+/// output is the market's fee mint, and in the input otherwise.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FeeSide {
+    #[default]
+    Input,
+    Output,
+}
+
+impl FeeSide {
+    /// The side the router uses for a market that declares no fee mint: the output when
+    /// it is wrapped SOL, the input otherwise.
+    pub fn by_default(output_mint: &Pubkey) -> FeeSide {
+        if *output_mint == wallet::NATIVE_MINT {
+            FeeSide::Output
+        } else {
+            FeeSide::Input
+        }
+    }
+
+    /// The side a trade into `output_mint` pays on, given the market's record.
+    pub fn of(market: &Market, output_mint: &Pubkey) -> FeeSide {
+        if market.fee_mint() == Some(*output_mint) {
+            FeeSide::Output
+        } else {
+            FeeSide::Input
+        }
+    }
+}
+
+/// The market's fee account a swap pays Pipeline's fee into.
+pub fn swap_fee_account(accounts: &SwapAccounts, side: FeeSide) -> Pubkey {
+    let market = pda::market(&accounts.strategy_program, &accounts.market_state);
+    match side {
+        FeeSide::Input => {
+            pda::fee_account(&market, &accounts.input_mint, &accounts.input_token_program)
+        }
+        FeeSide::Output => pda::fee_account(
+            &market,
+            &accounts.output_mint,
+            &accounts.output_token_program,
+        ),
+    }
+}
+
+/// `swap`, with the fee on the side the router uses for a market that declares no fee mint
+/// ([`FeeSide::by_default`]). For a market that declares one, use [`swap_with_fee_side`]
+/// with [`FeeSide::of`]. `args.input_hook_accounts` is set from
+/// `accounts.input_hook_accounts`.
 pub fn swap(accounts: &SwapAccounts, args: &SwapArgs) -> Instruction {
+    swap_with_fee_side(accounts, args, FeeSide::by_default(&accounts.output_mint))
+}
+
+/// `swap`, paying Pipeline's fee on `side`; use [`FeeSide::of`] with the market's record.
+/// The router refuses the swap (`WrongFeeAccount`) if `side` doesn't match the market.
+pub fn swap_with_fee_side(accounts: &SwapAccounts, args: &SwapArgs, side: FeeSide) -> Instruction {
     let market = pda::market(&accounts.strategy_program, &accounts.market_state);
     let mut metas = vec![
         AccountMeta::new_readonly(accounts.trader, true),
@@ -434,10 +552,7 @@ pub fn swap(accounts: &SwapAccounts, args: &SwapArgs) -> Instruction {
         AccountMeta::new_readonly(accounts.input_token_program, false),
         AccountMeta::new_readonly(accounts.output_token_program, false),
         AccountMeta::new_readonly(pda::fee_authority(&market), false),
-        AccountMeta::new(
-            pda::fee_account(&market, &accounts.input_mint, &accounts.input_token_program),
-            false,
-        ),
+        AccountMeta::new(swap_fee_account(accounts, side), false),
         // Anchor encodes a missing optional account as the program ID.
         match accounts.integrator_fee_account {
             Some(account) => AccountMeta::new(account, false),
@@ -451,6 +566,137 @@ pub fn swap(accounts: &SwapAccounts, args: &SwapArgs) -> Instruction {
     let mut args = args.clone();
     args.input_hook_accounts = accounts.input_hook_accounts.len() as u8;
     Instruction::new_with_bytes(PROGRAM_ID, &anchor_data("swap", &args), metas)
+}
+
+/// `record_lookup_table`: records `table` as the market's address lookup table. `mints`
+/// are the market's mints in order (the router reads their token programs).
+pub fn record_lookup_table(
+    payer: &Pubkey,
+    market: &Pubkey,
+    table: &Pubkey,
+    mints: &[Pubkey],
+) -> Instruction {
+    let mut accounts = vec![
+        AccountMeta::new(*payer, true),
+        AccountMeta::new_readonly(*market, false),
+        AccountMeta::new_readonly(*table, false),
+        AccountMeta::new(pda::lookup_table_record(market), false),
+        AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
+    ];
+    accounts.extend(event_cpi_accounts());
+    accounts.extend(mints.iter().map(|m| AccountMeta::new_readonly(*m, false)));
+    Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_discriminator("record_lookup_table"),
+        accounts,
+    )
+}
+
+/// The most hops one `route` instruction runs.
+pub const MAX_ROUTE_HOPS: usize = 4;
+
+/// One hop of a `route`: the same accounts as a single swap (its `trader` and
+/// `integrator_fee_account` are ignored; the route's apply), the side the hop pays
+/// Pipeline's fee on, and the strategy's `extra` data.
+#[derive(Clone, Debug)]
+pub struct RouteHopSpec {
+    pub accounts: SwapAccounts,
+    pub fee_side: FeeSide,
+    pub extra: Vec<u8>,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RouteArgs {
+    pub amount_in: u64,
+    pub min_amount_out: u64,
+    pub integrator_fee_bps: u16,
+    pub hops: Vec<RouteHop>,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RouteHop {
+    pub strategy_accounts: u8,
+    pub input_hook_accounts: u8,
+    pub extra: Vec<u8>,
+}
+
+/// Return data of `route`.
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RouteResult {
+    pub net_sent: u64,
+    pub amount_out: u64,
+    pub integrator_fee: u64,
+}
+
+/// `route`: up to [`MAX_ROUTE_HOPS`] exact-in hops in one instruction. Each hop's input
+/// account and mint must be the previous hop's output account and mint (the trader's own
+/// accounts). `amount_in` is what the first hop sends; later hops spend what the previous
+/// one left the trader. `min_amount_out` applies to what the trader keeps from the last
+/// hop; an integrator fee is charged once, on the first hop's input.
+pub fn route(
+    trader: &Pubkey,
+    integrator_fee_account: Option<Pubkey>,
+    hops: &[RouteHopSpec],
+    amount_in: u64,
+    min_amount_out: u64,
+    integrator_fee_bps: u16,
+) -> Instruction {
+    let mut accounts = vec![
+        AccountMeta::new_readonly(*trader, true),
+        // Anchor encodes a missing optional account as the program ID.
+        match integrator_fee_account {
+            Some(account) => AccountMeta::new(account, false),
+            None => AccountMeta::new_readonly(PROGRAM_ID, false),
+        },
+    ];
+    accounts.extend(event_cpi_accounts());
+    let mut route_hops = vec![];
+    for hop in hops {
+        let a = &hop.accounts;
+        let market = pda::market(&a.strategy_program, &a.market_state);
+        accounts.extend([
+            AccountMeta::new_readonly(a.strategy_program, false),
+            AccountMeta::new_readonly(market, false),
+            AccountMeta::new(a.market_state, false),
+            AccountMeta::new(a.trader_input, false),
+            AccountMeta::new(a.trader_output, false),
+            AccountMeta::new(a.input_vault, false),
+            AccountMeta::new_readonly(a.input_mint, false),
+            AccountMeta::new_readonly(a.output_mint, false),
+            AccountMeta::new_readonly(a.input_token_program, false),
+            AccountMeta::new_readonly(a.output_token_program, false),
+            AccountMeta::new_readonly(pda::fee_authority(&market), false),
+            AccountMeta::new(swap_fee_account(a, hop.fee_side), false),
+        ]);
+        accounts.extend(a.strategy_accounts.iter().cloned());
+        accounts.extend(a.input_hook_accounts.iter().cloned());
+        route_hops.push(RouteHop {
+            strategy_accounts: a.strategy_accounts.len() as u8,
+            input_hook_accounts: a.input_hook_accounts.len() as u8,
+            extra: hop.extra.clone(),
+        });
+    }
+    let args = RouteArgs {
+        amount_in,
+        min_amount_out,
+        integrator_fee_bps,
+        hops: route_hops,
+    };
+    Instruction::new_with_bytes(PROGRAM_ID, &anchor_data("route", &args), accounts)
+}
+
+/// `migrate_market`: moves a market recorded before fee mints existed to the current
+/// layout. Anyone can call it; `payer` covers the extra rent.
+pub fn migrate_market(payer: &Pubkey, market: &Pubkey) -> Instruction {
+    Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_discriminator("migrate_market"),
+        vec![
+            AccountMeta::new(*payer, true),
+            AccountMeta::new(*market, false),
+            AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
+        ],
+    )
 }
 
 /// `sweep_fees`, moving a market's fees in `mint` to the treasury owner's associated

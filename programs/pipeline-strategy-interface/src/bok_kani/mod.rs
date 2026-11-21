@@ -47,3 +47,4 @@ macro_rules! with_edge_rate {
 mod credit;
 mod fees;
 mod settle;
+mod settle_output;

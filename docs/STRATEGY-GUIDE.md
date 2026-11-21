@@ -11,7 +11,7 @@ Implement five instructions. Each instruction's data is an 8-byte discriminator 
 | Instruction | Argument | Called by | Must |
 |---|---|---|---|
 | `pipeline_init_market` | `Vec<u8>` (your own setup data) | The router, from `create_market` | Create the market state account (owned by your program) and its vaults |
-| `pipeline_market_info` | none | The router, at market creation | Set return data to `MarketInfo { mints, vaults, supports_exact_out }` |
+| `pipeline_market_info` | none | The router, at market creation | Set return data to `MarketInfo { mints, vaults, supports_exact_out }`, optionally followed by your market's fee mint: use `encode_market_info(&info, Some(index))` |
 | `pipeline_resolve_accounts` | `ResolveRequest { trade, round }` | Quoters and SDKs, in simulation | Set return data to `ResolveResult { accounts, complete }`: every strategy-specific account a swap needs |
 | `pipeline_quote` | `TradeRequest` | Quoters and SDKs, in simulation | Set return data to `QuoteResult { amount_in, amount_out }`, read-only |
 | `pipeline_swap` | `SwapRequest { trade, amount_sent, min_amount_out }` | The router, from `swap` | Send output to the trader's output account; optionally refund unused input |
@@ -57,6 +57,10 @@ Clients convert to the trader's view.
 
 - **Exact-in:** `trade.amount` is what the router sent (`amount_in`, before any transfer fee), the same as `amount_sent`. With a transfer-fee token less arrives, so measure your vault (`credited_input`) and price what actually arrived.
 - **Exact-out** (only if `supports_exact_out`): `trade.amount` is the output you must send. You report the input you need and refund the rest.
+
+### Fee mint
+
+Pipeline takes its 0.25% in a market's **fee mint** when a trade's output is that mint, and in the input otherwise. Declare which of your market's mints it is by returning `encode_market_info(&info, Some(index))` from `pipeline_market_info` (for example your quote asset, such as a stablecoin or a tokenized stock). Without a declaration, the fee mint is wrapped SOL if your market trades it, otherwise none. The fee mint is recorded when the market is recorded, and nothing about your swap changes: the router takes the fee from the trader's output after you pay.
 
 ## 2. Rules
 

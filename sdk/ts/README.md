@@ -84,6 +84,64 @@ const instruction = await swap(
 passed. Add the instruction to a transaction with kit as usual, together with a compute
 unit limit.
 
+#### Which side pays Pipeline's fee
+
+The router takes Pipeline's fee in the output when the output is the market's fee mint
+(`marketFeeMint(market)`; a market that declares none uses wrapped SOL if it trades it),
+and in the input otherwise. The swap must name the fee account for that side, so pass it:
+
+```ts
+import { decodeMarket, feeSideOf, swap } from '@pipeline-sol/sdk';
+
+const market = decodeMarket(marketAccountData)!;
+const side = feeSideOf(market, outputMint); // 'input' | 'output'
+const instruction = await swap(accounts, args, side);
+```
+
+Without the third argument, `swap` uses `feeSideByDefault(outputMint)`: the output if it
+is wrapped SOL, the input otherwise, which is right for a market without a declared fee
+mint. If the fee account may not exist yet, add `initFeeAccount` for the fee-side mint
+(`swapFeeAccount(accounts, side)` is its address).
+
+With the fee in the output, `received` is what arrives, the trader keeps
+`keptAfterOutputFee(received)`, and `minAmountOut` applies to what they keep. For an
+exact-out trade, ask the strategy for `receivedForKept(wanted)`.
+
+### Route through several markets
+
+`route` runs up to four exact-in hops in one instruction. Each hop's input account and mint
+are the previous hop's output; later hops spend what the previous one left the trader.
+`minAmountOut` applies to what the trader keeps from the last hop, and an integrator fee is
+charged once, on the first hop's input.
+
+```ts
+import { route } from '@pipeline-sol/sdk';
+
+const instruction = await route({
+    trader,
+    integratorFeeAccount: null,
+    amountIn: 1_000_000n,
+    minAmountOut: 990_000n,
+    integratorFeeBps: 0,
+    hops: [
+        { accounts: firstHopAccounts, feeSide: 'output' }, // e.g. token → SOL
+        { accounts: secondHopAccounts, feeSide: 'input' }, // SOL → token
+    ],
+});
+```
+
+The return data decodes with `getRouteResultCodec()`.
+
+### Address lookup tables
+
+A market can record an address lookup table so wallets and aggregators can find it.
+`lookupTableAddresses(marketAddress, market, tokenPrograms)` lists what the table must
+hold; `recordLookupTable({ payer, market, table, mints })` records it (PDA
+`lookupTableRecordPda(market)`, account `decodeMarketLookupTable`).
+
+`migrateMarket({ payer, market })` moves a market recorded before fee mints existed to the
+current layout; until then it can't be traded or decoded by `decodeMarket`.
+
 ### Discover markets and quote
 
 ```ts
@@ -116,7 +174,8 @@ const { quote } = await quoteStrategy(rpc, market, trade, strategyAccounts, feeP
 
 `quoteStrategy` runs the strategy's own `pipeline_quote` by simulation, so amounts are at
 the strategy's vaults: Pipeline's fee, the integrator fee and token transfer fees are not
-applied (use the fee helpers below). The runtime strips trailing zero bytes from return
+applied (use the fee helpers below, and `marketViewFeeSide(market, outputMint)` for the side
+Pipeline's fee is on). The runtime strips trailing zero bytes from return
 data; the SDK pads them back before decoding.
 
 ### Decode events
@@ -145,13 +204,14 @@ const events = extractEventsFromInnerInstructions(accountKeys, tx.meta.innerInst
 Identical to the Rust `fees` module. All fees round up.
 
 ```ts
-import { amountForBudget, ceilBps, maxTotalSpend, pipelineFee } from '@pipeline-sol/sdk';
+import { amountForBudget, ceilBps, maxTotalSpend, pipelineFee, receivedForKept } from '@pipeline-sol/sdk';
 
-pipelineFee(400n); // 1n
+pipelineFee(400n); // 1n (also on what arrives, when the fee is in the output)
 pipelineFee(401n); // 2n
 ceilBps(10_000n, 50n); // 50n
 maxTotalSpend(1_000_000n, 50); // 1_007_500n, or null on u64 overflow
 amountForBudget(1_007_500n, 50); // 1_000_000n
+receivedForKept(1_000n); // 1_003n: the least arrival that leaves 1,000 after an output-side fee
 ```
 
 ### Show and filter on trust facts
@@ -200,17 +260,17 @@ section is valid, with a warning, and the section is ignored.
 
 ## Contents
 
-| Module         | What it provides                                                                                                                                                             |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `constants`    | Program addresses, seeds, discriminators, `PIPELINE_FEE_BPS`, trade account positions                                                                                        |
-| `pda`          | `configPda`, `strategyPda`, `marketPda`, `feeAuthorityPda`, `feeAccountPda`, `registerPda`, `eventAuthorityPda`, `programDataPda`, `associatedTokenAddress`                  |
-| `codecs`       | Borsh codecs for strategy wire types, router arguments, `SwapResult` and router accounts (`decodeConfig`, `decodeStrategy`, `decodeMarket` check the Anchor discriminator)   |
-| `instructions` | `initializeConfig`, `updateConfig`, `registerStrategy`, `updateMetadata`, `createMarket`, `registerExistingMarket`, `initFeeAccount`, `swap`, `sweepFees`                    |
-| `fees`         | `ceilBps`, `pipelineFee`, `maxTotalSpend`, `amountForBudget`                                                                                                                 |
-| `events`       | `decodeEvent`, `encodeEvent`, `extractEvents`, `extractEventsFromInnerInstructions`                                                                                          |
-| `discovery`    | `fetchMarkets`, `fetchStrategies` (`getProgramAccounts` filtered by discriminator)                                                                                           |
-| `quote`        | `quoteStrategy`, `resolveAccounts` (RPC simulation), and the instructions they simulate                                                                                      |
-| `listing`      | `registerAndListMarketInstructions`, `createAndListMarketInstructions` (record a market, then `init_fee_account` per mint)                                                   |
-| `metadata`     | Strategy metadata v1 (`schema/strategy-metadata.v1.json`): `parseStrategyMetadata`, `fetchStrategyMetadata` (https, ipfs, ar; size limit and timeout), `parseAccountSource`  |
-| `forms`        | `resolveInit`, `buildCreateMarketFromMetadata`, `buildSeedData`, `resolveSeedAccounts`, `encodeArg`: instructions from metadata `init` and `seed`                            |
-| `inspect`      | `inspectProgram`, `fetchVerifiedBuild`, `inspectMint`, `inspectStrategy`, `inspectMarket`, `FLAG_DESCRIPTIONS`, `filterMarkets`: trust facts and filter flags, no judgements |
+| Module         | What it provides                                                                                                                                                                                                                                                                                          |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `constants`    | Program addresses, seeds, discriminators, `PIPELINE_FEE_BPS`, trade account positions                                                                                                                                                                                                                     |
+| `pda`          | `configPda`, `strategyPda`, `marketPda`, `feeAuthorityPda`, `feeAccountPda`, `registerPda`, `eventAuthorityPda`, `lookupTableRecordPda`, `programDataPda`, `associatedTokenAddress`                                                                                                                       |
+| `codecs`       | Borsh codecs for strategy wire types, router arguments, `SwapResult`, `RouteResult` and router accounts (`decodeConfig`, `decodeStrategy`, `decodeMarket`, `decodeMarketLookupTable` check the Anchor discriminator); `encodeMarketInfo` / `decodeMarketInfo` with the optional fee mint; `marketFeeMint` |
+| `instructions` | `initializeConfig`, `updateConfig`, `registerStrategy`, `updateMetadata`, `createMarket`, `registerExistingMarket`, `initFeeAccount`, `swap`, `route`, `recordLookupTable`, `migrateMarket`, `sweepFees`; `feeSideOf`, `feeSideByDefault`, `swapFeeAccount`, `lookupTableAddresses`                       |
+| `fees`         | `ceilBps`, `pipelineFee`, `maxTotalSpend`, `amountForBudget`, `receivedForKept`, `keptAfterOutputFee`                                                                                                                                                                                                     |
+| `events`       | `decodeEvent`, `encodeEvent`, `extractEvents`, `extractEventsFromInnerInstructions`                                                                                                                                                                                                                       |
+| `discovery`    | `fetchMarkets`, `fetchStrategies` (`getProgramAccounts` filtered by discriminator)                                                                                                                                                                                                                        |
+| `quote`        | `quoteStrategy`, `resolveAccounts` (RPC simulation), and the instructions they simulate                                                                                                                                                                                                                   |
+| `listing`      | `registerAndListMarketInstructions`, `createAndListMarketInstructions` (record a market, then `init_fee_account` per mint)                                                                                                                                                                                |
+| `metadata`     | Strategy metadata v1 (`schema/strategy-metadata.v1.json`): `parseStrategyMetadata`, `fetchStrategyMetadata` (https, ipfs, ar; size limit and timeout), `parseAccountSource`                                                                                                                               |
+| `forms`        | `resolveInit`, `buildCreateMarketFromMetadata`, `buildSeedData`, `resolveSeedAccounts`, `encodeArg`: instructions from metadata `init` and `seed`                                                                                                                                                         |
+| `inspect`      | `inspectProgram`, `fetchVerifiedBuild`, `inspectMint`, `inspectStrategy`, `inspectMarket`, `FLAG_DESCRIPTIONS`, `filterMarkets`: trust facts and filter flags, no judgements                                                                                                                              |

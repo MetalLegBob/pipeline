@@ -356,6 +356,40 @@ pub fn swap_events(meta: &TransactionMetadata) -> Vec<pipeline_events::SwapEvent
         .collect()
 }
 
+/// The Pipeline fee a swap owes: 0.25%, rounded up, of the net input, or of the gross
+/// output when the fee is taken in the output (the market's fee mint).
+pub fn expected_pipeline_fee(swap: &pipeline_events::SwapEvent) -> u64 {
+    if fee_on_output(swap) {
+        psi::fees::pipeline_fee(swap.received)
+    } else {
+        psi::fees::pipeline_fee(swap.net_sent)
+    }
+}
+
+/// Whether a swap's Pipeline fee came out of its output.
+pub fn fee_on_output(swap: &pipeline_events::SwapEvent) -> bool {
+    swap.fee_mint == swap.output_mint && swap.fee_mint != swap.input_mint
+}
+
+/// What the trader kept of a swap's output, after any fee taken in the output.
+pub fn kept_output(swap: &pipeline_events::SwapEvent) -> u64 {
+    if fee_on_output(swap) {
+        swap.received - swap.pipeline_fee
+    } else {
+        swap.received
+    }
+}
+
+/// The smallest output a strategy must deliver for the trader to keep at least `kept`
+/// after Pipeline's fee is taken from it.
+pub fn received_for_kept(kept: u64) -> u64 {
+    let mut received = kept;
+    while received - psi::fees::pipeline_fee(received) < kept {
+        received += 1;
+    }
+    received
+}
+
 /// Asserts a transaction failed and that its logs mention `needle`.
 pub fn assert_fails_with(result: TxResult, needle: &str) {
     match result {

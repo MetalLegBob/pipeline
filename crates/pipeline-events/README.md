@@ -6,7 +6,7 @@ Decodes the events the [Pipeline](https://github.com/MetalLegBob/pipeline) route
 
 ```toml
 [dependencies]
-pipeline-events = "0.2"
+pipeline-events = "0.3"
 ```
 
 ```rust

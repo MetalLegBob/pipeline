@@ -30,6 +30,17 @@ declare_id!("PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34");
 /// listing fee.
 pub const MAX_LISTING_FEE_LAMPORTS: u64 = 10_000_000_000;
 pub const MAX_METADATA_URI_LEN: usize = 200;
+/// `Market::fee_mint_index` when the market has no fee mint: each trade pays in its input.
+pub const NO_FEE_MINT: u8 = u8::MAX;
+/// The most hops one `route` instruction runs.
+pub const MAX_ROUTE_HOPS: usize = 4;
+/// Fixed accounts per route hop (see `route`).
+pub const ROUTE_HOP_ACCOUNTS: usize = 12;
+/// The address lookup table program.
+pub const ADDRESS_LOOKUP_TABLE_PROGRAM_ID: Pubkey =
+    pubkey!("AddressLookupTab1e1111111111111111111111111");
+/// A `Market` account's length before `fee_mint_index` was added.
+const MARKET_LEN_V1: usize = 8 + Market::INIT_SPACE - 1;
 
 #[program]
 pub mod pipeline {
@@ -270,7 +281,7 @@ pub mod pipeline {
             )?;
         }
 
-        let info = fetch_market_info(
+        let (info, fee_mint) = fetch_market_info(
             &ctx.accounts.strategy_program,
             &ctx.accounts.market_state,
             ctx.remaining_accounts,
@@ -280,6 +291,7 @@ pub mod pipeline {
             &mut ctx.accounts.strategy,
             &ctx.accounts.market_state,
             info,
+            fee_mint,
             ctx.accounts.creator.key(),
             market_bump,
         )?;
@@ -298,7 +310,7 @@ pub mod pipeline {
     pub fn register_existing_market<'info>(
         ctx: Context<'info, RegisterExistingMarket<'info>>,
     ) -> Result<()> {
-        let info = fetch_market_info(
+        let (info, fee_mint) = fetch_market_info(
             &ctx.accounts.strategy_program,
             &ctx.accounts.market_state,
             ctx.remaining_accounts,
@@ -308,6 +320,7 @@ pub mod pipeline {
             &mut ctx.accounts.strategy,
             &ctx.accounts.market_state,
             info,
+            fee_mint,
             ctx.accounts.payer.key(),
             ctx.bumps.market,
         )?;
@@ -319,6 +332,49 @@ pub mod pipeline {
             mints: market.mints[..market.mint_count as usize].to_vec(),
             created_by: market.created_by,
         });
+        Ok(())
+    }
+
+    /// Moves a market recorded before fee mints existed to the current `Market` layout,
+    /// with the default fee mint: wrapped SOL if the market trades it, otherwise none.
+    /// Anyone can call it; the payer covers the extra rent. A market in the old layout
+    /// can't be traded until it is migrated.
+    pub fn migrate_market(ctx: Context<MigrateMarket>) -> Result<()> {
+        let market = ctx.accounts.market.to_account_info();
+        require_keys_eq!(*market.owner, crate::ID, PipelineError::NotAMarket);
+        {
+            let data = market.try_borrow_data()?;
+            require!(
+                data.len() == MARKET_LEN_V1 && data[..8] == *Market::DISCRIMINATOR,
+                PipelineError::NotAMarket
+            );
+        }
+        let new_len = 8 + Market::INIT_SPACE;
+        let rent = Rent::get()?
+            .minimum_balance(new_len)
+            .saturating_sub(market.lamports());
+        if rent > 0 {
+            invoke(
+                &anchor_lang::solana_program::system_instruction::transfer(
+                    ctx.accounts.payer.key,
+                    market.key,
+                    rent,
+                ),
+                &[
+                    ctx.accounts.payer.to_account_info(),
+                    market.clone(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+            )?;
+        }
+        market.resize(new_len)?;
+        let mut data = market.try_borrow_mut_data()?;
+        // The v1 layout: discriminator, strategy_program, market_state, mint_count, mints.
+        let count = data[8 + 64] as usize;
+        let mints_at = 8 + 64 + 1;
+        let native = (0..count.min(psi::MAX_MARKET_MINTS))
+            .find(|&i| data[mints_at + 32 * i..mints_at + 32 * (i + 1)] == psi::NATIVE_MINT);
+        data[new_len - 1] = native.map_or(NO_FEE_MINT, |i| i as u8);
         Ok(())
     }
 
@@ -351,222 +407,220 @@ pub mod pipeline {
     /// strategy receives all of them, without signer privileges.
     pub fn swap<'info>(ctx: Context<'info, Swap<'info>>, args: SwapArgs) -> Result<()> {
         let accounts = &ctx.accounts;
-        let market = &accounts.market;
-
-        let input_mint = accounts.input_mint.key();
-        let output_mint = accounts.output_mint.key();
-        require_keys_neq!(input_mint, output_mint, PipelineError::SameMint);
-        let input_index = mint_index(market, &input_mint)?;
-        let output_index = mint_index(market, &output_mint)?;
-        require_keys_eq!(
-            accounts.input_vault.key(),
-            market.vaults[input_index],
-            PipelineError::WrongVault
-        );
-        require_keys_eq!(
-            *accounts.input_mint.owner,
-            accounts.input_token_program.key(),
-            PipelineError::WrongTokenProgram
-        );
-        require_keys_eq!(
-            *accounts.output_mint.owner,
-            accounts.output_token_program.key(),
-            PipelineError::WrongTokenProgram
-        );
-        let expected_fee_account = associated_token_address(
-            &accounts.fee_authority.key(),
-            &input_mint,
-            &accounts.input_token_program.key(),
-        );
-        require_keys_eq!(
-            accounts.fee_account.key(),
-            expected_fee_account,
-            PipelineError::WrongFeeAccount
-        );
-        if args.mode == TradeMode::ExactOut {
-            require!(
-                market.supports_exact_out,
-                PipelineError::ExactOutUnsupported
-            );
-        }
-        require!(
-            args.integrator_fee_bps == 0 || accounts.integrator_fee_account.is_some(),
-            PipelineError::MissingIntegratorFeeAccount
-        );
-        // Fees must leave the trader's input account. Paying a fee "to" that same
-        // account would record a fee in the event that was never collected.
-        require_keys_neq!(
-            accounts.fee_account.key(),
-            accounts.trader_input.key(),
-            PipelineError::FeeToTraderInput
-        );
-        if let Some(integrator_account) = &accounts.integrator_fee_account {
-            require_keys_neq!(
-                integrator_account.key(),
-                accounts.trader_input.key(),
-                PipelineError::FeeToTraderInput
-            );
-        }
-
-        let remaining = ctx.remaining_accounts;
-        let hook_start = psi::settlement::hook_split(remaining.len(), args.input_hook_accounts)
-            .ok_or(PipelineError::BadHookAccounts)?;
-        let hook_accounts = &remaining[hook_start..];
-
-        let trader_input = accounts.trader_input.to_account_info();
-        let trader_output = accounts.trader_output.to_account_info();
-        let input_before = token::checked_balance(
-            &trader_input,
-            &input_mint,
-            &accounts.input_token_program.key(),
-        )?;
-        let output_before = token::checked_balance(
-            &trader_output,
-            &output_mint,
-            &accounts.output_token_program.key(),
-        )?;
-        let input_vault = accounts.input_vault.to_account_info();
-        let vault_before = token::checked_balance(
-            &input_vault,
-            &input_mint,
-            &accounts.input_token_program.key(),
-        )?;
-        let input_decimals = token::decimals(&accounts.input_mint.to_account_info())?;
-
-        token::transfer_checked(
-            &accounts.input_token_program.to_account_info(),
-            &trader_input,
-            &accounts.input_mint.to_account_info(),
-            &accounts.input_vault.to_account_info(),
-            &accounts.trader.to_account_info(),
-            hook_accounts,
-            args.amount_in,
-            input_decimals,
-            &[],
-        )?;
-
-        let request = psi::SwapRequest {
-            trade: psi::TradeRequest {
+        let hop = HopAccounts {
+            trader: accounts.trader.as_ref(),
+            strategy_program: accounts.strategy_program.as_ref(),
+            market: accounts.market.as_ref(),
+            market_state: accounts.market_state.as_ref(),
+            trader_input: accounts.trader_input.as_ref(),
+            trader_output: accounts.trader_output.as_ref(),
+            input_vault: accounts.input_vault.as_ref(),
+            input_mint: accounts.input_mint.as_ref(),
+            output_mint: accounts.output_mint.as_ref(),
+            input_token_program: accounts.input_token_program.as_ref(),
+            output_token_program: accounts.output_token_program.as_ref(),
+            fee_account: accounts.fee_account.as_ref(),
+            remaining: ctx.remaining_accounts,
+            input_hook_accounts: args.input_hook_accounts,
+        };
+        let outcome = execute_swap(
+            &hop,
+            &accounts.market,
+            accounts.fee_authority.key,
+            accounts.integrator_fee_account.as_ref().map(|a| a.as_ref()),
+            &TradeParams {
                 mode: args.mode,
-                input_index: input_index as u8,
-                output_index: output_index as u8,
-                amount: match args.mode {
-                    TradeMode::ExactIn => args.amount_in,
-                    TradeMode::ExactOut => args.amount_out,
-                },
-                trader: Some(accounts.trader.key().to_bytes()),
-                extra: args.extra.clone(),
+                amount_in: args.amount_in,
+                amount_out: args.amount_out,
+                min_amount_out: args.min_amount_out,
+                integrator_fee_bps: args.integrator_fee_bps,
+                extra: args.extra,
             },
-            amount_sent: args.amount_in,
-            min_amount_out: args.min_amount_out,
-        };
-        call_strategy_swap(accounts, remaining, &request)?;
-
-        // Re-check the accounts after the call: the strategy can't have swapped them for
-        // something else, but a closed or reassigned account must not be read as a
-        // token account.
-        let measured = psi::settlement::Measured {
-            input_before,
-            input_after: token::checked_balance(
-                &trader_input,
-                &input_mint,
-                &accounts.input_token_program.key(),
-            )?,
-            output_before,
-            output_after: token::checked_balance(
-                &trader_output,
-                &output_mint,
-                &accounts.output_token_program.key(),
-            )?,
-            vault_before,
-            vault_after: token::checked_balance(
-                &input_vault,
-                &input_mint,
-                &accounts.input_token_program.key(),
-            )?,
-        };
-        // A swap never lowers what the trader already held in the output mint. Without
-        // this, a strategy holding the output mint's permanent delegate could pay the
-        // trader and take more back, and with a zero minimum the swap would still pass
-        // (`received` floors at 0).
-        require!(
-            measured.output_after >= measured.output_before,
-            PipelineError::OutputDecreased
-        );
-        // The fee base is the trader's net spend, or what the market's input vault kept
-        // if that is more (other code, such as the output mint's transfer hook, could top
-        // up the trader's input account during the call), at most `amount_in`. See
-        // `pipeline_strategy_interface::settlement`.
-        let settlement = psi::settlement::settle(
-            &measured,
-            args.amount_in,
-            args.min_amount_out,
-            args.integrator_fee_bps,
-        )
-        .map_err(settle_error)?;
-        let net_sent = settlement.net_sent;
-        let received = settlement.received;
-        let pipeline_fee = settlement.pipeline_fee;
-        let integrator_fee = settlement.integrator_fee;
-
-        if pipeline_fee > 0 {
-            token::transfer_checked(
-                &accounts.input_token_program.to_account_info(),
-                &trader_input,
-                &accounts.input_mint.to_account_info(),
-                &accounts.fee_account.to_account_info(),
-                &accounts.trader.to_account_info(),
-                hook_accounts,
-                pipeline_fee,
-                input_decimals,
-                &[],
-            )?;
-        }
-
-        let integrator = accounts.integrator_fee_account.as_ref().map(|a| a.key());
-        if integrator_fee > 0 {
-            let integrator_account = accounts
-                .integrator_fee_account
-                .as_ref()
-                .ok_or(PipelineError::MissingIntegratorFeeAccount)?;
-            token::transfer_checked(
-                &accounts.input_token_program.to_account_info(),
-                &trader_input,
-                &accounts.input_mint.to_account_info(),
-                &integrator_account.to_account_info(),
-                &accounts.trader.to_account_info(),
-                hook_accounts,
-                integrator_fee,
-                input_decimals,
-                &[],
-            )?;
-        }
-
+        )?;
         let clock = Clock::get()?;
-        emit_cpi!(SwapEvent {
-            market: market.key(),
-            strategy: market.strategy_program,
-            trader: accounts.trader.key(),
-            input_mint,
-            output_mint,
-            mode: args.mode as u8,
-            net_sent,
-            received,
-            pipeline_fee,
-            integrator,
-            integrator_fee,
-            slot: clock.slot,
-            unix_timestamp: clock.unix_timestamp,
-        });
+        emit_cpi!(swap_event(&outcome, &clock));
         let result = SwapResult {
-            net_sent,
-            received,
-            pipeline_fee,
-            integrator_fee,
+            net_sent: outcome.net_sent,
+            received: outcome.received,
+            pipeline_fee: outcome.pipeline_fee,
+            integrator_fee: outcome.integrator_fee,
+            fee_mint: outcome.fee_mint,
         };
-        let mut encoded = Vec::with_capacity(32);
+        let mut encoded = Vec::with_capacity(64);
         result.serialize(&mut encoded)?;
         set_return_data(&encoded);
+        Ok(())
+    }
+
+    /// Swaps through up to `MAX_ROUTE_HOPS` markets in one instruction, exact-in. Each hop
+    /// is checked, measured and charged like `swap`, and spends what the previous hop left
+    /// the trader: everything it delivered, less Pipeline's fee if that was taken in the
+    /// output, and less this hop's own fees if they are taken in its input. Intermediate
+    /// tokens pass through the trader's own token accounts, which must chain: each hop's
+    /// input account and mint are the previous hop's output account and mint. Only the
+    /// last hop's output is checked against `min_amount_out`. An integrator fee is charged
+    /// once, on the first hop's input.
+    ///
+    /// Remaining accounts, per hop: `ROUTE_HOP_ACCOUNTS` fixed accounts (see
+    /// `RouteHopAccounts`), then the hop's `strategy_accounts`, then its
+    /// `input_hook_accounts`.
+    pub fn route<'info>(ctx: Context<'info, Route<'info>>, args: RouteArgs) -> Result<()> {
+        let hops = args.hops.len();
+        require!(
+            (1..=MAX_ROUTE_HOPS).contains(&hops),
+            PipelineError::BadRoute
+        );
+        let trader = ctx.accounts.trader.as_ref();
+        let integrator = ctx
+            .accounts
+            .integrator_fee_account
+            .as_ref()
+            .map(|a| a.as_ref());
+        let mut rest = ctx.remaining_accounts;
+        let mut amount_in = args.amount_in;
+        let mut previous: Option<(Pubkey, Pubkey)> = None;
+        let mut first: Option<HopOutcome> = None;
+        let mut kept = 0;
+        let clock = Clock::get()?;
+
+        for (i, hop_args) in args.hops.iter().enumerate() {
+            let take = ROUTE_HOP_ACCOUNTS
+                + hop_args.strategy_accounts as usize
+                + hop_args.input_hook_accounts as usize;
+            require!(rest.len() >= take, PipelineError::BadRoute);
+            let (accounts, tail) = rest.split_at(take);
+            rest = tail;
+            let hop = HopAccounts {
+                trader,
+                strategy_program: &accounts[0],
+                market: &accounts[1],
+                market_state: &accounts[2],
+                trader_input: &accounts[3],
+                trader_output: &accounts[4],
+                input_vault: &accounts[5],
+                input_mint: &accounts[6],
+                output_mint: &accounts[7],
+                input_token_program: &accounts[8],
+                output_token_program: &accounts[9],
+                fee_account: &accounts[11],
+                remaining: &accounts[ROUTE_HOP_ACCOUNTS..],
+                input_hook_accounts: hop_args.input_hook_accounts,
+            };
+            let market = load_route_market(&hop, &accounts[10])?;
+            // Hops chain through the trader's own accounts.
+            if let Some((output_account, output_mint)) = previous {
+                require_keys_eq!(
+                    hop.trader_input.key(),
+                    output_account,
+                    PipelineError::BadRoute
+                );
+                require_keys_eq!(hop.input_mint.key(), output_mint, PipelineError::BadRoute);
+                // A later hop may spend only what the previous one left the trader,
+                // including any fees it pays in its input.
+                amount_in = if fee_side_is_output(&market, &hop)? {
+                    kept
+                } else {
+                    psi::fees::amount_for_budget(kept, 0)
+                };
+            }
+            let outcome = execute_swap(
+                &hop,
+                &market,
+                accounts[10].key,
+                if i == 0 { integrator } else { None },
+                &TradeParams {
+                    mode: TradeMode::ExactIn,
+                    amount_in,
+                    amount_out: 0,
+                    min_amount_out: 0,
+                    integrator_fee_bps: if i == 0 { args.integrator_fee_bps } else { 0 },
+                    extra: hop_args.extra.clone(),
+                },
+            )?;
+            emit_cpi!(swap_event(&outcome, &clock));
+            kept = outcome.kept;
+            previous = Some((hop.trader_output.key(), hop.output_mint.key()));
+            first.get_or_insert(outcome);
+        }
+        require!(rest.is_empty(), PipelineError::BadRoute);
+        require!(
+            kept >= args.min_amount_out,
+            PipelineError::InsufficientOutput
+        );
+        let first = first.expect("a route has at least one hop");
+        let result = RouteResult {
+            net_sent: first.net_sent,
+            amount_out: kept,
+            integrator_fee: first.integrator_fee,
+        };
+        let mut encoded = Vec::with_capacity(64);
+        result.serialize(&mut encoded)?;
+        set_return_data(&encoded);
+        Ok(())
+    }
+
+    /// Records a market's address lookup table, so any integrator can find it and build
+    /// compact transactions. Anyone can call it. The table must be frozen (no authority)
+    /// and active, and hold every account the router needs for the market: the router,
+    /// its event authority, the market, its state, strategy program and fee authority,
+    /// and each mint's address, vault, token program and fee account. The mints are
+    /// passed as remaining accounts, in the market's order. The first valid table
+    /// recorded for a market stays.
+    pub fn record_lookup_table<'info>(ctx: Context<'info, RecordLookupTable<'info>>) -> Result<()> {
+        let market = &ctx.accounts.market;
+        let market_key = market.key();
+        let table = ctx.accounts.lookup_table.as_ref();
+        require_keys_eq!(
+            *table.owner,
+            ADDRESS_LOOKUP_TABLE_PROGRAM_ID,
+            PipelineError::BadLookupTable
+        );
+        let data = table.try_borrow_data()?;
+        let addresses =
+            frozen_lookup_table_addresses(&data).ok_or(PipelineError::BadLookupTable)?;
+
+        let count = market.mint_count as usize;
+        let mints = ctx.remaining_accounts;
+        require!(mints.len() == count, PipelineError::BadLookupTable);
+        let (fee_authority, _) =
+            Pubkey::find_program_address(&[seeds::FEE_AUTHORITY, market_key.as_ref()], &crate::ID);
+        let (event_authority, _) =
+            Pubkey::find_program_address(&[b"__event_authority"], &crate::ID);
+        let mut required = vec![
+            crate::ID,
+            event_authority,
+            market_key,
+            market.market_state,
+            market.strategy_program,
+            fee_authority,
+        ];
+        for (i, mint) in mints.iter().enumerate() {
+            require_keys_eq!(mint.key(), market.mints[i], PipelineError::BadLookupTable);
+            let token_program = *mint.owner;
+            require!(
+                token::is_token_program(&token_program),
+                PipelineError::WrongTokenProgram
+            );
+            required.extend([
+                market.mints[i],
+                market.vaults[i],
+                token_program,
+                associated_token_address(&fee_authority, &market.mints[i], &token_program),
+            ]);
+        }
+        require!(
+            required.iter().all(|key| addresses.contains(key)),
+            PipelineError::BadLookupTable
+        );
+
+        let record = &mut ctx.accounts.record;
+        record.market = market_key;
+        record.table = table.key();
+        record.bump = ctx.bumps.record;
+        emit_cpi!(LookupTableRecorded {
+            market: market_key,
+            table: table.key(),
+        });
         Ok(())
     }
 
@@ -624,43 +678,379 @@ pub mod pipeline {
     }
 }
 
+/// One swap's accounts: a `swap` instruction's, or one hop of a `route`.
+struct HopAccounts<'a, 'info> {
+    trader: &'a AccountInfo<'info>,
+    strategy_program: &'a AccountInfo<'info>,
+    market: &'a AccountInfo<'info>,
+    market_state: &'a AccountInfo<'info>,
+    trader_input: &'a AccountInfo<'info>,
+    trader_output: &'a AccountInfo<'info>,
+    input_vault: &'a AccountInfo<'info>,
+    input_mint: &'a AccountInfo<'info>,
+    output_mint: &'a AccountInfo<'info>,
+    input_token_program: &'a AccountInfo<'info>,
+    output_token_program: &'a AccountInfo<'info>,
+    fee_account: &'a AccountInfo<'info>,
+    /// The strategy's accounts, then `input_hook_accounts` hook accounts for the input.
+    remaining: &'a [AccountInfo<'info>],
+    input_hook_accounts: u8,
+}
+
+/// What a trader asks one swap for.
+struct TradeParams {
+    mode: TradeMode,
+    amount_in: u64,
+    amount_out: u64,
+    min_amount_out: u64,
+    integrator_fee_bps: u16,
+    extra: Vec<u8>,
+}
+
+/// What one swap did.
+struct HopOutcome {
+    market: Pubkey,
+    strategy: Pubkey,
+    trader: Pubkey,
+    input_mint: Pubkey,
+    output_mint: Pubkey,
+    mode: TradeMode,
+    net_sent: u64,
+    received: u64,
+    /// What the trader keeps of `received`: all of it, less Pipeline's fee when that is
+    /// taken in the output.
+    kept: u64,
+    pipeline_fee: u64,
+    fee_mint: Pubkey,
+    integrator: Option<Pubkey>,
+    integrator_fee: u64,
+}
+
+fn swap_event(outcome: &HopOutcome, clock: &Clock) -> SwapEvent {
+    SwapEvent {
+        market: outcome.market,
+        strategy: outcome.strategy,
+        trader: outcome.trader,
+        input_mint: outcome.input_mint,
+        output_mint: outcome.output_mint,
+        mode: outcome.mode as u8,
+        net_sent: outcome.net_sent,
+        received: outcome.received,
+        pipeline_fee: outcome.pipeline_fee,
+        integrator: outcome.integrator,
+        integrator_fee: outcome.integrator_fee,
+        slot: clock.slot,
+        unix_timestamp: clock.unix_timestamp,
+        fee_mint: outcome.fee_mint,
+    }
+}
+
+/// Whether Pipeline's fee is taken in the output: the output is the market's fee mint.
+fn fee_side_is_output(market: &Market, hop: &HopAccounts) -> Result<bool> {
+    let output_index = mint_index(market, hop.output_mint.key)?;
+    Ok(market.fee_mint_index as usize == output_index)
+}
+
+/// Loads and checks a route hop's market as `swap`'s account constraints do: a `Market`
+/// owned by the router at the PDA of its strategy program and state, an executable
+/// strategy program, the market's fee authority, and SPL Token or Token-2022 programs.
+fn load_route_market(hop: &HopAccounts, fee_authority: &AccountInfo) -> Result<Market> {
+    require_keys_eq!(*hop.market.owner, crate::ID, PipelineError::BadRoute);
+    let market = Market::try_deserialize(&mut &hop.market.try_borrow_data()?[..])?;
+    let expected = Pubkey::create_program_address(
+        &[
+            seeds::MARKET,
+            hop.strategy_program.key.as_ref(),
+            hop.market_state.key.as_ref(),
+            &[market.bump],
+        ],
+        &crate::ID,
+    )
+    .map_err(|_| PipelineError::BadRoute)?;
+    require_keys_eq!(*hop.market.key, expected, PipelineError::BadRoute);
+    require!(hop.strategy_program.executable, PipelineError::BadRoute);
+    let fee_authority_key = Pubkey::create_program_address(
+        &[
+            seeds::FEE_AUTHORITY,
+            hop.market.key.as_ref(),
+            &[market.fee_authority_bump],
+        ],
+        &crate::ID,
+    )
+    .map_err(|_| PipelineError::BadRoute)?;
+    require_keys_eq!(
+        *fee_authority.key,
+        fee_authority_key,
+        PipelineError::BadRoute
+    );
+    require!(
+        token::is_token_program(hop.input_token_program.key)
+            && token::is_token_program(hop.output_token_program.key),
+        PipelineError::WrongTokenProgram
+    );
+    require!(hop.market_state.is_writable, PipelineError::BadRoute);
+    Ok(market)
+}
+
+/// One swap: sends the input, calls the strategy, measures what was spent and received,
+/// and charges the fees. The caller has checked the market against its accounts.
+fn execute_swap<'a, 'info>(
+    hop: &HopAccounts<'a, 'info>,
+    market: &Market,
+    fee_authority: &Pubkey,
+    integrator_fee_account: Option<&'a AccountInfo<'info>>,
+    params: &TradeParams,
+) -> Result<HopOutcome> {
+    let input_mint = hop.input_mint.key();
+    let output_mint = hop.output_mint.key();
+    require_keys_neq!(input_mint, output_mint, PipelineError::SameMint);
+    let input_index = mint_index(market, &input_mint)?;
+    let output_index = mint_index(market, &output_mint)?;
+    require_keys_eq!(
+        hop.input_vault.key(),
+        market.vaults[input_index],
+        PipelineError::WrongVault
+    );
+    require_keys_eq!(
+        *hop.input_mint.owner,
+        hop.input_token_program.key(),
+        PipelineError::WrongTokenProgram
+    );
+    require_keys_eq!(
+        *hop.output_mint.owner,
+        hop.output_token_program.key(),
+        PipelineError::WrongTokenProgram
+    );
+    // Pipeline's fee is taken in the output when the output is the market's fee mint,
+    // and in the input otherwise.
+    let fee_on_output = market.fee_mint_index as usize == output_index;
+    let (fee_mint, fee_token_program, fee_payer) = if fee_on_output {
+        (
+            output_mint,
+            hop.output_token_program.key(),
+            hop.trader_output.key(),
+        )
+    } else {
+        (
+            input_mint,
+            hop.input_token_program.key(),
+            hop.trader_input.key(),
+        )
+    };
+    require_keys_eq!(
+        hop.fee_account.key(),
+        associated_token_address(fee_authority, &fee_mint, &fee_token_program),
+        PipelineError::WrongFeeAccount
+    );
+    if params.mode == TradeMode::ExactOut {
+        require!(
+            market.supports_exact_out,
+            PipelineError::ExactOutUnsupported
+        );
+    }
+    require!(
+        params.integrator_fee_bps == 0 || integrator_fee_account.is_some(),
+        PipelineError::MissingIntegratorFeeAccount
+    );
+    // Fees must leave the trader's account they are paid from. Paying a fee "to" that
+    // same account would record a fee in the event that was never collected.
+    require_keys_neq!(
+        hop.fee_account.key(),
+        fee_payer,
+        PipelineError::FeeToTraderInput
+    );
+    if let Some(integrator_account) = integrator_fee_account {
+        require_keys_neq!(
+            integrator_account.key(),
+            hop.trader_input.key(),
+            PipelineError::FeeToTraderInput
+        );
+    }
+
+    let remaining = hop.remaining;
+    let hook_start = psi::settlement::hook_split(remaining.len(), hop.input_hook_accounts)
+        .ok_or(PipelineError::BadHookAccounts)?;
+    let hook_accounts = &remaining[hook_start..];
+
+    let input_token_program = hop.input_token_program.key();
+    let output_token_program = hop.output_token_program.key();
+    let input_before = token::checked_balance(hop.trader_input, &input_mint, &input_token_program)?;
+    let output_before =
+        token::checked_balance(hop.trader_output, &output_mint, &output_token_program)?;
+    let vault_before = token::checked_balance(hop.input_vault, &input_mint, &input_token_program)?;
+    let input_decimals = token::decimals(hop.input_mint)?;
+
+    token::transfer_checked(
+        hop.input_token_program,
+        hop.trader_input,
+        hop.input_mint,
+        hop.input_vault,
+        hop.trader,
+        hook_accounts,
+        params.amount_in,
+        input_decimals,
+        &[],
+    )?;
+
+    let request = psi::SwapRequest {
+        trade: psi::TradeRequest {
+            mode: params.mode,
+            input_index: input_index as u8,
+            output_index: output_index as u8,
+            amount: match params.mode {
+                TradeMode::ExactIn => params.amount_in,
+                TradeMode::ExactOut => params.amount_out,
+            },
+            trader: Some(hop.trader.key().to_bytes()),
+            extra: params.extra.clone(),
+        },
+        amount_sent: params.amount_in,
+        min_amount_out: params.min_amount_out,
+    };
+    call_strategy_swap(hop, market, &request)?;
+
+    // Re-check the accounts after the call: the strategy can't have swapped them for
+    // something else, but a closed or reassigned account must not be read as a token
+    // account.
+    let measured = psi::settlement::Measured {
+        input_before,
+        input_after: token::checked_balance(hop.trader_input, &input_mint, &input_token_program)?,
+        output_before,
+        output_after: token::checked_balance(
+            hop.trader_output,
+            &output_mint,
+            &output_token_program,
+        )?,
+        vault_before,
+        vault_after: token::checked_balance(hop.input_vault, &input_mint, &input_token_program)?,
+    };
+    // A swap never lowers what the trader already held in the output mint. Without this,
+    // a strategy holding the output mint's permanent delegate could pay the trader and
+    // take more back, and with a zero minimum the swap would still pass (`received`
+    // floors at 0).
+    require!(
+        measured.output_after >= measured.output_before,
+        PipelineError::OutputDecreased
+    );
+    // `net_sent` is the trader's net spend, or what the market's input vault kept if that
+    // is more (other code, such as the output mint's transfer hook, could top up the
+    // trader's input account during the call), at most `amount_in`. Pipeline's fee is
+    // 0.25% of `net_sent`, or of what arrived when it is taken in the output. See
+    // `pipeline_strategy_interface::settlement`.
+    let settle = if fee_on_output {
+        psi::settlement::settle_fee_on_output
+    } else {
+        psi::settlement::settle
+    };
+    let settlement = settle(
+        &measured,
+        params.amount_in,
+        params.min_amount_out,
+        params.integrator_fee_bps,
+    )
+    .map_err(settle_error)?;
+
+    if settlement.pipeline_fee > 0 && fee_on_output {
+        // The output mint's transfer-hook accounts, if it has a hook, are among the
+        // strategy's accounts (the strategy needed them to pay out), so all remaining
+        // accounts go along; the token program ignores the ones it doesn't use.
+        token::transfer_checked(
+            hop.output_token_program,
+            hop.trader_output,
+            hop.output_mint,
+            hop.fee_account,
+            hop.trader,
+            remaining,
+            settlement.pipeline_fee,
+            token::decimals(hop.output_mint)?,
+            &[],
+        )?;
+    } else if settlement.pipeline_fee > 0 {
+        token::transfer_checked(
+            hop.input_token_program,
+            hop.trader_input,
+            hop.input_mint,
+            hop.fee_account,
+            hop.trader,
+            hook_accounts,
+            settlement.pipeline_fee,
+            input_decimals,
+            &[],
+        )?;
+    }
+    if settlement.integrator_fee > 0 {
+        let integrator_account =
+            integrator_fee_account.ok_or(PipelineError::MissingIntegratorFeeAccount)?;
+        token::transfer_checked(
+            hop.input_token_program,
+            hop.trader_input,
+            hop.input_mint,
+            integrator_account,
+            hop.trader,
+            hook_accounts,
+            settlement.integrator_fee,
+            input_decimals,
+            &[],
+        )?;
+    }
+
+    Ok(HopOutcome {
+        market: hop.market.key(),
+        strategy: market.strategy_program,
+        trader: hop.trader.key(),
+        input_mint,
+        output_mint,
+        mode: params.mode,
+        net_sent: settlement.net_sent,
+        received: settlement.received,
+        kept: if fee_on_output {
+            settlement.received - settlement.pipeline_fee
+        } else {
+            settlement.received
+        },
+        pipeline_fee: settlement.pipeline_fee,
+        fee_mint,
+        integrator: integrator_fee_account.map(|a| a.key()),
+        integrator_fee: settlement.integrator_fee,
+    })
+}
+
 /// Builds the `pipeline_swap` call into the strategy and invokes it, signed by the
 /// market PDA. The trader is passed without signer privileges.
-fn call_strategy_swap<'info>(
-    accounts: &Swap<'info>,
-    remaining: &[AccountInfo<'info>],
+fn call_strategy_swap(
+    hop: &HopAccounts,
+    market: &Market,
     request: &psi::SwapRequest,
 ) -> Result<()> {
-    let market = &accounts.market;
     let mut metas = vec![
-        AccountMeta::new_readonly(market.key(), true),
-        AccountMeta::new(accounts.market_state.key(), false),
-        AccountMeta::new_readonly(accounts.trader.key(), false),
-        AccountMeta::new(accounts.trader_input.key(), false),
-        AccountMeta::new(accounts.trader_output.key(), false),
-        AccountMeta::new(accounts.input_vault.key(), false),
-        AccountMeta::new_readonly(accounts.input_mint.key(), false),
-        AccountMeta::new_readonly(accounts.output_mint.key(), false),
-        AccountMeta::new_readonly(accounts.input_token_program.key(), false),
-        AccountMeta::new_readonly(accounts.output_token_program.key(), false),
+        AccountMeta::new_readonly(hop.market.key(), true),
+        AccountMeta::new(hop.market_state.key(), false),
+        AccountMeta::new_readonly(hop.trader.key(), false),
+        AccountMeta::new(hop.trader_input.key(), false),
+        AccountMeta::new(hop.trader_output.key(), false),
+        AccountMeta::new(hop.input_vault.key(), false),
+        AccountMeta::new_readonly(hop.input_mint.key(), false),
+        AccountMeta::new_readonly(hop.output_mint.key(), false),
+        AccountMeta::new_readonly(hop.input_token_program.key(), false),
+        AccountMeta::new_readonly(hop.output_token_program.key(), false),
     ];
     let mut infos = vec![
-        market.to_account_info(),
-        accounts.market_state.to_account_info(),
-        accounts.trader.to_account_info(),
-        accounts.trader_input.to_account_info(),
-        accounts.trader_output.to_account_info(),
-        accounts.input_vault.to_account_info(),
-        accounts.input_mint.to_account_info(),
-        accounts.output_mint.to_account_info(),
-        accounts.input_token_program.to_account_info(),
-        accounts.output_token_program.to_account_info(),
+        hop.market.clone(),
+        hop.market_state.clone(),
+        hop.trader.clone(),
+        hop.trader_input.clone(),
+        hop.trader_output.clone(),
+        hop.input_vault.clone(),
+        hop.input_mint.clone(),
+        hop.output_mint.clone(),
+        hop.input_token_program.clone(),
+        hop.output_token_program.clone(),
     ];
-    for account in remaining {
+    for account in hop.remaining {
         metas.push(meta_like(account, false));
         infos.push(account.clone());
     }
-    infos.push(accounts.strategy_program.to_account_info());
+    infos.push(hop.strategy_program.clone());
 
     let strategy_program = market.strategy_program;
     let market_state = market.market_state;
@@ -680,6 +1070,29 @@ fn call_strategy_swap<'info>(
         &[signer_seeds],
     )?;
     Ok(())
+}
+
+/// The addresses in a frozen, active address lookup table, or `None` if the account
+/// isn't one. Layout: u32 state (1 = lookup table), u64 deactivation slot (`u64::MAX`
+/// while active), u64 last extended slot, u8 start index, `Option<Pubkey>` authority
+/// (`None` once frozen), two bytes of padding, then the addresses.
+fn frozen_lookup_table_addresses(data: &[u8]) -> Option<Vec<Pubkey>> {
+    const HEADER: usize = 56;
+    if data.len() < HEADER || (data.len() - HEADER) % 32 != 0 {
+        return None;
+    }
+    let state = u32::from_le_bytes(data[0..4].try_into().ok()?);
+    let deactivation_slot = u64::from_le_bytes(data[4..12].try_into().ok()?);
+    let frozen = data[21] == 0;
+    if state != 1 || deactivation_slot != u64::MAX || !frozen {
+        return None;
+    }
+    Some(
+        data[HEADER..]
+            .chunks_exact(32)
+            .map(|key| Pubkey::new_from_array(key.try_into().unwrap()))
+            .collect(),
+    )
 }
 
 /// A listing fee is at most the compiled cap, and either 0 or at least the rent-exempt
@@ -714,7 +1127,7 @@ fn fetch_market_info<'info>(
     strategy_program: &UncheckedAccount<'info>,
     market_state: &UncheckedAccount<'info>,
     remaining: &[AccountInfo<'info>],
-) -> Result<psi::MarketInfo> {
+) -> Result<(psi::MarketInfo, Option<u8>)> {
     require_keys_eq!(
         *market_state.owner,
         strategy_program.key(),
@@ -741,7 +1154,7 @@ fn fetch_market_info<'info>(
         strategy_program.key(),
         PipelineError::BadMarketInfo
     );
-    let info = psi::MarketInfo::try_from_slice(&data).map_err(|_| PipelineError::BadMarketInfo)?;
+    let (info, fee_mint) = psi::decode_market_info(&data).ok_or(PipelineError::BadMarketInfo)?;
 
     let count = info.mints.len();
     require!(
@@ -755,14 +1168,22 @@ fn fetch_market_info<'info>(
             PipelineError::BadMarketInfo
         );
     }
-    Ok(info)
+    require!(
+        fee_mint.is_none_or(|index| (index as usize) < count),
+        PipelineError::BadMarketInfo
+    );
+    Ok((info, fee_mint))
 }
 
+/// Records a market. Its fee mint is the strategy's declaration if there is one, else
+/// wrapped SOL if the market trades it, else none.
+#[allow(clippy::too_many_arguments)]
 fn record_market(
     market: &mut Account<Market>,
     strategy: &mut Account<Strategy>,
     market_state: &UncheckedAccount,
     info: psi::MarketInfo,
+    declared_fee_mint: Option<u8>,
     created_by: Pubkey,
     bump: u8,
 ) -> Result<()> {
@@ -774,6 +1195,14 @@ fn record_market(
         market.vaults[i] = Pubkey::new_from_array(*vault);
     }
     market.supports_exact_out = info.supports_exact_out;
+    market.fee_mint_index = declared_fee_mint
+        .or_else(|| {
+            info.mints
+                .iter()
+                .position(|mint| *mint == psi::NATIVE_MINT)
+                .map(|i| i as u8)
+        })
+        .unwrap_or(NO_FEE_MINT);
     market.created_by = created_by;
     market.created_at = Clock::get()?.unix_timestamp;
     market.bump = bump;
@@ -918,6 +1347,9 @@ pub struct Market {
     pub created_at: i64,
     pub bump: u8,
     pub fee_authority_bump: u8,
+    /// Index into `mints` of the mint Pipeline takes its fee in when it is one side of a
+    /// trade, or `NO_FEE_MINT`.
+    pub fee_mint_index: u8,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -958,6 +1390,49 @@ pub struct SwapResult {
     pub received: u64,
     pub pipeline_fee: u64,
     pub integrator_fee: u64,
+    /// The mint `pipeline_fee` was taken in: the input mint, or the output mint when it is
+    /// the market's fee mint.
+    pub fee_mint: Pubkey,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct RouteArgs {
+    /// What the first hop sends to its strategy (fees come on top).
+    pub amount_in: u64,
+    /// The least the trader must keep from the last hop.
+    pub min_amount_out: u64,
+    /// Charged once, on the first hop's input.
+    pub integrator_fee_bps: u16,
+    pub hops: Vec<RouteHop>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct RouteHop {
+    /// How many of the hop's remaining accounts, after its fixed ones, are the strategy's.
+    pub strategy_accounts: u8,
+    /// How many trailing accounts after those are the input mint's transfer-hook accounts.
+    pub input_hook_accounts: u8,
+    /// Strategy-specific data for this hop's `pipeline_swap`.
+    pub extra: Vec<u8>,
+}
+
+/// Return data of `route`.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RouteResult {
+    /// What the trader parted with in the first hop's input, before fees.
+    pub net_sent: u64,
+    /// What the trader keeps from the last hop.
+    pub amount_out: u64,
+    pub integrator_fee: u64,
+}
+
+/// A market's recorded address lookup table (`record_lookup_table`).
+#[account]
+#[derive(InitSpace)]
+pub struct MarketLookupTable {
+    pub market: Pubkey,
+    pub table: Pubkey,
+    pub bump: u8,
 }
 
 #[derive(Accounts)]
@@ -1076,6 +1551,16 @@ pub struct RegisterExistingMarket<'info> {
 }
 
 #[derive(Accounts)]
+pub struct MigrateMarket<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    /// CHECK: a market in the old layout; checked in the handler.
+    #[account(mut)]
+    pub market: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct InitFeeAccount<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -1134,12 +1619,42 @@ pub struct Swap<'info> {
     /// CHECK: PDA that owns the market's fee accounts.
     #[account(seeds = [seeds::FEE_AUTHORITY, market.key().as_ref()], bump = market.fee_authority_bump)]
     pub fee_authority: UncheckedAccount<'info>,
-    /// CHECK: the fee authority's associated token account for the input mint.
+    /// CHECK: the fee authority's associated token account for the mint the fee is
+    /// taken in (the output mint if it is the market's fee mint, else the input mint).
     #[account(mut)]
     pub fee_account: UncheckedAccount<'info>,
     /// CHECK: any token account in the input mint; the token program checks the mint.
     #[account(mut)]
     pub integrator_fee_account: Option<UncheckedAccount<'info>>,
+}
+
+#[event_cpi]
+#[derive(Accounts)]
+pub struct Route<'info> {
+    pub trader: Signer<'info>,
+    /// CHECK: any token account in the first hop's input mint; the token program checks
+    /// the mint.
+    #[account(mut)]
+    pub integrator_fee_account: Option<UncheckedAccount<'info>>,
+}
+
+#[event_cpi]
+#[derive(Accounts)]
+pub struct RecordLookupTable<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub market: Account<'info, Market>,
+    /// CHECK: an address lookup table; checked in the handler.
+    pub lookup_table: UncheckedAccount<'info>,
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + MarketLookupTable::INIT_SPACE,
+        seeds = [seeds::LOOKUP_TABLE, market.key().as_ref()],
+        bump,
+    )]
+    pub record: Account<'info, MarketLookupTable>,
+    pub system_program: Program<'info, System>,
 }
 
 #[event_cpi]
@@ -1180,13 +1695,22 @@ pub struct SwapEvent {
     /// Input the swap is charged for, excluding fees: the trader's net spend, or what
     /// the market's input vault kept if that is more, at most `amount_in`.
     pub net_sent: u64,
-    /// Output that arrived in the trader's output account.
+    /// Output that arrived in the trader's output account. When the fee is taken in the
+    /// output, the trader keeps `received - pipeline_fee`.
     pub received: u64,
     pub pipeline_fee: u64,
     pub integrator: Option<Pubkey>,
     pub integrator_fee: u64,
     pub slot: u64,
     pub unix_timestamp: i64,
+    /// The mint `pipeline_fee` was taken in.
+    pub fee_mint: Pubkey,
+}
+
+#[event]
+pub struct LookupTableRecorded {
+    pub market: Pubkey,
+    pub table: Pubkey,
 }
 
 #[event]
@@ -1280,7 +1804,7 @@ pub enum PipelineError {
     MathOverflow,
     #[msg("The listing fee is above the maximum the registration accepts")]
     ListingFeeAboveMaximum,
-    #[msg("A fee account can't be the trader's input account")]
+    #[msg("A fee account can't be the trader's account the fee is paid from")]
     FeeToTraderInput,
     #[msg("Nothing was sent and nothing received")]
     NothingSwapped,
@@ -1288,4 +1812,10 @@ pub enum PipelineError {
     ListingFeeBelowRent,
     #[msg("The trader's output balance fell during the swap")]
     OutputDecreased,
+    #[msg("Not a market in the layout this instruction expects")]
+    NotAMarket,
+    #[msg("Route accounts or hops are malformed or don't chain")]
+    BadRoute,
+    #[msg("Not a frozen, active lookup table holding the market's accounts")]
+    BadLookupTable,
 }

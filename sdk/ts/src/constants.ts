@@ -9,19 +9,31 @@ export const ASSOCIATED_TOKEN_PROGRAM_ADDRESS: Address = address('ATokenGPvbdGVx
 export const BPF_LOADER_UPGRADEABLE_PROGRAM_ADDRESS: Address = address('BPFLoaderUpgradeab1e11111111111111111111111');
 export const COMPUTE_BUDGET_PROGRAM_ADDRESS: Address = address('ComputeBudget111111111111111111111111111111');
 
+/** Wrapped SOL (SPL Token). */
+export const NATIVE_MINT_ADDRESS: Address = address('So11111111111111111111111111111111111111112');
+
 /** The all-zero address, used as the trader of anonymous quotes. */
 export const DEFAULT_ADDRESS: Address = SYSTEM_PROGRAM_ADDRESS;
 
 /** Version of the strategy interface a strategy declares at registration. */
 export const INTERFACE_VERSION = 1;
 
-/** Pipeline's fee on every swap's input, in basis points. */
+/**
+ * Pipeline's fee on every swap, in basis points: on the input, or on the output when the
+ * output is the market's fee mint.
+ */
 export const PIPELINE_FEE_BPS = 25n;
 export const BPS_DENOMINATOR = 10_000n;
 
 /** A market trades between 2 and 4 mints. */
 export const MIN_MARKET_MINTS = 2;
 export const MAX_MARKET_MINTS = 4;
+
+/** `Market.feeMintIndex` when the market has no fee mint. */
+export const NO_FEE_MINT = 255;
+
+/** The most hops one `route` instruction runs. */
+export const MAX_ROUTE_HOPS = 4;
 
 /** Clients stop asking a strategy for more accounts after this many rounds. */
 export const MAX_RESOLVE_ROUNDS = 4;
@@ -48,6 +60,8 @@ export const SEEDS = {
     register: utf8.encode('pipeline-register'),
     /** Anchor's `#[event_cpi]` authority. */
     eventAuthority: utf8.encode('__event_authority'),
+    /** `["lookup", market]`: the market's recorded address lookup table. */
+    lookupTable: utf8.encode('lookup'),
 } as const;
 
 /** Strategy instruction discriminators: `sha256("global:<name>")[..8]`. */
@@ -70,6 +84,9 @@ export const ROUTER_INSTRUCTION_DISCRIMINATORS = {
     initFeeAccount: new Uint8Array([85, 169, 185, 211, 103, 153, 111, 2]),
     swap: new Uint8Array([248, 198, 158, 145, 225, 117, 135, 200]),
     sweepFees: new Uint8Array([175, 225, 98, 71, 118, 66, 34, 148]),
+    migrateMarket: new Uint8Array([201, 113, 181, 120, 217, 60, 109, 203]),
+    route: new Uint8Array([229, 23, 203, 151, 122, 227, 173, 42]),
+    recordLookupTable: new Uint8Array([242, 18, 232, 242, 63, 143, 16, 90]),
 } as const;
 
 /** Router account discriminators: `sha256("account:<Name>")[..8]`. */
@@ -77,6 +94,7 @@ export const ACCOUNT_DISCRIMINATORS = {
     Config: new Uint8Array([155, 12, 170, 224, 30, 250, 204, 130]),
     Strategy: new Uint8Array([174, 110, 39, 119, 82, 106, 169, 102]),
     Market: new Uint8Array([219, 190, 213, 55, 0, 227, 198, 154]),
+    MarketLookupTable: new Uint8Array([156, 232, 198, 234, 191, 144, 236, 220]),
 } as const;
 
 /** Anchor's prefix for self-CPI event instructions (`0x1d9acb512ea545e4`, little-endian). */
@@ -90,6 +108,7 @@ export const EVENT_DISCRIMINATORS = {
     MarketCreated: new Uint8Array([88, 184, 130, 231, 226, 84, 6, 58]),
     FeesSwept: new Uint8Array([96, 218, 115, 136, 74, 170, 202, 172]),
     ConfigChanged: new Uint8Array([147, 25, 86, 98, 98, 77, 78, 192]),
+    LookupTableRecorded: new Uint8Array([163, 143, 140, 130, 113, 26, 74, 133]),
 } as const;
 
 /**

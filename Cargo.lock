@@ -2035,7 +2035,7 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "pipeline-check"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -2059,7 +2059,7 @@ dependencies = [
 
 [[package]]
 name = "pipeline-client"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
  "borsh",
@@ -2075,7 +2075,7 @@ dependencies = [
 
 [[package]]
 name = "pipeline-events"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "borsh",
  "sha2 0.10.9",
@@ -2084,7 +2084,7 @@ dependencies = [
 
 [[package]]
 name = "pipeline-quoter"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "borsh",
  "litesvm",
@@ -2103,7 +2103,7 @@ dependencies = [
 
 [[package]]
 name = "pipeline-strategy-interface"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "borsh",
  "proptest",
@@ -2128,6 +2128,7 @@ dependencies = [
  "solana-clock 3.2.1",
  "solana-instruction 3.5.1",
  "solana-keypair",
+ "solana-message",
  "solana-pubkey 4.3.0",
  "solana-signer",
  "solana-system-interface",

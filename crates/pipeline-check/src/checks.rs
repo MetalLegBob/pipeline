@@ -180,6 +180,7 @@ fn market_summary(
             address: market.to_string(),
             market_state: None,
             supports_exact_out: None,
+            fee_mint: None,
             mints: vec![],
         };
     };
@@ -217,6 +218,7 @@ fn market_summary(
         address: market.to_string(),
         market_state: Some(record.market_state.to_string()),
         supports_exact_out: Some(record.supports_exact_out),
+        fee_mint: record.fee_mint().map(|m| m.to_string()),
         mints,
     }
 }
@@ -787,6 +789,25 @@ struct SwapRun {
     received: u64,
 }
 
+/// What the trader keeps of a swap's output: `received`, less Pipeline's fee when the
+/// router took it in the output.
+fn kept(result: &client::SwapResult, output_mint: &Pubkey) -> u64 {
+    if result.fee_mint == *output_mint {
+        result.received.saturating_sub(result.pipeline_fee)
+    } else {
+        result.received
+    }
+}
+
+/// Pipeline's fee the trader paid in the input mint (none when it was taken in the output).
+fn input_side_fee(result: &client::SwapResult, input_mint: &Pubkey) -> u64 {
+    if result.fee_mint == *input_mint {
+        result.pipeline_fee
+    } else {
+        0
+    }
+}
+
 /// Swap accounts for `trader`, with transfer-hook accounts resolved for the input
 /// transfer (trader to vault) and the output transfer (vault to trader).
 #[allow(clippy::too_many_arguments)]
@@ -893,10 +914,11 @@ fn run_swap(
     let input_before = vm::token_amount(svm, &accounts.trader_input).unwrap_or(0);
     let output_before = vm::token_amount(svm, &accounts.trader_output).unwrap_or(0);
     svm.expire_blockhash();
+    let side = p.view.fee_side(&accounts.output_mint);
     let tx = Transaction::new_signed_with_payer(
         &[
             vm::compute_limit_instruction(MAX_COMPUTE_UNITS),
-            client::swap(&accounts, args),
+            client::swap_with_fee_side(&accounts, args, side),
         ],
         Some(&trader.pubkey()),
         &[trader],
@@ -971,7 +993,7 @@ fn check_market_info(p: &Prepared, results: &mut Results) {
     );
     let info = match svm.simulate_transaction(tx) {
         Ok(sim) if sim.meta.return_data.program_id == p.record.strategy_program => {
-            psi::MarketInfo::try_from_slice(&sim.meta.return_data.data).ok()
+            psi::decode_market_info(&sim.meta.return_data.data).map(|(info, _)| info)
         }
         Ok(_) => None,
         Err(failed) => {
@@ -1325,10 +1347,11 @@ fn check_transaction_size(p: &Prepared, table: &[QuoteRow], results: &mut Result
             quote.amount_out,
             &p.options.extra,
         );
+        let side = p.view.fee_side(&accounts.output_mint);
         let tx = Transaction::new_with_payer(
             &[
                 vm::compute_limit_instruction(MAX_COMPUTE_UNITS),
-                client::swap(&accounts, &args),
+                client::swap_with_fee_side(&accounts, &args, side),
             ],
             Some(&trader.pubkey()),
         );
@@ -1556,24 +1579,33 @@ fn check_quote_matches_swap(
             &resolved,
             quote.strategy_amount_out,
         );
+        let input_mint = p.mints[row.case.input].address;
+        let output_mint = p.mints[row.case.output].address;
+        let quoted_fee_mint = match quote.fee_side {
+            client::FeeSide::Output => output_mint,
+            client::FeeSide::Input => input_mint,
+        };
         let matched = match &run.outcome {
             Ok(result) => {
                 // The router's own figures, and the trader's balances, must both match.
-                let same = result.received == quote.amount_out
+                let same = kept(result, &output_mint) == quote.amount_out
                     && result.net_sent == quote.net_sent
                     && result.pipeline_fee == quote.pipeline_fee
+                    && result.fee_mint == quoted_fee_mint
                     && run.received == quote.amount_out
                     && run.spent == quote.total_spend;
                 if !same {
                     mismatches.push(format!(
-                        "{}: quoted {} out for {} in plus {} fee, swap delivered {} for {} in plus {} fee (trader balances: -{} / +{})",
+                        "{}: quoted {} out for {} in plus a {} fee in {}, swap delivered {} for {} in plus a {} fee in {} (trader balances: -{} / +{})",
                         row.case.name(),
                         quote.amount_out,
                         quote.net_sent,
                         quote.pipeline_fee,
-                        result.received,
+                        quoted_fee_mint,
+                        kept(result, &output_mint),
                         result.net_sent,
                         result.pipeline_fee,
+                        result.fee_mint,
                         run.spent,
                         run.received
                     ));
@@ -1608,7 +1640,7 @@ fn check_quote_matches_swap(
                         row.case.name(),
                         quote.amount_out,
                         quote.net_sent,
-                        result.received,
+                        kept(&result, &output_mint),
                         result.net_sent
                     )),
                     Err(_) => mismatches.push(format!(
@@ -1624,7 +1656,9 @@ fn check_quote_matches_swap(
             "quoted_out": quote.amount_out,
             "quoted_net_sent": quote.net_sent,
             "quoted_pipeline_fee": quote.pipeline_fee,
+            "quoted_fee_mint": quoted_fee_mint.to_string(),
             "received": run.outcome.as_ref().ok().map(|r| r.received),
+            "fee_mint": run.outcome.as_ref().ok().map(|r| r.fee_mint.to_string()),
             "net_sent": run.outcome.as_ref().ok().map(|r| r.net_sent),
             "pipeline_fee": run.outcome.as_ref().ok().map(|r| r.pipeline_fee),
             "compute_units": run.compute_units,
@@ -2028,11 +2062,11 @@ fn check_exact_out_refund(
                         result.net_sent, quote.net_sent
                     ));
                 }
-                if run.spent != result.net_sent + result.pipeline_fee {
+                let charged = result.net_sent + input_side_fee(result, &p.mints[input].address);
+                if run.spent != charged {
                     problems.push(format!(
-                        "{name}: the trader spent {} but net_sent plus fee is {}",
+                        "{name}: the trader spent {} but net_sent plus any input-side fee is {charged}",
                         run.spent,
-                        result.net_sent + result.pipeline_fee
                     ));
                 }
             }
@@ -2109,11 +2143,17 @@ fn check_round_trip(p: &Prepared, quotes: &mut QuoteVm, results: &mut Results) {
         let Ok(bought_result) = bought.outcome.clone() else {
             continue;
         };
-        if bought_result.received == 0 {
+        let (first_mint, second_mint) = (p.mints[first].address, p.mints[second].address);
+        let bought_kept = kept(&bought_result, &second_mint);
+        if bought_kept == 0 {
             continue;
         }
-        // Sell everything received, paying Pipeline's fee out of it.
-        let sell_amount = fees::amount_for_budget(bought_result.received, 0);
+        // Sell everything the trader kept, paying Pipeline's fee out of it when the sell
+        // pays it in its input.
+        let sell_amount = match p.view.fee_side(&first_mint) {
+            client::FeeSide::Output => bought_kept,
+            client::FeeSide::Input => fees::amount_for_budget(bought_kept, 0),
+        };
         let sell = Case {
             input: second,
             output: first,
@@ -2145,18 +2185,17 @@ fn check_round_trip(p: &Prepared, quotes: &mut QuoteVm, results: &mut Results) {
             }
             Err(error) => Err(error),
         };
-        let put_in = bought_result.net_sent + bought_result.pipeline_fee;
+        let put_in = bought_result.net_sent + input_side_fee(&bought_result, &first_mint);
         match &sold {
             Err(error) => warnings.push(format!(
-                "{first}→{second}→{first}: bought {} but could not sell straight back: {error}",
-                bought_result.received
+                "{first}→{second}→{first}: bought {bought_kept} but could not sell straight back: {error}",
             )),
-            Ok(result) if result.received > put_in => warnings.push(format!(
-                "{first}→{second}→{first}: put in {put_in} (with Pipeline's fee) and got {} back, a free profit",
-                result.received
+            Ok(result) if kept(result, &first_mint) > put_in => warnings.push(format!(
+                "{first}→{second}→{first}: put in {put_in} (with Pipeline's fees) and got {} back, a free profit",
+                kept(result, &first_mint)
             )),
             Ok(result) if result.received > bought_result.net_sent => warnings.push(format!(
-                "{first}→{second}→{first}: put in {} before Pipeline's fee and got {} back, a profit for anyone calling the strategy directly",
+                "{first}→{second}→{first}: put in {} before Pipeline's fees and got {} back, a profit for anyone calling the strategy directly",
                 bought_result.net_sent, result.received
             )),
             Ok(_) => {}
@@ -2165,8 +2204,8 @@ fn check_round_trip(p: &Prepared, quotes: &mut QuoteVm, results: &mut Results) {
             "route": format!("{first}→{second}→{first}"),
             "put_in": bought_result.net_sent,
             "pipeline_fees": bought_result.pipeline_fee + sold.as_ref().map_or(0, |r| r.pipeline_fee),
-            "intermediate": bought_result.received,
-            "got_back": sold.as_ref().ok().map(|r| r.received),
+            "intermediate": bought_kept,
+            "got_back": sold.as_ref().ok().map(|r| kept(r, &first_mint)),
             "error": sold.as_ref().err(),
         }));
     }
@@ -2284,10 +2323,11 @@ fn check_dust_and_zero(
             0,
         );
         if let (Ok(result), Some(quote)) = (&one_swap.outcome, &dust_quote) {
-            if result.received != quote.amount_out {
+            let kept = kept(result, &p.mints[output].address);
+            if kept != quote.amount_out {
                 warnings.push(format!(
-                    "{input}→{output}: a 1-unit swap delivered {} but was quoted {}",
-                    result.received, quote.amount_out
+                    "{input}→{output}: a 1-unit swap delivered {kept} but was quoted {}",
+                    quote.amount_out
                 ));
             }
         }

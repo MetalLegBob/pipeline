@@ -65,6 +65,9 @@ pub struct MarketView {
     pub vaults: Vec<Pubkey>,
     pub token_programs: Vec<Pubkey>,
     pub supports_exact_out: bool,
+    /// The market's fee mint (`Market::fee_mint`): Pipeline's fee is taken in the output
+    /// of trades into it.
+    pub fee_mint: Option<Pubkey>,
 }
 
 impl MarketView {
@@ -89,7 +92,17 @@ impl MarketView {
             vaults: market.vaults[..market.mint_count as usize].to_vec(),
             token_programs,
             supports_exact_out: market.supports_exact_out,
+            fee_mint: market.fee_mint(),
         })
+    }
+
+    /// The side a trade into `output_mint` pays Pipeline's fee on.
+    pub fn fee_side(&self, output_mint: &Pubkey) -> client::FeeSide {
+        if self.fee_mint == Some(*output_mint) {
+            client::FeeSide::Output
+        } else {
+            client::FeeSide::Input
+        }
     }
 
     fn index(&self, mint: &Pubkey) -> Result<usize, QuoteError> {
@@ -121,11 +134,15 @@ pub struct TraderQuote {
     pub amount_in: u64,
     /// What the trader parts with before fees (the router's `net_sent`).
     pub net_sent: u64,
+    /// Pipeline's fee, in the input mint or, with `fee_side == Output`, the output mint.
     pub pipeline_fee: u64,
+    pub fee_side: client::FeeSide,
     pub integrator_fee: u64,
-    /// `net_sent` plus both fees.
+    /// What the trader parts with in the input mint: `net_sent`, the integrator fee, and
+    /// Pipeline's fee when it is taken in the input.
     pub total_spend: u64,
-    /// What arrives in the trader's output account.
+    /// What the trader keeps in their output account (after Pipeline's fee when it is
+    /// taken in the output).
     pub amount_out: u64,
     /// Exact-out only: what the strategy sends (`SwapArgs::amount_out`).
     pub strategy_amount_out: u64,
@@ -430,6 +447,7 @@ impl Quoter {
         let epoch = self.svm.get_sysvar::<solana_clock::Clock>().epoch;
         let input_fee = self.transfer_fee_config(&market.mints[input])?;
         let output_fee = self.transfer_fee_config(&market.mints[output])?;
+        let fee_side = market.fee_side(&request.output_mint);
 
         let (amount_in, strategy_amount_out, quote, units) = match request.mode {
             TradeMode::ExactIn => {
@@ -444,7 +462,12 @@ impl Quoter {
                         "market does not support exact-out".into(),
                     ));
                 }
-                let send = gross_for_net(&output_fee, epoch, request.amount)?;
+                // With the fee in the output, the trader must still keep `amount`.
+                let arrive = match fee_side {
+                    client::FeeSide::Output => received_for_kept(request.amount)?,
+                    client::FeeSide::Input => request.amount,
+                };
+                let send = gross_for_net(&output_fee, epoch, arrive)?;
                 let trade = Self::trade_request(market, request, send)?;
                 let (quote, units) = self.quote_strategy(market, &trade, strategy_accounts)?;
                 let amount_in = gross_for_net(&input_fee, epoch, quote.amount_in)?;
@@ -458,17 +481,28 @@ impl Quoter {
         let refund_arrives = refund - transfer_fee(&input_fee, epoch, refund)?;
         let net_sent = amount_in - refund_arrives;
 
-        let pipeline_fee = fees::pipeline_fee(net_sent);
         let integrator_fee = fees::ceil_bps(net_sent, request.integrator_fee_bps as u64)
             .ok_or(QuoteError::Overflow)?;
-        let amount_out = quote.amount_out - transfer_fee(&output_fee, epoch, quote.amount_out)?;
+        let arrives_out = quote.amount_out - transfer_fee(&output_fee, epoch, quote.amount_out)?;
+        let (pipeline_fee, input_side_fee, amount_out) = match fee_side {
+            client::FeeSide::Input => (
+                fees::pipeline_fee(net_sent),
+                fees::pipeline_fee(net_sent),
+                arrives_out,
+            ),
+            client::FeeSide::Output => {
+                let fee = fees::pipeline_fee(arrives_out);
+                (fee, 0, arrives_out - fee)
+            }
+        };
         Ok(TraderQuote {
             amount_in,
             net_sent,
             pipeline_fee,
+            fee_side,
             integrator_fee,
             total_spend: net_sent
-                .checked_add(pipeline_fee)
+                .checked_add(input_side_fee)
                 .and_then(|t| t.checked_add(integrator_fee))
                 .ok_or(QuoteError::Overflow)?,
             amount_out,
@@ -478,12 +512,14 @@ impl Quoter {
     }
 
     /// Simulates the full router swap for a synthetic trader funded with `amount_in`
-    /// plus fees, and returns the router's own result. Needs the router program, its
-    /// config, the market, its fee account and every account the swap touches.
+    /// plus fees, and returns the router's own result. `side` is where the market takes
+    /// Pipeline's fee ([`MarketView::fee_side`]). Needs the router program, the market,
+    /// its fee account for that side and every account the swap touches.
     pub fn simulate_swap(
         &mut self,
         accounts: &client::SwapAccounts,
         args: &client::SwapArgs,
+        side: client::FeeSide,
     ) -> Result<client::SwapResult, QuoteError> {
         let budget = fees::max_total_spend(args.amount_in, args.integrator_fee_bps)
             .ok_or(QuoteError::Overflow)?;
@@ -514,7 +550,7 @@ impl Quoter {
         let tx = Transaction::new_signed_with_payer(
             &[
                 self.compute_budget_instruction(),
-                client::swap(&accounts, args),
+                client::swap_with_fee_side(&accounts, args, side),
             ],
             Some(&self.payer.pubkey()),
             &[&self.payer, &trader],
@@ -613,6 +649,29 @@ fn transfer_fee(
             .ok_or(QuoteError::Overflow),
         None => Ok(0),
     }
+}
+
+/// The smallest amount arriving in the trader's output account that leaves at least
+/// `kept` after Pipeline's fee is taken from it.
+fn received_for_kept(kept: u64) -> Result<u64, QuoteError> {
+    if kept == 0 {
+        return Ok(0);
+    }
+    // `r - ceil(r × 25 / 10,000) >= kept`; start from the exact-rate estimate.
+    let rate = fees_denominator() - psi::PIPELINE_FEE_BPS as u128;
+    let mut received = u64::try_from((kept as u128 * fees_denominator()).div_ceil(rate))
+        .map_err(|_| QuoteError::Overflow)?;
+    while received - fees::pipeline_fee(received) < kept {
+        received = received.checked_add(1).ok_or(QuoteError::Overflow)?;
+    }
+    while received > kept && received - 1 - fees::pipeline_fee(received - 1) >= kept {
+        received -= 1;
+    }
+    Ok(received)
+}
+
+fn fees_denominator() -> u128 {
+    psi::BPS_DENOMINATOR as u128
 }
 
 /// The smallest gross amount whose transfer delivers at least `net`.

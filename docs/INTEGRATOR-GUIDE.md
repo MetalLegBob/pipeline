@@ -59,13 +59,17 @@ Arguments:
 | Exact-in | The amount sent to the strategy | Ignored |
 | Exact-out (if the market supports it) | The most to send | The strategy-level output from the quote |
 
-**`min_amount_out` is always what must arrive in the trader's output account.** Set it from the quote minus your slippage tolerance. The router enforces it independently of the strategy.
+**`min_amount_out` is what the trader must keep in their output account.** Set it from the quote minus your slippage tolerance. The router enforces it independently of the strategy.
 
-**What the trader pays:** the router charges `ceil(net_sent × 0.25%)` plus your fee on top of the input actually kept by the strategy. The most a swap can cost is `pipeline_strategy_interface::fees::max_total_spend(amount_in, integrator_fee_bps)`. To spend at most a budget, use `fees::amount_for_budget`.
+**Which side pays Pipeline's fee.** Each market has a fee mint: the one its strategy declares, or wrapped SOL if the market trades it, or none. When a trade's output is the fee mint (selling a token for SOL, for example), the router takes 0.25% of what arrives from the trader's output, and the trader keeps the rest; otherwise it takes 0.25% of the input. Pass the fee account for the side that pays: the Rust and TypeScript `swap` builders pick it from the default rule, and `FeeSide::of(market, output_mint)` (`feeSideOf`) gives it from the market's record, which you need for a market that declares a fee mint. The wrong side fails with `WrongFeeAccount`.
 
-**Multi-hop:** put several `swap` instructions in one transaction. Each hop pays 0.25%. **Give every hop its own `min_amount_out`** (its quote minus your slippage), and **size each later hop from the previous hop's minimum**, not its quote: `amount_in = amount_for_budget(previous min_amount_out, bps)`. Put the trader's end-to-end minimum on the last hop. A later hop spends its `amount_in` from the trader's account whatever the earlier hop delivered, so sizing it from the guaranteed minimum means it can never dip into intermediate tokens the trader already held, even if an earlier hop is sandwiched.
+**What the trader pays:** your integrator fee is always on the input. With the fee on the input, the router charges `ceil(net_sent × 0.25%)` plus your fee on top of the input actually kept by the strategy; with the fee on the output, the input pays only your fee. The most a swap can cost in the input token is `pipeline_strategy_interface::fees::max_total_spend(amount_in, integrator_fee_bps)`. To spend at most a budget, use `fees::amount_for_budget`. For an exact-out trade into the fee mint, ask the strategy for enough that the trader still keeps the amount they want after the fee (the quoter does this).
 
-**Before the first swap that sells a mint in a market,** that market's fee account for the mint must exist. Add `init_fee_account` (idempotent) to the transaction if needed.
+**Multi-hop:** use the router's `route` instruction (up to 4 hops, exact-in). Each hop pays 0.25%, spends exactly what the previous hop left the trader, and never touches intermediate tokens the trader already held. Put the trader's end-to-end minimum on the route. Routes with three or four hops usually need the markets' lookup tables to fit in a transaction. Chaining single `swap` instructions still works: give every hop its own minimum and size each later hop from the previous hop's minimum with `amount_for_budget`.
+
+**Lookup tables:** a market may have one address lookup table recorded in the router (`["lookup", market]`), holding every account the router needs for that market. Use it to build v0 transactions. Anyone can create and record one; the SDK does it by default when it creates a market.
+
+**Before the first swap that pays Pipeline's fee in a mint,** that market's fee account for the mint must exist. Add `init_fee_account` (idempotent) to the transaction if needed.
 
 **Native SOL:** wrap into a WSOL token account before the swap and close it after, as usual.
 
@@ -74,7 +78,7 @@ Arguments:
 Every swap emits one `SwapEvent` as a router self-CPI, so it is not lost to log truncation.
 
 - **Find it:** the event appears in the transaction's inner instructions, as an instruction to the router whose data starts with Anchor's event tag. Decode it with `pipeline_events::decode`.
-- **Fields:** market, strategy, trader, input and output mints, mode, `net_sent` (input the swap was charged for, excluding fees), `received` (output that arrived), `pipeline_fee`, the integrator account and fee, slot and timestamp.
+- **Fields:** market, strategy, trader, input and output mints, mode, `net_sent` (input the swap was charged for, excluding fees), `received` (output that arrived), `pipeline_fee` and `fee_mint` (the mint it was taken in; when it is the output mint, the trader kept `received − pipeline_fee`), the integrator account and fee, slot and timestamp. A `route` emits one event per hop.
 - **Price** is `received / net_sent` in the mints' units. Adjust for decimals; Token-2022 transfer fees are already reflected in both numbers.
 - **Volume** is `net_sent` in the input mint.
 - **`integrator`** is whatever account the trader passed. A non-zero `integrator_fee` means that amount was transferred to it; the field alone proves nothing about who built the trade.

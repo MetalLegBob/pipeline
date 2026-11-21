@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { amountForBudget, ceilBps, maxTotalSpend, pipelineFee, U64_MAX } from '../src/index.js';
+import {
+    amountForBudget,
+    ceilBps,
+    keptAfterOutputFee,
+    maxTotalSpend,
+    pipelineFee,
+    receivedForKept,
+    U64_MAX,
+} from '../src/index.js';
 import { fixtures, optionalBigint } from './helpers.js';
 
 describe('fees match Rust', () => {
@@ -31,6 +39,25 @@ describe('fees match Rust', () => {
                 BigInt(c.result),
             );
         }
+    });
+});
+
+describe('output-side fees match Rust', () => {
+    it('receivedForKept', () => {
+        for (const c of fixtures.fees.receivedForKept) {
+            expect(receivedForKept(BigInt(c.kept)), c.kept).toBe(optionalBigint(c.result));
+        }
+    });
+
+    it('receivedForKept is the least amount that leaves `kept` after the fee', () => {
+        for (const kept of [0n, 1n, 2n, 399n, 400n, 401n, 9_975n, 9_976n, 1_000_000n, 123_456_789n, U64_MAX / 3n]) {
+            const received = receivedForKept(kept)!;
+            expect(keptAfterOutputFee(received) >= kept).toBe(true);
+            if (received > 0n) {
+                expect(keptAfterOutputFee(received - 1n) < kept).toBe(true);
+            }
+        }
+        expect(() => receivedForKept(-1n)).toThrow(RangeError);
     });
 });
 

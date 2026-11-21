@@ -150,6 +150,7 @@ fn check_market(mut env: Env, market: CpMarket) {
                         &Pubkey::default(),
                     ),
                     &exact_in(quote.amount_in, 0),
+                    view.fee_side(&output),
                 )
                 .unwrap();
             assert_eq!(

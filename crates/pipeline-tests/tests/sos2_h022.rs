@@ -21,7 +21,7 @@ const EVIL_ID: Pubkey = client::pubkey!("Dyn7Jwr9xtQxs4Nyiun58mTAh278SXyqWFX6331
 const HONEST: u8 = 0;
 const INIT_DRAINS_PAYER: u8 = 4;
 /// `8 + Market::INIT_SPACE`.
-const MARKET_SPACE: usize = 8 + 32 + 32 + 1 + 4 * 32 + 4 * 32 + 1 + 32 + 8 + 1 + 1;
+const MARKET_SPACE: usize = 8 + 32 + 32 + 1 + 4 * 32 + 4 * 32 + 1 + 32 + 8 + 1 + 1 + 1;
 /// The evil strategy's market state (`STATE_LEN`), which its setup pays rent for.
 const STATE_LEN: usize = 32 * 4 + 2;
 

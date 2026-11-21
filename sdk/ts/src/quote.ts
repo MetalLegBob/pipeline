@@ -34,6 +34,7 @@ import {
     getResolveResultCodec,
     getTradeRequestCodec,
     instructionData,
+    marketFeeMint,
     marketMints,
     type Market,
     type QuoteResult,
@@ -45,7 +46,7 @@ import {
     MAX_RESOLVE_ROUNDS,
     STRATEGY_DISCRIMINATORS,
 } from './constants.js';
-import type { PipelineInstruction } from './instructions.js';
+import type { FeeSide, PipelineInstruction } from './instructions.js';
 import { associatedTokenAddress } from './pda.js';
 
 /** Default compute cap for a strategy's read-only call, as in `pipeline-quoter`. */
@@ -61,7 +62,21 @@ export type MarketView = {
     /** Each mint's owning token program, in mint order. */
     tokenPrograms: readonly Address[];
     supportsExactOut: boolean;
+    /**
+     * The market's fee mint ({@link marketFeeMint}): Pipeline's fee is taken in the output
+     * of trades into it. Absent or `null`: none.
+     */
+    feeMint?: Address | null;
 };
+
+/**
+ * The side a trade into `outputMint` pays Pipeline's fee on. With `'output'`, the strategy's
+ * quoted output is what arrives; the trader keeps `keptAfterOutputFee` of it, and an
+ * exact-out quote should ask the strategy for `receivedForKept(wanted)`.
+ */
+export function marketViewFeeSide(market: MarketView, outputMint: Address): FeeSide {
+    return market.feeMint != null && market.feeMint === outputMint ? 'output' : 'input';
+}
 
 /** `tokenPrograms` must give each mint's owning token program, in mint order. */
 export function marketViewFromMarket(
@@ -81,6 +96,7 @@ export function marketViewFromMarket(
         vaults: market.vaults.slice(0, mints.length),
         tokenPrograms,
         supportsExactOut: market.supportsExactOut,
+        feeMint: marketFeeMint(market),
     };
 }
 

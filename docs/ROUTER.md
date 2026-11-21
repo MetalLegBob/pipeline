@@ -11,7 +11,7 @@ hold their own liquidity; the router never custodies it.
 |---|---|---|
 | `Config` | `["config"]` | `admin`, a reserved byte (always 0), `listing_fee_lamports` (at most `MAX_LISTING_FEE_LAMPORTS`), `listing_fee_recipient`, `treasury_owner` (owner of the treasury token accounts that receive swept fees) |
 | `Strategy` | `["strategy", program_id]` | `program_id`, `metadata_uri` (up to 200 bytes), `interface_version`, `registered_at`, `market_count` |
-| `Market` | `["market", program_id, market_state]` | `strategy_program`, `market_state` (an account the strategy owns), `mints` (2–4), `vaults` (where input in each mint goes), `supports_exact_out`, `created_by`, `created_at`. The market PDA also **signs the router's calls that set up or trade the market** (`pipeline_init_market`, `pipeline_swap`; the read-only `pipeline_market_info` isn't signed), so a strategy can check a call came from Pipeline for that exact market |
+| `Market` | `["market", program_id, market_state]` | `strategy_program`, `market_state` (an account the strategy owns), `mints` (2–4), `vaults` (where input in each mint goes), `supports_exact_out`, `created_by`, `created_at`, `fee_mint_index` (the mint Pipeline takes its fee in, or none). The market PDA also **signs the router's calls that set up or trade the market** (`pipeline_init_market`, `pipeline_swap`; the read-only `pipeline_market_info` isn't signed), so a strategy can check a call came from Pipeline for that exact market |
 | `fee_authority` | `["fees", market]` | No data. Owns the market's fee accounts. **Never signs during a swap or market setup** (a trader may list it, unsigned, among the strategy's accounts; it signs only sweeps to the treasury), so nothing a strategy receives can move fees |
 | `setup_payer` | `["setup", market]` | No data. Holds the creator's `max_creator_lamports` while a strategy sets up a market, and is emptied again in the same instruction |
 | Fee accounts | Associated token account of the market's `fee_authority`, one per mint | The 0.25% fees collected in that mint. Created by `init_fee_account` (anyone can pay) |
@@ -29,7 +29,7 @@ the `pipeline-strategy-interface` crate.
 | Instruction | Called by | Purpose |
 |---|---|---|
 | `pipeline_init_market(data)` | The router, in `create_market` | Set up a market's state. `data` is strategy-specific |
-| `pipeline_market_info()` | The router, in `create_market` and `register_existing_market`; read-only | Returns `MarketInfo { mints, vaults, supports_exact_out }` |
+| `pipeline_market_info()` | The router, in `create_market` and `register_existing_market`; read-only | Returns `MarketInfo { mints, vaults, supports_exact_out }`, optionally followed by the market's fee mint (`encode_market_info`) |
 | `pipeline_resolve_accounts(TradeRequest, round)` | Quoters and SDKs, off-chain; read-only | Returns the accounts a trade needs beyond the fixed ones, and whether the list is complete |
 | `pipeline_quote(TradeRequest)` | Quoters and SDKs, off-chain; read-only | Returns `QuoteResult { amount_in, amount_out }`: what `pipeline_swap` would do now |
 | `pipeline_swap(SwapRequest)` | The router, in `swap` | Deliver output, and optionally refund unused input |
@@ -81,6 +81,9 @@ See [`STRATEGY-GUIDE.md`](STRATEGY-GUIDE.md) section 9.
 | `update_metadata(uri)` | The same | Updates `metadata_uri` |
 | `create_market(init_data, max_creator_lamports)` | Anyone | Funds the `setup_payer` with up to `max_creator_lamports`, calls `pipeline_init_market` with it as payer (the creator's own signature is never passed on), checks the payer is still a plain system account, refunds what's left, then calls `pipeline_market_info` and records the `Market` |
 | `register_existing_market` | Anyone | Records a market the strategy created by itself |
+| `route(amount_in, min_amount_out, integrator_fee_bps, hops)` | The trader | Up to 4 exact-in hops in one instruction; each hop is checked and charged like `swap` and spends what the previous one left the trader, through the trader's own token accounts. One minimum, on the last hop's output; an integrator fee once, on the first hop's input |
+| `record_lookup_table` | Anyone | Records a market's frozen address lookup table in `["lookup", market]`, after checking it holds every account the router needs for the market. The first valid table stays |
+| `migrate_market` | Anyone | Moves a market recorded before fee mints existed to the current layout |
 | `init_fee_account` | Anyone | Creates a market's fee account for one mint, idempotently |
 | `swap(...)` | The trader | Below |
 | `sweep_fees` | Anyone | Moves a market's collected fees in one mint to the treasury's token account |
@@ -111,25 +114,29 @@ registration. `swap`, `create_market` and `register_existing_market` don't read 
      `net_sent > 0` (no output for no input, and no empty swaps).
    - This step is `pipeline_strategy_interface::settlement::settle`, a pure function, so
      quoters can share it and its guarantees can be proven for every input.
-6. **Charge fees** from the trader: `ceil(net_sent × 0.25%)` into the market's fee account,
-   plus an optional integrator fee at a rate the trader signs.
+6. **Charge fees** from the trader into the market's fee account: 0.25% of what arrived,
+   taken from the output, when the output is the market's fee mint (the trader keeps the
+   rest, and the minimum applies to that); otherwise `ceil(net_sent × 0.25%)` from the
+   input. An optional integrator fee, at a rate the trader signs, is always taken from the
+   input.
 7. **Publish** a `SwapEvent` (via `emit_cpi!`, so log truncation can't lose it) and return
-   `SwapResult { net_sent, received, pipeline_fee, integrator_fee }`.
+   `SwapResult { net_sent, received, pipeline_fee, integrator_fee, fee_mint }`.
+
+A market's **fee mint** is the one its strategy declares in `pipeline_market_info`, or
+wrapped SOL if the market trades it, or none (every trade pays in its input).
 
 The most a swap can cost is known before signing:
 `amount_in + ceil(amount_in × 25 / 10,000) + ceil(amount_in × integrator bps / 10,000)`
-(`fees::max_total_spend`; each fee rounds up on its own). Multi-hop routes are
-several `swap` instructions in one transaction; each hop pays 0.25%. Give every hop its own
-minimum (its quote less slippage), size each later hop from the previous hop's minimum
-rather than its quote, and put the trader's end-to-end minimum on the last. A later hop
-spends its `amount_in` from the trader's account whatever the earlier hop delivered, so
-this way it can never dip into intermediate tokens the trader already held.
+(`fees::max_total_spend`; each fee rounds up on its own). Multi-hop routes use `route`: each
+hop pays 0.25% and spends exactly what the previous hop left the trader, so a route never
+dips into intermediate tokens the trader already held.
 
 ## Events
 
 | Event | Fields |
 |---|---|
-| `SwapEvent` | `market`, `strategy`, `trader`, `input_mint`, `output_mint`, `mode`, `net_sent`, `received`, `pipeline_fee`, `integrator`, `integrator_fee`, `slot`, `unix_timestamp` |
+| `SwapEvent` | `market`, `strategy`, `trader`, `input_mint`, `output_mint`, `mode`, `net_sent`, `received`, `pipeline_fee`, `integrator`, `integrator_fee`, `slot`, `unix_timestamp`, `fee_mint` (one per hop of a `route`) |
+| `LookupTableRecorded` | `market`, `table` |
 | `StrategyRegistered`, `MetadataUpdated` | `strategy`, `fee_paid`, `metadata_uri` |
 | `MarketCreated` | `market`, `strategy`, `market_state`, `mints`, `created_by` |
 | `FeesSwept` | `market`, `mint`, `amount` |

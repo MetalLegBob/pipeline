@@ -25,13 +25,14 @@
       }
     },
     {
-      "hex": "dbbed53700e3c69a07070707070707070707070707070707070707070707070707070707070707070808080808080808080808080808080808080808080808080808080808080808030d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f000000000000000000000000000000000000000000000000000000000000000010101010101010101010101010101010101010101010101010101010101010101111111111111111111111111111111111111111111111111111111111111111121212121212121212121212121212121212121212121212121212121212121200000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010078e76800000000fcfb",
+      "hex": "dbbed53700e3c69a07070707070707070707070707070707070707070707070707070707070707070808080808080808080808080808080808080808080808080808080808080808030d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f000000000000000000000000000000000000000000000000000000000000000010101010101010101010101010101010101010101010101010101010101010101111111111111111111111111111111111111111111111111111111111111111121212121212121212121212121212121212121212121212121212121212121200000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010078e76800000000fcfb01",
       "type": "Market",
       "value": {
         "bump": 252,
         "createdAt": "1760000000",
         "createdBy": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
         "feeAuthorityBump": 251,
+        "feeMintIndex": 1,
         "marketState": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
         "mintCount": 3,
         "mints": [
@@ -49,6 +50,15 @@
           "11111111111111111111111111111111"
         ]
       }
+    },
+    {
+      "hex": "9ce8c6eabf90ecdc28282828282828282828282828282828282828282828282828282828282828282323232323232323232323232323232323232323232323232323232323232323f9",
+      "type": "MarketLookupTable",
+      "value": {
+        "bump": 249,
+        "market": "3hkpj3dQevt4ad1JSx3ke1sWmMR3wYToMKfFLCnxtKuH",
+        "table": "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk"
+      }
     }
   ],
   "constants": {
@@ -56,19 +66,25 @@
     "interfaceVersion": 1,
     "maxMarketMints": 4,
     "maxResolveRounds": 4,
+    "maxRouteHops": 4,
     "minMarketMints": 2,
+    "nativeMint": "So11111111111111111111111111111111111111112",
+    "nativeMintBytes": "069b8857feab8184fb687f634618c035dac439dc1aeb3b5598a0f00000000001",
+    "noFeeMint": 255,
     "pipelineFeeBps": 25
   },
   "discriminators": {
     "accounts": {
       "Config": "9b0caae01efacc82",
       "Market": "dbbed53700e3c69a",
+      "MarketLookupTable": "9ce8c6eabf90ecdc",
       "Strategy": "ae6e2777526aa966"
     },
     "eventIxTag": "e445a52e51cb9a1d",
     "events": {
       "ConfigChanged": "93195662624d4ec0",
       "FeesSwept": "60da73884aaacaac",
+      "LookupTableRecorded": "a38f8c82711a4a85",
       "MarketCreated": "58b882e7e254063a",
       "MetadataUpdated": "8424d7f6a65abd2c",
       "StrategyRegistered": "a736030edd25d3d6",
@@ -78,8 +94,11 @@
       "create_market": "67e261ebc8bcfbfe",
       "init_fee_account": "55a9b9d367996f02",
       "initialize_config": "d07f1501c2bec446",
+      "migrate_market": "c971b578d93c6dcb",
+      "record_lookup_table": "f212e8f23f8f105a",
       "register_existing_market": "65a037a696967b36",
       "register_strategy": "790c404b630fb18f",
+      "route": "e517cb977ae3ad2a",
       "swap": "f8c69e91e17587c8",
       "sweep_fees": "afe1624776422294",
       "update_config": "1d9efcbf0a53db63",
@@ -157,6 +176,36 @@
           "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
           "2DYKaRPBeNM5WdW8rNsYEktjPrnd89Mm4Lzp3qonSzoj"
         ]
+      }
+    },
+    {
+      "hex": "ffffffffffffffff07000000000000003200020000000201020000000908000000000000",
+      "type": "RouteArgs",
+      "value": {
+        "amountIn": "18446744073709551615",
+        "hops": [
+          {
+            "extra": "0908",
+            "inputHookAccounts": 1,
+            "strategyAccounts": 2
+          },
+          {
+            "extra": "",
+            "inputHookAccounts": 0,
+            "strategyAccounts": 0
+          }
+        ],
+        "integratorFeeBps": 50,
+        "minAmountOut": "7"
+      }
+    },
+    {
+      "hex": "40420f00000000000000000000000000ffffffffffffffff",
+      "type": "RouteResult",
+      "value": {
+        "amountOut": "0",
+        "integratorFee": "18446744073709551615",
+        "netSent": "1000000"
       }
     },
     {
@@ -250,9 +299,10 @@
       }
     },
     {
-      "hex": "102700000000000028230000000000001900000000000000ffffffffffffffff",
+      "hex": "102700000000000028230000000000001900000000000000ffffffffffffffff0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e",
       "type": "SwapResult",
       "value": {
+        "feeMint": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
         "integratorFee": "18446744073709551615",
         "netSent": "10000",
         "pipelineFee": "25",
@@ -262,9 +312,10 @@
   ],
   "events": [
     {
-      "hex": "e445a52e51cb9a1d40c6cde8260871e2282828282828282828282828282828282828282828282828282828282828282807070707070707070707070707070707070707070707070707070707070707071e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0140420f000000000088360f0000000000c409000000000000011414141414141414141414141414141414141414141414141414141414141414881300000000000015cd5b07000000000078e76800000000",
+      "hex": "e445a52e51cb9a1d40c6cde8260871e2282828282828282828282828282828282828282828282828282828282828282807070707070707070707070707070707070707070707070707070707070707071e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0140420f000000000088360f0000000000c409000000000000011414141414141414141414141414141414141414141414141414141414141414881300000000000015cd5b07000000000078e768000000000d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
       "type": "Swap",
       "value": {
+        "feeMint": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
         "inputMint": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
         "integrator": "2MNus2KCpxwXnp19iyXNpWSFtBD2UGjQBAL8AbtywfT9",
         "integratorFee": "5000",
@@ -281,9 +332,10 @@
       }
     },
     {
-      "hex": "e445a52e51cb9a1d40c6cde8260871e2282828282828282828282828282828282828282828282828282828282828282807070707070707070707070707070707070707070707070707070707070707071e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d00ffffffffffffffff0000000000000000d8a3703d0ad7a3000000000000000000000100000000000000fbffffffffffffff",
+      "hex": "e445a52e51cb9a1d40c6cde8260871e2282828282828282828282828282828282828282828282828282828282828282807070707070707070707070707070707070707070707070707070707070707071e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d00ffffffffffffffff0000000000000000d8a3703d0ad7a3000000000000000000000100000000000000fbffffffffffffff0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
       "type": "Swap",
       "value": {
+        "feeMint": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
         "inputMint": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
         "integrator": null,
         "integratorFee": "0",
@@ -347,6 +399,14 @@
         "listingFeeLamports": "0",
         "listingFeeRecipient": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
         "treasuryOwner": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8"
+      }
+    },
+    {
+      "hex": "e445a52e51cb9a1da38f8c82711a4a8528282828282828282828282828282828282828282828282828282828282828282323232323232323232323232323232323232323232323232323232323232323",
+      "type": "LookupTableRecorded",
+      "value": {
+        "market": "3hkpj3dQevt4ad1JSx3ke1sWmMR3wYToMKfFLCnxtKuH",
+        "table": "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk"
       }
     }
   ],
@@ -998,6 +1058,68 @@
       {
         "netSent": "18446744073709551615",
         "result": "46116860184273880"
+      }
+    ],
+    "receivedForKept": [
+      {
+        "kept": "0",
+        "result": "0"
+      },
+      {
+        "kept": "1",
+        "result": "2"
+      },
+      {
+        "kept": "2",
+        "result": "3"
+      },
+      {
+        "kept": "398",
+        "result": "399"
+      },
+      {
+        "kept": "399",
+        "result": "400"
+      },
+      {
+        "kept": "400",
+        "result": "402"
+      },
+      {
+        "kept": "997",
+        "result": "1000"
+      },
+      {
+        "kept": "998",
+        "result": "1001"
+      },
+      {
+        "kept": "1000",
+        "result": "1003"
+      },
+      {
+        "kept": "10000",
+        "result": "10026"
+      },
+      {
+        "kept": "123456789",
+        "result": "123766205"
+      },
+      {
+        "kept": "9223372036854775807",
+        "result": "9246488257498522113"
+      },
+      {
+        "kept": "18400627213525277736",
+        "result": null
+      },
+      {
+        "kept": "18400627213525277737",
+        "result": null
+      },
+      {
+        "kept": "18446744073709551615",
+        "result": null
       }
     ]
   },
@@ -1653,7 +1775,8 @@
           "integratorFeeBps": 50,
           "minAmountOut": "1000",
           "mode": 1
-        }
+        },
+        "feeSide": null
       },
       "name": "swap",
       "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
@@ -1766,9 +1889,1174 @@
           "integratorFeeBps": 0,
           "minAmountOut": "990000",
           "mode": 0
-        }
+        },
+        "feeSide": null
       },
       "name": "swap",
+      "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
+    },
+    {
+      "accounts": [
+        {
+          "address": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+          "isSigner": true,
+          "isWritable": false
+        },
+        {
+          "address": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "So11111111111111111111111111111111111111112",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "E91LWYZqpGAtUa8zxFrszueCivrTTUyp4PfQNyJyGPfP",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "DddW8p4ijgZLnmEQ25SAkVntsfaCVspt9KMpbxR1YdHj",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+          "isSigner": false,
+          "isWritable": false
+        }
+      ],
+      "data": "f8c69e91e17587c80040420f00000000000000000000000000301b0f000000000000000000000000",
+      "inputs": {
+        "accounts": {
+          "inputHookAccounts": [],
+          "inputMint": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "inputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "inputVault": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "integratorFeeAccount": null,
+          "marketState": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+          "outputMint": "So11111111111111111111111111111111111111112",
+          "outputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "strategyAccounts": [],
+          "strategyProgram": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+          "trader": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+          "traderInput": "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+          "traderOutput": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd"
+        },
+        "args": {
+          "amountIn": "1000000",
+          "amountOut": "0",
+          "extra": "",
+          "inputHookAccounts": 7,
+          "integratorFeeBps": 0,
+          "minAmountOut": "990000",
+          "mode": 0
+        },
+        "feeSide": null
+      },
+      "name": "swap",
+      "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
+    },
+    {
+      "accounts": [
+        {
+          "address": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+          "isSigner": true,
+          "isWritable": false
+        },
+        {
+          "address": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "So11111111111111111111111111111111111111112",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "E91LWYZqpGAtUa8zxFrszueCivrTTUyp4PfQNyJyGPfP",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "6tCyN9WpQwMfp1PgrxCnKrbYMoe8b29KQKDNRiAYxEzQ",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+          "isSigner": false,
+          "isWritable": false
+        }
+      ],
+      "data": "f8c69e91e17587c80040420f00000000000000000000000000301b0f000000000000000000000000",
+      "inputs": {
+        "accounts": {
+          "inputHookAccounts": [],
+          "inputMint": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "inputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "inputVault": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "integratorFeeAccount": null,
+          "marketState": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+          "outputMint": "So11111111111111111111111111111111111111112",
+          "outputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "strategyAccounts": [],
+          "strategyProgram": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+          "trader": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+          "traderInput": "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+          "traderOutput": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd"
+        },
+        "args": {
+          "amountIn": "1000000",
+          "amountOut": "0",
+          "extra": "",
+          "inputHookAccounts": 7,
+          "integratorFeeBps": 0,
+          "minAmountOut": "990000",
+          "mode": 0
+        },
+        "feeSide": "input"
+      },
+      "name": "swap",
+      "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
+    },
+    {
+      "accounts": [
+        {
+          "address": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+          "isSigner": true,
+          "isWritable": false
+        },
+        {
+          "address": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "E91LWYZqpGAtUa8zxFrszueCivrTTUyp4PfQNyJyGPfP",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "FqMdKvrkzPZLszb1jXW9xBZ59hber3bgBwjEEjespz2V",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "2MNus2KCpxwXnp19iyXNpWSFtBD2UGjQBAL8AbtywfT9",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "2RJD1KnDRGEkvuFfAGrJ7PD28LRE9LRDjZznDywagzmr",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "2VDW9dFE1ZXz4zWAbaBDQFynNVdRpQ73HyfSHMzBSL6Z",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "2Z8oHviEbrqDD5kg2sW8h8kYceqdVTnrrPL6Lk2nBfRG",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "2d46SEBFCA8SMB1BUAq3z1XJrp3qAXUgQnzkQ85Nvzjy",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "2gyPaXeFnTRfVGFguU9yGtJ56yG2qbAVyCfQTW7ygL4g",
+          "isSigner": false,
+          "isWritable": false
+        }
+      ],
+      "data": "f8c69e91e17587c801ffffffffffffffffd204000000000000e80300000000000032000303000000090807",
+      "inputs": {
+        "accounts": {
+          "inputHookAccounts": [
+            {
+              "address": "2Z8oHviEbrqDD5kg2sW8h8kYceqdVTnrrPL6Lk2nBfRG",
+              "isSigner": false,
+              "isWritable": false
+            },
+            {
+              "address": "2d46SEBFCA8SMB1BUAq3z1XJrp3qAXUgQnzkQ85Nvzjy",
+              "isSigner": false,
+              "isWritable": true
+            },
+            {
+              "address": "2gyPaXeFnTRfVGFguU9yGtJ56yG2qbAVyCfQTW7ygL4g",
+              "isSigner": false,
+              "isWritable": false
+            }
+          ],
+          "inputMint": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "inputTokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+          "inputVault": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "integratorFeeAccount": "2MNus2KCpxwXnp19iyXNpWSFtBD2UGjQBAL8AbtywfT9",
+          "marketState": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+          "outputMint": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+          "outputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "strategyAccounts": [
+            {
+              "address": "2RJD1KnDRGEkvuFfAGrJ7PD28LRE9LRDjZznDywagzmr",
+              "isSigner": false,
+              "isWritable": true
+            },
+            {
+              "address": "2VDW9dFE1ZXz4zWAbaBDQFynNVdRpQ73HyfSHMzBSL6Z",
+              "isSigner": false,
+              "isWritable": false
+            }
+          ],
+          "strategyProgram": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+          "trader": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+          "traderInput": "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+          "traderOutput": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd"
+        },
+        "args": {
+          "amountIn": "18446744073709551615",
+          "amountOut": "1234",
+          "extra": "090807",
+          "inputHookAccounts": 0,
+          "integratorFeeBps": 50,
+          "minAmountOut": "1000",
+          "mode": 1
+        },
+        "feeSide": "output"
+      },
+      "name": "swap",
+      "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
+    },
+    {
+      "accounts": [
+        {
+          "address": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+          "isSigner": true,
+          "isWritable": false
+        },
+        {
+          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "So11111111111111111111111111111111111111112",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "E91LWYZqpGAtUa8zxFrszueCivrTTUyp4PfQNyJyGPfP",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "DddW8p4ijgZLnmEQ25SAkVntsfaCVspt9KMpbxR1YdHj",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "BmFvq1GMsZchErApfQHGdRNDExUcULjdBb5LmvgF3LrZ",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "So11111111111111111111111111111111111111112",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "7PC1hjbpb9oxGHbJumhRvhGeWz9LLp2ZiqfnDP47o4yu",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "Fjokitt7EZV3mdbFMJnHQ8vLqXof29P2HBjHbVr9ua2h",
+          "isSigner": false,
+          "isWritable": true
+        }
+      ],
+      "data": "e517cb977ae3ad2a40420f0000000000301b0f0000000000000002000000000000000000000000000000",
+      "inputs": {
+        "amountIn": "1000000",
+        "hops": [
+          {
+            "accounts": {
+              "inputHookAccounts": [],
+              "inputMint": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+              "inputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+              "inputVault": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+              "integratorFeeAccount": null,
+              "marketState": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+              "outputMint": "So11111111111111111111111111111111111111112",
+              "outputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+              "strategyAccounts": [],
+              "strategyProgram": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+              "trader": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+              "traderInput": "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+              "traderOutput": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd"
+            },
+            "extra": "",
+            "feeSide": "output"
+          },
+          {
+            "accounts": {
+              "inputHookAccounts": [],
+              "inputMint": "So11111111111111111111111111111111111111112",
+              "inputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+              "inputVault": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+              "integratorFeeAccount": null,
+              "marketState": "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+              "outputMint": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+              "outputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+              "strategyAccounts": [],
+              "strategyProgram": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+              "trader": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+              "traderInput": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+              "traderOutput": "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL"
+            },
+            "extra": "",
+            "feeSide": "input"
+          }
+        ],
+        "integratorFeeAccount": null,
+        "integratorFeeBps": 0,
+        "minAmountOut": "990000",
+        "trader": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD"
+      },
+      "name": "route",
+      "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
+    },
+    {
+      "accounts": [
+        {
+          "address": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+          "isSigner": true,
+          "isWritable": false
+        },
+        {
+          "address": "2MNus2KCpxwXnp19iyXNpWSFtBD2UGjQBAL8AbtywfT9",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "E91LWYZqpGAtUa8zxFrszueCivrTTUyp4PfQNyJyGPfP",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "GGjNjt7XsvmjAbyGPcujdv7rCmzWnqF53H9JpyfsipAy",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "2RJD1KnDRGEkvuFfAGrJ7PD28LRE9LRDjZznDywagzmr",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "2VDW9dFE1ZXz4zWAbaBDQFynNVdRpQ73HyfSHMzBSL6Z",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "2Z8oHviEbrqDD5kg2sW8h8kYceqdVTnrrPL6Lk2nBfRG",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "BmFvq1GMsZchErApfQHGdRNDExUcULjdBb5LmvgF3LrZ",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "So11111111111111111111111111111111111111112",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "7PC1hjbpb9oxGHbJumhRvhGeWz9LLp2ZiqfnDP47o4yu",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "Fjokitt7EZV3mdbFMJnHQ8vLqXof29P2HBjHbVr9ua2h",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "Bt3Js2foeftSune7C3beqDnHtSAxf6WfCiZsLEmdqVFe",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "2DYKaRPBeNM5WdW8rNsYEktjPrnd89Mm4Lzp3qonSzoj",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "So11111111111111111111111111111111111111112",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "H8ro6p3pLcimCoy8HDimMQkVgSdmz5ZGnuqFW9HY2bPd",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "2AbFVG6vYXhHr6YjXTqSs8A2z92TMpZgALcbmoz1Wvd7",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "2d46SEBFCA8SMB1BUAq3z1XJrp3qAXUgQnzkQ85Nvzjy",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "DwfMgq83MsDeicB4pPsB8c19haZvzA3fKn8fdNtUj4gr",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "2HTciirCEfeJeikeHgCTXdfVe1zpoD3ackfU7DrPCL8S",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "Eid94Wd8bLGhcrTzXXzW82vuYoELbLFxjfYxA3u1Rkaw",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "DCQry5rsFQ8wGBTJfAzkHpE2o4jJp8dNuBp8aUUCQ8w2",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "2gyPaXeFnTRfVGFguU9yGtJ56yG2qbAVyCfQTW7ygL4g",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "2ktgiq7GNkitdMWCLmUtZm4qM8UEWerKXcL4WtAaRfPP",
+          "isSigner": false,
+          "isWritable": true
+        }
+      ],
+      "data": "e517cb977ae3ad2affffffffffffffff01000000000000000f2704000000020103000000010203000000000000010000000000000228000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "inputs": {
+        "amountIn": "18446744073709551615",
+        "hops": [
+          {
+            "accounts": {
+              "inputHookAccounts": [
+                {
+                  "address": "2Z8oHviEbrqDD5kg2sW8h8kYceqdVTnrrPL6Lk2nBfRG",
+                  "isSigner": false,
+                  "isWritable": false
+                }
+              ],
+              "inputMint": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+              "inputTokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+              "inputVault": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+              "integratorFeeAccount": null,
+              "marketState": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+              "outputMint": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+              "outputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+              "strategyAccounts": [
+                {
+                  "address": "2RJD1KnDRGEkvuFfAGrJ7PD28LRE9LRDjZznDywagzmr",
+                  "isSigner": false,
+                  "isWritable": true
+                },
+                {
+                  "address": "2VDW9dFE1ZXz4zWAbaBDQFynNVdRpQ73HyfSHMzBSL6Z",
+                  "isSigner": false,
+                  "isWritable": false
+                }
+              ],
+              "strategyProgram": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+              "trader": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+              "traderInput": "36VASLSKLFD2KokjXG7V28veZvXEsyHRKefLonPaAKzv",
+              "traderOutput": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd"
+            },
+            "extra": "010203",
+            "feeSide": "input"
+          },
+          {
+            "accounts": {
+              "inputHookAccounts": [],
+              "inputMint": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+              "inputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+              "inputVault": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+              "integratorFeeAccount": null,
+              "marketState": "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+              "outputMint": "So11111111111111111111111111111111111111112",
+              "outputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+              "strategyAccounts": [],
+              "strategyProgram": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+              "trader": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+              "traderInput": "3AQTaduKvYWFTu1ExZSQK1hQp5jSZ2yEt4KzsASAufKd",
+              "traderOutput": "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL"
+            },
+            "extra": "",
+            "feeSide": "output"
+          },
+          {
+            "accounts": {
+              "inputHookAccounts": [],
+              "inputMint": "So11111111111111111111111111111111111111112",
+              "inputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+              "inputVault": "2DYKaRPBeNM5WdW8rNsYEktjPrnd89Mm4Lzp3qonSzoj",
+              "integratorFeeAccount": null,
+              "marketState": "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+              "outputMint": "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+              "outputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+              "strategyAccounts": [
+                {
+                  "address": "2d46SEBFCA8SMB1BUAq3z1XJrp3qAXUgQnzkQ85Nvzjy",
+                  "isSigner": false,
+                  "isWritable": true
+                }
+              ],
+              "strategyProgram": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+              "trader": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+              "traderInput": "3EKkiwNLWqoUbzFkPrmKbtUB4EweE6f4STzevYUmezeL",
+              "traderOutput": "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3"
+            },
+            "extra": "",
+            "feeSide": "input"
+          },
+          {
+            "accounts": {
+              "inputHookAccounts": [
+                {
+                  "address": "2gyPaXeFnTRfVGFguU9yGtJ56yG2qbAVyCfQTW7ygL4g",
+                  "isSigner": false,
+                  "isWritable": false
+                },
+                {
+                  "address": "2ktgiq7GNkitdMWCLmUtZm4qM8UEWerKXcL4WtAaRfPP",
+                  "isSigner": false,
+                  "isWritable": true
+                }
+              ],
+              "inputMint": "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+              "inputTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+              "inputVault": "2HTciirCEfeJeikeHgCTXdfVe1zpoD3ackfU7DrPCL8S",
+              "integratorFeeAccount": null,
+              "marketState": "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+              "outputMint": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+              "outputTokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+              "strategyAccounts": [],
+              "strategyProgram": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+              "trader": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD",
+              "traderInput": "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+              "traderOutput": "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk"
+            },
+            "extra": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "feeSide": "output"
+          }
+        ],
+        "integratorFeeAccount": "2MNus2KCpxwXnp19iyXNpWSFtBD2UGjQBAL8AbtywfT9",
+        "integratorFeeBps": 9999,
+        "minAmountOut": "1",
+        "trader": "32ZsJ2yJjwuoBiWE5xnZjG9tKmK3CubbmEzgkQLyQzgD"
+      },
+      "name": "route",
+      "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
+    },
+    {
+      "accounts": [
+        {
+          "address": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+          "isSigner": true,
+          "isWritable": true
+        },
+        {
+          "address": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "7xs48kZjsRkZZ75H5vcNjP5aJa2pAtpPjReXVX3AVAGM",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "11111111111111111111111111111111",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+          "isSigner": false,
+          "isWritable": false
+        }
+      ],
+      "data": "f212e8f23f8f105a",
+      "inputs": {
+        "market": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+        "mints": [
+          "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu"
+        ],
+        "payer": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+        "table": "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk"
+      },
+      "name": "recordLookupTable",
+      "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
+    },
+    {
+      "accounts": [
+        {
+          "address": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+          "isSigner": true,
+          "isWritable": true
+        },
+        {
+          "address": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "7xs48kZjsRkZZ75H5vcNjP5aJa2pAtpPjReXVX3AVAGM",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "11111111111111111111111111111111",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+          "isSigner": false,
+          "isWritable": false
+        },
+        {
+          "address": "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "isSigner": false,
+          "isWritable": false
+        }
+      ],
+      "data": "f212e8f23f8f105a",
+      "inputs": {
+        "market": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+        "mints": [
+          "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+          "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+          "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK"
+        ],
+        "payer": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+        "table": "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk"
+      },
+      "name": "recordLookupTable",
+      "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
+    },
+    {
+      "accounts": [
+        {
+          "address": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+          "isSigner": true,
+          "isWritable": true
+        },
+        {
+          "address": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+          "isSigner": false,
+          "isWritable": true
+        },
+        {
+          "address": "11111111111111111111111111111111",
+          "isSigner": false,
+          "isWritable": false
+        }
+      ],
+      "data": "c971b578d93c6dcb",
+      "inputs": {
+        "market": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+        "payer": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi"
+      },
+      "name": "migrateMarket",
       "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
     },
     {
@@ -1944,6 +3232,129 @@
     "3dqXakAQ4daqSXko1eiqM96kXCCrGUmynuzbGpkN8zaa",
     "3hkpj3dQevt4ad1JSx3ke1sWmMR3wYToMKfFLCnxtKuH"
   ],
+  "lookupTables": [
+    {
+      "addresses": [
+        "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+        "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
+        "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+        "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+        "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+        "E91LWYZqpGAtUa8zxFrszueCivrTTUyp4PfQNyJyGPfP",
+        "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+        "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "6tCyN9WpQwMfp1PgrxCnKrbYMoe8b29KQKDNRiAYxEzQ",
+        "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+        "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+        "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+        "9Kv117ivwwafKXYEfK2qk7Jq3QCcAgFxuKephehGjfd5",
+        "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+        "2DYKaRPBeNM5WdW8rNsYEktjPrnd89Mm4Lzp3qonSzoj",
+        "3A52wBDbZaCZVogbKQCzBihddqiuMNKwFouyAeqKFrcz"
+      ],
+      "market": "dbbed53700e3c69a07070707070707070707070707070707070707070707070707070707070707070808080808080808080808080808080808080808080808080808080808080808030d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f000000000000000000000000000000000000000000000000000000000000000010101010101010101010101010101010101010101010101010101010101010101111111111111111111111111111111111111111111111111111111111111111121212121212121212121212121212121212121212121212121212121212121200000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010078e76800000000fcfbff",
+      "marketAddress": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+      "tokenPrograms": [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+      ]
+    },
+    {
+      "addresses": [
+        "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+        "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
+        "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+        "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+        "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+        "E91LWYZqpGAtUa8zxFrszueCivrTTUyp4PfQNyJyGPfP",
+        "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+        "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "6tCyN9WpQwMfp1PgrxCnKrbYMoe8b29KQKDNRiAYxEzQ",
+        "ws91DX9HBAAxGW77BZs5FogRDwpRtcUpiLBpKdPTfWu",
+        "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+        "FqMdKvrkzPZLszb1jXW9xBZ59hber3bgBwjEEjespz2V",
+        "21nS9Wz9sUTQ6MkcYUtnN8aSfPA26xJJP7zqshfzCzqc",
+        "2DYKaRPBeNM5WdW8rNsYEktjPrnd89Mm4Lzp3qonSzoj",
+        "3A52wBDbZaCZVogbKQCzBihddqiuMNKwFouyAeqKFrcz"
+      ],
+      "market": "dbbed53700e3c69a07070707070707070707070707070707070707070707070707070707070707070808080808080808080808080808080808080808080808080808080808080808030d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f000000000000000000000000000000000000000000000000000000000000000010101010101010101010101010101010101010101010101010101010101010101111111111111111111111111111111111111111111111111111111111111111121212121212121212121212121212121212121212121212121212121212121200000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010078e76800000000fcfbff",
+      "marketAddress": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+      "tokenPrograms": [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+      ]
+    },
+    {
+      "addresses": [
+        "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34",
+        "8Zp1XYra8KUSDj3CpS4FbnAPewCncTPPWtz9Aq4b7L2N",
+        "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+        "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+        "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+        "E91LWYZqpGAtUa8zxFrszueCivrTTUyp4PfQNyJyGPfP",
+        "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+        "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+        "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+        "GGjNjt7XsvmjAbyGPcujdv7rCmzWnqF53H9JpyfsipAy"
+      ],
+      "market": "dbbed53700e3c69a07070707070707070707070707070707070707070707070707070707070707070808080808080808080808080808080808080808080808080808080808080808030d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f000000000000000000000000000000000000000000000000000000000000000010101010101010101010101010101010101010101010101010101010101010101111111111111111111111111111111111111111111111111111111111111111121212121212121212121212121212121212121212121212121212121212121200000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010078e76800000000fcfbff",
+      "marketAddress": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
+      "tokenPrograms": [
+        "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+      ]
+    }
+  ],
+  "marketInfos": [
+    {
+      "feeMint": null,
+      "hex": "020000000d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d069b8857feab8184fb687f634618c035dac439dc1aeb3b5598a0f00000000001020000001010101010101010101010101010101010101010101010101010101010101010111111111111111111111111111111111111111111111111111111111111111100",
+      "info": {
+        "mints": [
+          "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "So11111111111111111111111111111111111111112"
+        ],
+        "supportsExactOut": false,
+        "vaults": [
+          "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2"
+        ]
+      }
+    },
+    {
+      "feeMint": 0,
+      "hex": "020000000d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d069b8857feab8184fb687f634618c035dac439dc1aeb3b5598a0f000000000010200000010101010101010101010101010101010101010101010101010101010101010101111111111111111111111111111111111111111111111111111111111111111000100",
+      "info": {
+        "mints": [
+          "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "So11111111111111111111111111111111111111112"
+        ],
+        "supportsExactOut": false,
+        "vaults": [
+          "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2"
+        ]
+      }
+    },
+    {
+      "feeMint": 1,
+      "hex": "020000000d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d069b8857feab8184fb687f634618c035dac439dc1aeb3b5598a0f000000000010200000010101010101010101010101010101010101010101010101010101010101010101111111111111111111111111111111111111111111111111111111111111111000101",
+      "info": {
+        "mints": [
+          "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC",
+          "So11111111111111111111111111111111111111112"
+        ],
+        "supportsExactOut": false,
+        "vaults": [
+          "25hjHpTATmkdET17ynDhf1MCuYNDn1z7wXfVw5iaxLAK",
+          "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2"
+        ]
+      }
+    }
+  ],
   "pdas": [
     {
       "address": "BmdeX3kWjQavcjggCd1YDws67szz7iqcJRa1KebtRQZ8",
@@ -2001,6 +3412,13 @@
         "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
       },
       "kind": "feeAccount"
+    },
+    {
+      "address": "7xs48kZjsRkZZ75H5vcNjP5aJa2pAtpPjReXVX3AVAGM",
+      "inputs": {
+        "market": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej"
+      },
+      "kind": "lookupTableRecord"
     },
     {
       "address": "8cUSHJrDB81E47d2NWoabrBfH3DPShrRxcaWWFCokw5A",

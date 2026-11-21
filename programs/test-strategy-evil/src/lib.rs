@@ -68,6 +68,11 @@ pub const INIT_ALLOCATES_PAYER: u8 = 6;
 /// Tries to approve the creator's token account (account 8) to the state PDA, with the
 /// creator's wallet (account 9) as authority and the token program as account 10.
 pub const INIT_APPROVES_CREATOR_TOKENS: u8 = 7;
+/// `info_mode` values that declare a fee mint in `pipeline_market_info`: mint B, an index
+/// past the last mint, and mint B followed by a stray byte.
+pub const INFO_DECLARES_MINT_B: u8 = 8;
+pub const INFO_DECLARES_OUT_OF_RANGE: u8 = 9;
+pub const INFO_DECLARES_WITH_TRAILING_BYTE: u8 = 10;
 
 pub fn process_instruction(
     program_id: &Pubkey,
@@ -508,7 +513,17 @@ fn market_info(accounts: &[AccountInfo]) -> ProgramResult {
         vaults: vaults.iter().map(|k| k.to_bytes()).collect(),
         supports_exact_out: false,
     };
-    set_return_data(&borsh::to_vec(&info).unwrap());
+    let data = match state.info_mode {
+        INFO_DECLARES_MINT_B => psi::encode_market_info(&info, Some(1)),
+        INFO_DECLARES_OUT_OF_RANGE => psi::encode_market_info(&info, Some(2)),
+        INFO_DECLARES_WITH_TRAILING_BYTE => {
+            let mut data = psi::encode_market_info(&info, Some(1));
+            data.push(7);
+            data
+        }
+        _ => borsh::to_vec(&info).unwrap(),
+    };
+    set_return_data(&data);
     Ok(())
 }
 

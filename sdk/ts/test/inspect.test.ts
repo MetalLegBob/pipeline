@@ -24,6 +24,7 @@ import {
     inspectStrategy,
     LOADER_ADDRESSES,
     marketPda,
+    NO_FEE_MINT,
     PIPELINE_PROGRAM_ADDRESS,
     programDataPda,
     strategyPda,
@@ -590,6 +591,7 @@ async function world(metadataUri: string) {
             createdAt: 1_700_000_100n,
             bump: 254,
             feeAuthorityBump: 253,
+            feeMintIndex: NO_FEE_MINT,
         }),
     };
     accounts[MINT_A] = { owner: TOKEN_PROGRAM_ADDRESS, data: mintBase(null, 1n, 6, null) };

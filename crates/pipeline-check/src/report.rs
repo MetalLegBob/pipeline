@@ -93,6 +93,8 @@ pub struct MarketSummary {
     pub address: String,
     pub market_state: Option<String>,
     pub supports_exact_out: Option<bool>,
+    /// The mint Pipeline takes its fee in when it is one side of a trade, if any.
+    pub fee_mint: Option<String>,
     pub mints: Vec<MintSummary>,
 }
 
