@@ -32,3 +32,5 @@ pipeline-check = { path = "../pipeline-check", default-features = false }
 proptest = "1"
 # v0 transactions with address lookup tables (router_batch tests).
 solana-message = "=4.6.0"
+# A recent slot for creating lookup tables through the real program.
+solana-slot-hashes = "3.2.0"

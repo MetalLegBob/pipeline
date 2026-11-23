@@ -56,6 +56,17 @@ pub fn sync_native(account: &Pubkey) -> Instruction {
     )
 }
 
+/// The Compute Budget program.
+pub const COMPUTE_BUDGET_PROGRAM_ID: Pubkey =
+    crate::pubkey!("ComputeBudget111111111111111111111111111111");
+
+/// Compute Budget `SetComputeUnitLimit`: the most compute units the transaction may use.
+pub fn set_compute_unit_limit(units: u32) -> Instruction {
+    let mut data = vec![2];
+    data.extend_from_slice(&units.to_le_bytes());
+    Instruction::new_with_bytes(COMPUTE_BUDGET_PROGRAM_ID, &data, vec![])
+}
+
 /// SPL Token `CloseAccount`. For wrapped SOL this returns the whole balance as SOL.
 pub fn close_token_account(
     account: &Pubkey,

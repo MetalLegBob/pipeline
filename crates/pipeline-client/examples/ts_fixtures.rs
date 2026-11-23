@@ -1322,6 +1322,44 @@ fn lookup_tables() -> Value {
     Value::Array(cases)
 }
 
+/// `create_market_lookup_table`: a table small enough for one transaction, and one with
+/// more addresses, filled before the freeze and record.
+fn market_lookup_tables() -> Value {
+    let market = pda::market(&key(7), &key(8));
+    let mints = [key(13), key(14)];
+    let cases: Vec<Value> = [(12u8, 280_000_000u64), (24, u64::MAX)]
+        .iter()
+        .map(|&(count, recent_slot)| {
+            let addresses: Vec<Pubkey> = (0..count).map(|n| key(n + 3)).collect();
+            let (table, transactions) = client::create_market_lookup_table(
+                &key(1),
+                &market,
+                &mints,
+                &addresses,
+                recent_slot,
+            );
+            json!({
+                "payer": addr(&key(1)),
+                "market": addr(&market),
+                "mints": mints.iter().map(addr).collect::<Vec<_>>(),
+                "addresses": addresses.iter().map(addr).collect::<Vec<_>>(),
+                "recentSlot": big(recent_slot),
+                "table": addr(&table),
+                "transactions": transactions
+                    .iter()
+                    .map(|instructions| {
+                        instructions
+                            .iter()
+                            .map(|ix| instruction("createMarketLookupTable", json!({}), ix))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    Value::Array(cases)
+}
+
 /// Router events as they appear in a self-CPI instruction's data.
 fn router_events() -> Value {
     fn event_bytes(discriminator: [u8; 8], value: &impl BorshSerialize) -> Vec<u8> {
@@ -1494,6 +1532,7 @@ fn main() {
         "encodings": encodings(),
         "marketInfos": market_infos(),
         "lookupTables": lookup_tables(),
+        "marketLookupTables": market_lookup_tables(),
         "accounts": router_accounts(),
         "events": router_events(),
     });

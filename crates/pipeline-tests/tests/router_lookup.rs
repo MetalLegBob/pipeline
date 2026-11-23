@@ -188,3 +188,59 @@ fn a_v0_swap_through_the_recorded_table_works() {
         event.received - event.pipeline_fee
     );
 }
+
+/// `create_market_lookup_table` builds a table through the real lookup table program:
+/// created, filled, frozen and recorded, in transactions that each fit. A table with more
+/// addresses than fit alongside the freeze and record is filled in a transaction of its
+/// own first.
+#[test]
+fn create_market_lookup_table_creates_freezes_and_records_a_table() {
+    for extra in [0usize, 6] {
+        let mut s = setup();
+        // The lookup table program takes the table's slot from the SlotHashes sysvar.
+        s.env.svm.warp_to_slot(1_000);
+        s.env
+            .svm
+            .set_sysvar(&solana_slot_hashes::SlotHashes::new(&[(
+                999,
+                Default::default(),
+            )]));
+        let payer = s.env.funded_keypair();
+        // The strategy's static accounts, and padding to take the table past the
+        // one-transaction size.
+        let mut addresses = s.required.clone();
+        addresses.push(CP_PROGRAM_ID);
+        addresses.extend((0..extra).map(|_| Pubkey::new_unique()));
+        let (table, transactions) = client::create_market_lookup_table(
+            &payer.pubkey(),
+            &s.market.market,
+            &s.mints,
+            &addresses,
+            999,
+        );
+        let one_transaction = addresses.len() <= client::LOOKUP_TABLE_ONE_TRANSACTION_ADDRESSES;
+        assert_eq!(transactions.len(), if one_transaction { 1 } else { 2 });
+        for instructions in transactions {
+            // `send` refuses transactions over the legacy size limit.
+            s.env
+                .send(&instructions, &[&payer])
+                .expect("lookup table transaction");
+        }
+
+        let data = s.env.account_data(&table);
+        assert_eq!(
+            data[56..]
+                .chunks_exact(32)
+                .map(|k| Pubkey::new_from_array(k.try_into().unwrap()))
+                .collect::<Vec<_>>(),
+            addresses
+        );
+        assert_eq!(data[21], 0, "frozen: no authority");
+        let record = client::decode_market_lookup_table(
+            &s.env
+                .account_data(&pda::lookup_table_record(&s.market.market)),
+        )
+        .expect("record account");
+        assert_eq!(record.table, table);
+    }
+}

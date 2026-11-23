@@ -8,6 +8,13 @@ export const TOKEN_2022_PROGRAM_ADDRESS: Address = address('TokenzQdBNbLqP5VEhdk
 export const ASSOCIATED_TOKEN_PROGRAM_ADDRESS: Address = address('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 export const BPF_LOADER_UPGRADEABLE_PROGRAM_ADDRESS: Address = address('BPFLoaderUpgradeab1e11111111111111111111111');
 export const COMPUTE_BUDGET_PROGRAM_ADDRESS: Address = address('ComputeBudget111111111111111111111111111111');
+export const ADDRESS_LOOKUP_TABLE_PROGRAM_ADDRESS: Address = address('AddressLookupTab1e1111111111111111111111111');
+
+/**
+ * The most table addresses {@link createMarketLookupTable} puts in one transaction with the
+ * freeze and record; a longer table is filled in a transaction of its own first.
+ */
+export const LOOKUP_TABLE_ONE_TRANSACTION_ADDRESSES = 16;
 
 /** Wrapped SOL (SPL Token). */
 export const NATIVE_MINT_ADDRESS: Address = address('So11111111111111111111111111111111111111112');

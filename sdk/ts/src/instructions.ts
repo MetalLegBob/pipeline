@@ -4,6 +4,8 @@
 
 import {
     AccountRole,
+    getAddressEncoder,
+    getProgramDerivedAddress,
     getStructCodec,
     getU64Codec,
     getU8Codec,
@@ -32,8 +34,10 @@ import {
     type UpdateConfigArgs,
 } from './codecs.js';
 import {
+    ADDRESS_LOOKUP_TABLE_PROGRAM_ADDRESS,
     ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
     INTERFACE_VERSION,
+    LOOKUP_TABLE_ONE_TRANSACTION_ADDRESSES,
     MAX_ROUTE_HOPS,
     NATIVE_MINT_ADDRESS,
     PIPELINE_PROGRAM_ADDRESS,
@@ -446,6 +450,83 @@ export async function recordLookupTable(input: {
         ],
         discriminatorOnly(DISCRIMINATORS.recordLookupTable),
     );
+}
+
+/** A new lookup table's address, derived from its authority and the recent slot it is created at. */
+export async function lookupTableAddress(authority: Address, recentSlot: bigint): Promise<[Address, number]> {
+    const [table, bump] = await getProgramDerivedAddress({
+        programAddress: ADDRESS_LOOKUP_TABLE_PROGRAM_ADDRESS,
+        seeds: [getAddressEncoder().encode(authority), getU64Codec().encode(recentSlot)],
+    });
+    return [table, bump];
+}
+
+/**
+ * A market's lookup table, created, filled, frozen and recorded: the table's address and the
+ * transactions to send in order, each a list of instructions that fits in one legacy
+ * transaction. `addresses` is what the table holds (at least {@link lookupTableAddresses}; a
+ * strategy's static accounts may follow), `mints` the market's mints in order, and
+ * `recentSlot` a slot from the last 150 or so, which picks the table's address (so one payer can
+create one table per slot). `payer` pays
+ * the rent and is the table's authority until it is frozen. Send this after creating a
+ * market, so integrators can build v0 transactions for it.
+ */
+export async function createMarketLookupTable(input: {
+    payer: Address;
+    market: Address;
+    mints: readonly Address[];
+    addresses: readonly Address[];
+    recentSlot: bigint;
+}): Promise<{ table: Address; transactions: PipelineInstruction[][] }> {
+    const [table, bump] = await lookupTableAddress(input.payer, input.recentSlot);
+    const tableAccounts = (extend: boolean): AccountMeta[] =>
+        extend
+            ? [
+                  writable(table),
+                  readonlySigner(input.payer),
+                  writableSigner(input.payer),
+                  readonly(SYSTEM_PROGRAM_ADDRESS),
+              ]
+            : [writable(table), readonlySigner(input.payer)];
+    const u32 = (n: number) => new Uint8Array([n, 0, 0, 0]);
+    const create: PipelineInstruction = {
+        programAddress: ADDRESS_LOOKUP_TABLE_PROGRAM_ADDRESS,
+        accounts: tableAccounts(true),
+        data: concat([u32(0), getU64Codec().encode(input.recentSlot), new Uint8Array([bump])]),
+    };
+    const extend: PipelineInstruction = {
+        programAddress: ADDRESS_LOOKUP_TABLE_PROGRAM_ADDRESS,
+        accounts: tableAccounts(true),
+        data: concat([
+            u32(2),
+            getU64Codec().encode(BigInt(input.addresses.length)),
+            ...input.addresses.map((a) => getAddressEncoder().encode(a)),
+        ]),
+    };
+    const freeze: PipelineInstruction = {
+        programAddress: ADDRESS_LOOKUP_TABLE_PROGRAM_ADDRESS,
+        accounts: tableAccounts(false),
+        data: u32(1),
+    };
+    const record = await recordLookupTable({ payer: input.payer, market: input.market, table, mints: input.mints });
+    const transactions =
+        input.addresses.length <= LOOKUP_TABLE_ONE_TRANSACTION_ADDRESSES
+            ? [[create, extend, freeze, record]]
+            : [
+                  [create, extend],
+                  [freeze, record],
+              ];
+    return { table, transactions };
+}
+
+function concat(parts: readonly ReadonlyUint8Array[]): Uint8Array {
+    const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    let offset = 0;
+    for (const part of parts) {
+        out.set(part, offset);
+        offset += part.length;
+    }
+    return out;
 }
 
 /**

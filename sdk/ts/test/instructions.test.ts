@@ -10,6 +10,7 @@ import {
     feeSideOf,
     initFeeAccount,
     initializeConfig,
+    createMarketLookupTable,
     lookupTableAddresses,
     marketViewFeeSide,
     marketViewFromMarket,
@@ -293,4 +294,22 @@ describe('strategy read instructions match pipeline-quoter', () => {
         const bad = { ...trade(fixture.inputs.trade), inputIndex: 3 };
         await expect(buildQuoteInstruction(marketView(fixture.inputs.market), bad, [])).rejects.toThrow(RangeError);
     });
+});
+
+describe('createMarketLookupTable matches Rust', () => {
+    for (const [n, fixture] of fixtures.marketLookupTables.entries()) {
+        it(`#${n}`, async () => {
+            const { table, transactions } = await createMarketLookupTable({
+                payer: address(fixture.payer),
+                market: address(fixture.market),
+                mints: fixture.mints.map(address),
+                addresses: fixture.addresses.map(address),
+                recentSlot: BigInt(fixture.recentSlot),
+            });
+            expect(table).toBe(fixture.table);
+            expect(transactions.map((t) => t.map(instructionJson))).toEqual(
+                fixture.transactions.map((t) => t.map(expected)),
+            );
+        });
+    }
 });

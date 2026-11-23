@@ -34,7 +34,7 @@ Going over a limit returns `429` with a `retry-after` header.
 | `GET /v1/flags` | Every trust flag with its meaning (see [Trust facts and flags](#trust-facts-and-flags)) |
 | `GET /v1/strategies?exclude=&require=` | Registered strategies: program ID, metadata URL, fetched metadata and its status, listing fee paid, registration time, market count, upgrade authority (`upgradeable: false` means frozen), last deploy slot, program facts, code hash, verified-build record and `flags`. `exclude` and `require` filter on flags as for markets |
 | `GET /v1/strategies/{program}` | One strategy |
-| `GET /v1/markets?mint=&strategy=&sort=&limit=&offset=&exclude=&require=` | Markets, each with its strategy, mints, vaults, vault balances, `flags` and `checks` (see [Hosted checks](#hosted-checks)). Every mint lists its decimals, token program, mint and freeze authorities, supply, Token-2022 extensions and flags. Each market also has 24-hour stats: trade count, volume per input mint and last trade time. `sort` is `trades_24h` (default) or `newest`. `limit` is at most 500. `exclude` and `require` are comma-separated flags: only markets with none of the `exclude` flags and all of the `require` flags are listed. Unknown flags are refused with 400, listing the valid ones |
+| `GET /v1/markets?mint=&strategy=&sort=&limit=&offset=&exclude=&require=` | Markets, each with its strategy, mints, vaults, vault balances, `flags`, `checks` (see [Hosted checks](#hosted-checks)) and `graduation` (see [Graduation](#graduation)). Every mint lists its decimals, token program, mint and freeze authorities, supply, Token-2022 extensions and flags. Each market also has 24-hour stats: trade count, volume per input mint and last trade time. `sort` is `trades_24h` (default) or `newest`. `limit` is at most 500. `exclude` and `require` are comma-separated flags: only markets with none of the `exclude` flags and all of the `require` flags are listed. Unknown flags are refused with 400, listing the valid ones |
 | `GET /v1/markets/{market}` | One market, with its strategy, fee authority and fee accounts |
 | `GET /v1/markets/{market}/checks` | The market's hosted checks status and its latest full `pipeline-check` report (see [Hosted checks](#hosted-checks)) |
 | `GET /v1/markets/{market}/trades?before_slot=&limit=` | Swaps, newest first (`limit` at most 1000). To page back, pass the oldest `slot` you have as `before_slot` |
@@ -78,6 +78,22 @@ The API runs [`pipeline-check`](https://github.com/MetalLegBob/pipeline/tree/mai
 - **`GET /v1/markets/{market}/checks`** returns `checks`, the full latest report (`report`, in the [`pipeline-check-report/1`](https://github.com/MetalLegBob/pipeline/tree/main/crates/pipeline-check#report-json-pipeline-check-report1) layout) and `report_current` (whether the report is for the strategy's current code; a report for older code is still returned, for reference).
 
 For example, `/v1/markets?require=checks-passed` lists only markets whose current code passed, and `/v1/markets?exclude=checks-failed` hides markets whose current code failed.
+
+### Graduation
+
+Some strategies are launchpads: their markets trade until they raise a threshold, then move their liquidity into a market of another strategy. For launchpad strategies whose markets graduate into another AMM, each market on `/v1/markets` and `/v1/markets/{market}` has a `graduation` object, decoded from its market-state account; other markets have `graduation: null`. Fields:
+
+- `status`: `awaiting_funds`, `trading`, `complete` (the threshold is reached and anyone may graduate it) or `graduated`.
+- `target_program` and `target_name`: the strategy it graduates into, and that strategy's metadata `name` when its metadata is valid (otherwise `null`).
+- `fallback_program`, `fallback_name` and `fallback_is_default`: the strategy it may graduate into instead if the target fails, and whether the creator left it at the launchpad's default.
+- `completed_at` and `fallback_available_at`: when the threshold was reached, and when graduating into the fallback becomes allowed; `null` before completion.
+- `price_tolerance_bps`, `price_check_on_target` and `price_check_on_fallback`: how far the new market's mid price may be from the launch's final price. 10000 turns the check off. It never applies to the default fallback.
+- `reserve_tokens`: tokens handed to the target on top of the pool's, for a reserve it keeps (never to the fallback).
+- `lp_policy` (`locked`, `burn` or `creator`) and `lp_recipient`: where the new market's LP tokens go.
+- `threshold` and `raised`: quote to raise, and raised so far, in the quote mint's smallest units.
+- `graduated_at`, `graduated_program` (the target or the fallback) and `graduated_market` (the market it graduated into); `null` until graduated.
+
+`graduation` updates as the market-state account changes. Status changes are not on the live stream.
 
 ### Quotes
 

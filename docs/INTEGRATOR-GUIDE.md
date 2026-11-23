@@ -50,6 +50,8 @@ Use `pipeline_client::swap` (or the SDK) with:
 - the trader, market state, the trader's input and output token accounts, the market's input vault (`Market::vaults`), both mints and their token programs;
 - **strategy accounts**: the result of account resolution, then any transfer-hook accounts for the **output** mint;
 - **input hook accounts**: the transfer-hook accounts for the **input** mint, if it has a hook;
+
+  In Rust, `pipeline_client::hooks` resolves both: `swap_transfers` lists the transfers a swap makes of each mint, and `resolve_all` reads the mint's hook's extra-account-meta list and resolves every entry for them (fixed addresses, PDAs seeded by the transfer's accounts, their data or the amount, and addresses read from data), asking you for each account it needs to read. Put the input mint's result in the input hook accounts and add the output mint's to the strategy accounts with `hooks::merge`. A swap that calls hooks needs more than the default compute (`wallet::set_compute_unit_limit`), and with hooks on both mints may need the market's lookup table to fit.
 - optionally, your integrator fee account (a token account in the input mint) and fee rate.
 
 Arguments:
@@ -67,7 +69,7 @@ Arguments:
 
 **Multi-hop:** use the router's `route` instruction (up to 4 hops, exact-in). Each hop pays 0.25%, spends exactly what the previous hop left the trader, and never touches intermediate tokens the trader already held. Put the trader's end-to-end minimum on the route. Routes with three or four hops usually need the markets' lookup tables to fit in a transaction. Chaining single `swap` instructions still works: give every hop its own minimum and size each later hop from the previous hop's minimum with `amount_for_budget`.
 
-**Lookup tables:** a market may have one address lookup table recorded in the router (`["lookup", market]`), holding every account the router needs for that market. Use it to build v0 transactions. Anyone can create and record one; the SDK does it by default when it creates a market.
+**Lookup tables:** a market may have one address lookup table recorded in the router (`["lookup", market]`), holding every account the router needs for that market. Use it to build v0 transactions. Anyone can create and record one: `create_market_lookup_table` (Rust) and `createMarketLookupTable` (SDK) return the transactions that create the table, fill it, freeze it and record it, so send them after creating a market. The hosted API switches to a v0 transaction with the recorded table when a swap doesn't fit in a legacy one.
 
 **Before the first swap that pays Pipeline's fee in a mint,** that market's fee account for the mint must exist. Add `init_fee_account` (idempotent) to the transaction if needed.
 

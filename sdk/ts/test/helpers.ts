@@ -48,6 +48,15 @@ export type Fixtures = {
     events: FixtureEncoding[];
     marketInfos: { info: Record<string, Json>; feeMint: number | null; hex: string }[];
     lookupTables: { marketAddress: string; market: string; tokenPrograms: string[]; addresses: string[] }[];
+    marketLookupTables: {
+        payer: string;
+        market: string;
+        mints: string[];
+        addresses: string[];
+        recentSlot: string;
+        table: string;
+        transactions: FixtureInstruction[][];
+    }[];
 };
 
 export const fixtures: Fixtures = JSON.parse(readFileSync(new URL('./fixtures.json', import.meta.url), 'utf8'));

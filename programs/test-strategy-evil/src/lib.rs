@@ -313,6 +313,10 @@ pub const SEED_TAKES_ESCROWS: u8 = 2;
 /// state's associated token accounts as its vaults, but it never checks that the seeder
 /// named those: an otherwise honest pool that trusts its caller's accounts.
 pub const SEED_PRICED: u8 = 3;
+/// [`SEED_PRICED`], but the market lists its mints quote first: its market info declares
+/// mint B then mint A, and its quotes and resolved accounts use those indices. Seeders
+/// must not assume a target lists its mints in seeding order.
+pub const SEED_PRICED_QUOTE_FIRST: u8 = 4;
 
 /// The associated token account program, for a [`SEED_PRICED`] market's vaults.
 const ASSOCIATED_TOKEN_PROGRAM: Pubkey =
@@ -320,7 +324,7 @@ const ASSOCIATED_TOKEN_PROGRAM: Pubkey =
 
 /// The marker after the plain state that makes a market state [`Priced`].
 const PRICED_MARKER: [u8; 8] = *b"pricedcp";
-const PRICED_LEN: usize = STATE_LEN + 8 + 8 + 8 + 2 + 2;
+const PRICED_LEN: usize = STATE_LEN + 8 + 8 + 8 + 2 + 2 + 1;
 
 /// A [`SEED_PRICED`] market's reserves and knobs, stored after the plain state.
 struct Priced {
@@ -328,6 +332,8 @@ struct Priced {
     reserve_b: u64,
     price_bps: u16,
     sell_bps: u16,
+    /// The market's index of mint A: 0, or 1 when it lists its mints quote first.
+    index_a: u8,
 }
 
 impl Priced {
@@ -344,20 +350,21 @@ impl Priced {
             reserve_b: u64_at(base + 8),
             price_bps: u16_at(base + 16),
             sell_bps: u16_at(base + 18),
+            index_a: data[base + 20],
         })
     }
 
     fn quote(&self, request: &psi::TradeRequest) -> psi::QuoteResult {
         let bps = |amount: u64, bps: u16| (amount as u128 * bps as u128 / 10_000) as u64;
         let reserve_b = bps(self.reserve_b, self.price_bps);
-        let (reserve_in, reserve_out) = if request.input_index == 0 {
+        let (reserve_in, reserve_out) = if request.input_index == self.index_a {
             (self.reserve_a, reserve_b)
         } else {
             (reserve_b, self.reserve_a)
         };
         let amount = request.amount as u128;
         let out = (reserve_out as u128 * amount / (reserve_in as u128 + amount)) as u64;
-        let out = if request.output_index == 1 {
+        let out = if request.output_index != self.index_a {
             bps(out, self.sell_bps)
         } else {
             out
@@ -389,7 +396,8 @@ fn seed_liquidity(
             .get(1 + 2 * i..3 + 2 * i)
             .map_or(10_000, |b| u16::from_le_bytes([b[0], b[1]]))
     };
-    let priced = behaviour == SEED_PRICED;
+    let quote_first = behaviour == SEED_PRICED_QUOTE_FIRST;
+    let priced = behaviour == SEED_PRICED || quote_first;
     let state_len = if priced { PRICED_LEN } else { STATE_LEN };
     // Create a market state at `["evil-seeded", seeder]`, paid by the rent payer.
     let (expected, bump) =
@@ -456,8 +464,9 @@ fn seed_liquidity(
             } else {
                 *accounts[destinations + i].key
             };
-            data[i * 32..(i + 1) * 32].copy_from_slice(mint.as_ref());
-            data[(2 + i) * 32..(3 + i) * 32].copy_from_slice(vault.as_ref());
+            let slot = if quote_first { 1 - i } else { i };
+            data[slot * 32..(slot + 1) * 32].copy_from_slice(mint.as_ref());
+            data[(2 + slot) * 32..(3 + slot) * 32].copy_from_slice(vault.as_ref());
         }
     }
     if priced {
@@ -474,6 +483,7 @@ fn seed_liquidity(
         data[base + 8..base + 16].copy_from_slice(&taken[1].to_le_bytes());
         data[base + 16..base + 18].copy_from_slice(&knob(1).to_le_bytes());
         data[base + 18..base + 20].copy_from_slice(&knob(2).to_le_bytes());
+        data[base + 20] = quote_first as u8;
     }
     if behaviour == SEED_ASSIGNS_PAYER {
         let mut data = 1u32.to_le_bytes().to_vec();

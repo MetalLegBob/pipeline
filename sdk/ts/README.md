@@ -139,6 +139,27 @@ A market can record an address lookup table so wallets and aggregators can find 
 hold; `recordLookupTable({ payer, market, table, mints })` records it (PDA
 `lookupTableRecordPda(market)`, account `decodeMarketLookupTable`).
 
+`createMarketLookupTable({ payer, market, mints, addresses, recentSlot })` does all of it:
+it returns the table's address and the transactions (each a list of instructions that fits
+in one legacy transaction) that create the table, fill it with `addresses`, freeze it and
+record it. Send them after creating a market. `recentSlot` must be a recent slot (for
+example `getSlot({ commitment: 'finalized' })`); it picks the table's address.
+
+```ts
+const addresses = await lookupTableAddresses(marketAddress, market, tokenPrograms);
+const recentSlot = await rpc.getSlot({ commitment: 'finalized' }).send();
+const { table, transactions } = await createMarketLookupTable({
+    payer: wallet.address,
+    market: marketAddress,
+    mints: marketMints(market),
+    addresses,
+    recentSlot,
+});
+for (const instructions of transactions) {
+    await sendTransaction(instructions); // your own send-and-confirm
+}
+```
+
 `migrateMarket({ payer, market })` moves a market recorded before fee mints existed to the
 current layout; until then it can't be traded or decoded by `decodeMarket`.
 

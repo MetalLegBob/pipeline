@@ -12,6 +12,7 @@ pub use solana_instruction::{AccountMeta, Instruction};
 pub use solana_pubkey::{pubkey, Pubkey};
 
 pub mod facts;
+pub mod hooks;
 pub mod metadata;
 pub mod wallet;
 
@@ -590,6 +591,83 @@ pub fn record_lookup_table(
         &instruction_discriminator("record_lookup_table"),
         accounts,
     )
+}
+
+/// The Address Lookup Table program.
+pub const ADDRESS_LOOKUP_TABLE_PROGRAM_ID: Pubkey =
+    pubkey!("AddressLookupTab1e1111111111111111111111111");
+
+/// The most table addresses [`create_market_lookup_table`] puts in one transaction with
+/// the freeze and record; a longer table is extended in a transaction of its own first.
+pub const LOOKUP_TABLE_ONE_TRANSACTION_ADDRESSES: usize = 16;
+
+/// A new lookup table's address, derived from its authority and the recent slot it is
+/// created at, and the bump.
+pub fn lookup_table_address(authority: &Pubkey, recent_slot: u64) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[authority.as_ref(), &recent_slot.to_le_bytes()],
+        &ADDRESS_LOOKUP_TABLE_PROGRAM_ID,
+    )
+}
+
+/// A market's lookup table, created, filled, frozen and recorded: the table's address and
+/// the transactions to send in order, each a list of instructions that fits in one legacy
+/// transaction. `addresses` is what the table holds (at least [`lookup_table_addresses`];
+/// a strategy's static accounts may follow), `mints` the market's mints in order, and
+/// `recent_slot` a slot from the last 150 or so, which picks the table's address (so one payer
+/// can create one table per slot). `payer`
+/// pays the rent and is the table's authority until it is frozen.
+pub fn create_market_lookup_table(
+    payer: &Pubkey,
+    market: &Pubkey,
+    mints: &[Pubkey],
+    addresses: &[Pubkey],
+    recent_slot: u64,
+) -> (Pubkey, Vec<Vec<Instruction>>) {
+    let (table, bump) = lookup_table_address(payer, recent_slot);
+    let mut create_data = 0u32.to_le_bytes().to_vec();
+    create_data.extend_from_slice(&recent_slot.to_le_bytes());
+    create_data.push(bump);
+    let create = Instruction::new_with_bytes(
+        ADDRESS_LOOKUP_TABLE_PROGRAM_ID,
+        &create_data,
+        vec![
+            AccountMeta::new(table, false),
+            AccountMeta::new_readonly(*payer, true),
+            AccountMeta::new(*payer, true),
+            AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
+        ],
+    );
+    let mut extend_data = 2u32.to_le_bytes().to_vec();
+    extend_data.extend_from_slice(&(addresses.len() as u64).to_le_bytes());
+    for address in addresses {
+        extend_data.extend_from_slice(address.as_ref());
+    }
+    let extend = Instruction::new_with_bytes(
+        ADDRESS_LOOKUP_TABLE_PROGRAM_ID,
+        &extend_data,
+        vec![
+            AccountMeta::new(table, false),
+            AccountMeta::new_readonly(*payer, true),
+            AccountMeta::new(*payer, true),
+            AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
+        ],
+    );
+    let freeze = Instruction::new_with_bytes(
+        ADDRESS_LOOKUP_TABLE_PROGRAM_ID,
+        &1u32.to_le_bytes(),
+        vec![
+            AccountMeta::new(table, false),
+            AccountMeta::new_readonly(*payer, true),
+        ],
+    );
+    let record = record_lookup_table(payer, market, &table, mints);
+    let transactions = if addresses.len() <= LOOKUP_TABLE_ONE_TRANSACTION_ADDRESSES {
+        vec![vec![create, extend, freeze, record]]
+    } else {
+        vec![vec![create, extend], vec![freeze, record]]
+    };
+    (table, transactions)
 }
 
 /// The most hops one `route` instruction runs.
