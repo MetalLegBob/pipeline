@@ -5,7 +5,7 @@ addresses and PDAs, instruction builders, account decoders, and trust facts.
 
 ```toml
 [dependencies]
-pipeline-client = "0.3"
+pipeline-client = "0.4"
 ```
 
 - `pda`, `decode_strategy`, `decode_market`, `decode_config`: find and read every

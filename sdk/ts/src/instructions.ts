@@ -566,18 +566,6 @@ export async function lookupTableAddresses(
 }
 
 /**
- * `migrate_market`: moves a market recorded before fee mints existed to the current
- * layout. Anyone can call it; `payer` covers the extra rent. A market in the old layout
- * can't be traded (or decoded by {@link decodeMarket}) until it is migrated.
- */
-export async function migrateMarket(input: { payer: Address; market: Address }): Promise<PipelineInstruction> {
-    return routerInstruction(
-        [writableSigner(input.payer), writable(input.market), readonly(SYSTEM_PROGRAM_ADDRESS)],
-        discriminatorOnly(DISCRIMINATORS.migrateMarket),
-    );
-}
-
-/**
  * `sweep_fees`, moving a market's fees in `mint` to the treasury owner's associated token
  * account (which must already exist).
  */

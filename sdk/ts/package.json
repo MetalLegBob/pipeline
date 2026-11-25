@@ -1,6 +1,6 @@
 {
     "name": "@pipeline-sol/sdk",
-    "version": "0.3.1",
+    "version": "0.4.0",
     "description": "Instruction builders, account and event decoders, fee maths and RPC quoting for the Pipeline router",
     "license": "Apache-2.0",
     "repository": {

@@ -14,7 +14,6 @@ import {
     lookupTableAddresses,
     marketViewFeeSide,
     marketViewFromMarket,
-    migrateMarket,
     NATIVE_MINT_ADDRESS,
     recordLookupTable,
     registerExistingMarket,
@@ -161,8 +160,6 @@ function build(fixture: FixtureInstruction): Promise<PipelineInstruction> {
                 table: address(i.table),
                 mints: i.mints.map(address),
             });
-        case 'migrateMarket':
-            return migrateMarket({ payer: address(i.payer), market: address(i.market) });
         case 'sweepFees':
             return sweepFees({
                 market: address(i.market),
@@ -178,7 +175,7 @@ function build(fixture: FixtureInstruction): Promise<PipelineInstruction> {
 
 describe('router instruction builders match Rust', () => {
     it('cover every builder', () => {
-        expect(new Set(fixtures.instructions.map((f) => f.name)).size).toBe(12);
+        expect(new Set(fixtures.instructions.map((f) => f.name)).size).toBe(11);
     });
 
     for (const [n, fixture] of fixtures.instructions.entries()) {

@@ -91,7 +91,6 @@ export const ROUTER_INSTRUCTION_DISCRIMINATORS = {
     initFeeAccount: new Uint8Array([85, 169, 185, 211, 103, 153, 111, 2]),
     swap: new Uint8Array([248, 198, 158, 145, 225, 117, 135, 200]),
     sweepFees: new Uint8Array([175, 225, 98, 71, 118, 66, 34, 148]),
-    migrateMarket: new Uint8Array([201, 113, 181, 120, 217, 60, 109, 203]),
     route: new Uint8Array([229, 23, 203, 151, 122, 227, 173, 42]),
     recordLookupTable: new Uint8Array([242, 18, 232, 242, 63, 143, 16, 90]),
 } as const;

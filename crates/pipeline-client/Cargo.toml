@@ -1,6 +1,6 @@
 [package]
 name = "pipeline-client"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Addresses, instruction builders and account decoders for the Pipeline router"

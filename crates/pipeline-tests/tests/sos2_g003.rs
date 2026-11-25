@@ -14,11 +14,17 @@
 //!
 //! | Shape | Largest working swap | What binds next |
 //! |---|---|---|
-//! | Padding in the hook tail, new accounts each | 29 remaining (1 strategy + 28 hook) | heap |
-//! | The same with an integrator fee | 28 remaining (1 + 27) | heap |
-//! | Padding in the strategy accounts, one account repeated | 70 remaining (68 + 2) | heap |
-//! | Padding in the strategy accounts, new accounts each | 47 remaining | 64-account lock limit |
-//! | New accounts in a legacy transaction (no lookup table) | 14 remaining | 1,232-byte size limit |
+//! | Padding in the hook tail, new accounts each | 48 remaining | 64-account lock limit |
+//! | The same with an integrator fee | about 43–46 remaining | default 200,000 compute units |
+//! | Padding in the hook tail, one account repeated | 95 remaining | heap |
+//! | The same with an integrator fee | 72 remaining | heap |
+//! | Padding in the strategy accounts, one account repeated | 124 remaining | heap |
+//! | Padding in the strategy accounts, new accounts each | 48 remaining | 64-account lock limit |
+//! | New accounts in a legacy transaction (no lookup table) | 15 remaining | 1,232-byte size limit |
+//!
+//! The router sizes each cross-program call's account lists once, so with distinct
+//! accounts the transaction's own limits bind before the heap; only an account repeated
+//! many times reaches it.
 //!
 //! "New accounts each" past the legacy size limit is sent without the harness's size
 //! check, standing in for a v0 transaction with an address lookup table (which loads
@@ -56,9 +62,9 @@ const MAX_PADDING: usize = 250;
 
 /// Heap ceilings measured on the current router. A change that lowers one fails here,
 /// so the figure published for integrators stays true.
-const HOOK_TAIL_CEILING: usize = 29;
-const HOOK_TAIL_WITH_INTEGRATOR_CEILING: usize = 28;
-const STRATEGY_ACCOUNTS_CEILING: usize = 70;
+const HOOK_TAIL_CEILING: usize = 95;
+const HOOK_TAIL_WITH_INTEGRATOR_CEILING: usize = 72;
+const STRATEGY_ACCOUNTS_CEILING: usize = 124;
 
 fn validation(mint: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(&[b"extra-account-metas", mint.as_ref()], &HOOK_PROGRAM_ID).0
@@ -270,29 +276,66 @@ fn assert_out_of_memory(failure: &Failure) {
     );
 }
 
-/// The heap binds first for a hook-heavy swap: 29 remaining accounts work (28 with an
-/// integrator fee, which copies the hook tail once more), and one more fails with an
-/// out-of-memory abort after the strategy has paid out, leaving every balance as it
-/// was. New accounts are used, as a lookup table would load them.
+/// Hook accounts are copied into each input-side transfer (the trade, Pipeline's fee and
+/// any integrator fee). With new accounts, as a lookup table would load them, the
+/// transaction's 64-account lock limit (or, with an integrator fee, the default compute
+/// limit) binds before the router's heap. With one account
+/// repeated, the heap binds: past the ceiling the router aborts out of memory after the
+/// strategy has paid out, and every balance is left as it was.
 #[test]
-fn g003_hook_tail_ceiling_is_the_heap_and_beyond_it_nothing_moves() {
-    for (integrator_fee, documented) in [
-        (false, HOOK_TAIL_CEILING),
-        (true, HOOK_TAIL_WITH_INTEGRATOR_CEILING),
-    ] {
+fn g003_hook_tail_ceiling_is_the_lock_limit_then_the_heap_and_beyond_it_nothing_moves() {
+    for integrator_fee in [false, true] {
         let mut w = world();
-        let shape = Shape {
+        let new_accounts = Shape {
             padding: Padding::HookTail,
             filler: Filler::New,
             integrator_fee,
             legacy_size: false,
         };
-        let ceiling = step_up(&mut w, shape);
+        let ceiling = step_up(&mut w, new_accounts);
         println!(
-            "G003 hook tail (integrator fee: {integrator_fee}): {} remaining accounts \
-             (1 strategy + {} hook) fit the 32 KiB heap; one more runs out of memory",
-            ceiling.largest_working,
-            ceiling.largest_working - 1
+            "G003 hook tail, new accounts (integrator fee: {integrator_fee}): {} remaining \
+             accounts; one more exceeds the account lock or compute limit",
+            ceiling.largest_working
+        );
+        // Not the heap: the account lock limit, or with an integrator fee (a third hooked
+        // transfer) the default 200,000 compute units, which a compute-budget request
+        // raises.
+        let Failure::Failed(failed) = &ceiling.failure else {
+            panic!("expected the lock limit or the compute limit");
+        };
+        let logs = failed.meta.logs.join("\n");
+        assert!(!logs.contains("out of memory"), "ran out of heap:\n{logs}");
+        assert!(
+            failed.err == TransactionError::TooManyAccountLocks
+                || logs.contains("exceeded CUs meter"),
+            "expected the lock or compute limit: {:?}\n{logs}",
+            failed.err
+        );
+
+        let (repeated, documented) = if integrator_fee {
+            (
+                Shape {
+                    filler: Filler::Repeated,
+                    ..new_accounts
+                },
+                HOOK_TAIL_WITH_INTEGRATOR_CEILING,
+            )
+        } else {
+            (
+                Shape {
+                    filler: Filler::Repeated,
+                    ..new_accounts
+                },
+                HOOK_TAIL_CEILING,
+            )
+        };
+        let mut w = world();
+        let ceiling = step_up(&mut w, repeated);
+        println!(
+            "G003 hook tail, one account repeated (integrator fee: {integrator_fee}): {} \
+             remaining accounts fit the 32 KiB heap; one more runs out of memory",
+            ceiling.largest_working
         );
         assert_out_of_memory(&ceiling.failure);
         if let Failure::Failed(failed) = &ceiling.failure {

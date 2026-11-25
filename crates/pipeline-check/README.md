@@ -65,7 +65,7 @@ than the cluster's.
 Example (devnet, 2026-11-09):
 
 ```
-Pipeline check 0.3.0
+Pipeline check 0.4.0
   market    2u5ep2aLFzp2SACkG5ZLUrAkEY7vCzm2vL56Q6YiQxb9
   strategy  9mAV3pMKXx67poy98jHizWM6TEeKJ5g48ZeD83xFa1UF  sha256 062e4c0bf1c8fa0151f2d49599ae577b3fc923affb466f39a05a5fb23e8b1cfa
   router    PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34  sha256 2558d884788d5bb8df3113836dc937858249ed4f4823852b251208f5eb32237e

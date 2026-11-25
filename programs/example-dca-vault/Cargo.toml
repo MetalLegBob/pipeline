@@ -1,0 +1,25 @@
+[package]
+name = "example-dca-vault"
+version = "0.1.0"
+publish = false
+edition = "2021"
+license = "Apache-2.0"
+description = "Example: a program-owned wallet that buys on a schedule through the Pipeline router, using pipeline-cpi"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "example_dca_vault"
+
+[features]
+default = []
+no-entrypoint = []
+# Checked by `solana_program::entrypoint!`.
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+pipeline-cpi = { path = "../pipeline-cpi" }
+solana-program = "3.0.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

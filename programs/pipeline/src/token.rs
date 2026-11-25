@@ -138,13 +138,18 @@ pub fn transfer_checked<'info>(
     data.extend_from_slice(&amount.to_le_bytes());
     data.push(decimals);
 
-    let mut metas = vec![
+    // The program's heap is a bump allocator that never frees, so every list is sized
+    // once: a growing Vec leaves each outgrown buffer behind, and a route makes several
+    // of these calls per hop.
+    let mut metas = Vec::with_capacity(4 + hook_accounts.len());
+    metas.extend([
         AccountMeta::new(from.key(), false),
         AccountMeta::new_readonly(mint.key(), false),
         AccountMeta::new(to.key(), false),
         AccountMeta::new_readonly(authority.key(), true),
-    ];
-    let mut infos = vec![from.clone(), mint.clone(), to.clone(), authority.clone()];
+    ]);
+    let mut infos = Vec::with_capacity(5 + hook_accounts.len());
+    infos.extend([from.clone(), mint.clone(), to.clone(), authority.clone()]);
     for account in hook_accounts {
         metas.push(if account.is_writable {
             AccountMeta::new(account.key(), false)

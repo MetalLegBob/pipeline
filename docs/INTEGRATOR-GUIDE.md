@@ -9,9 +9,10 @@ Libraries:
 | `pipeline-client` | Rust | Addresses, instruction builders, account decoders |
 | `pipeline-events` | Rust | Event decoding |
 | `pipeline-quoter` | Rust | Embedded-VM quoting |
+| `pipeline-cpi` | Rust (on-chain) | Swaps and routes from your own program ([`CPI-GUIDE.md`](CPI-GUIDE.md)) |
 | `sdk/ts` | TypeScript | The same for TypeScript |
 
-All are Apache-2.0, on crates.io (`cargo add pipeline-client`) and npm (`npm install @pipeline-sol/sdk`). Router program: `PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34`.
+All are Apache-2.0, on crates.io (`cargo add pipeline-client`, and `cargo add pipeline-cpi` for on-chain programs) and npm (`npm install @pipeline-sol/sdk`). Router program: `PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34`.
 
 ## 1. Discover strategies and markets
 
@@ -138,6 +139,6 @@ program and pass `hashExecutable: false` when you only need the upgrade status.
 - **Permanent delegates.** A mint's permanent delegate can move Pipeline's collected fees in that mint, so they should be swept often. Traders are protected: the router never lets a swap take more than `amount_in` plus the two fees, or lower the trader's output balance.
 - **Creating markets.** A strategy's setup never receives the creator's signature. It spends from a router payer funded with `max_creator_lamports` (unused SOL is returned), so set that to the rent you expect. Any other account that signs and is empty, unfunded and system-owned keeps its signature for the strategy (so it can create it); a wallet with no SOL, including one emptied earlier in the same transaction, or a program's PDA signing through a CPI, looks the same. Sign `create_market` only with new keypairs.
 - **Exact-out with transfer-fee input tokens.** Unused input refunded by the strategy pays the token's transfer fee again, and Pipeline's fee is measured on the trader's real loss. Keep `amount_in` close to the quote for such tokens.
-- **Call depth.** Calls nest at most 4 levels. A trader using a smart wallet, combined with a hooked token and a strategy that calls another protocol, can exceed it.
+- **Call depth.** Calls nest at most 4 levels. A trader using a smart wallet, combined with a hooked token and a strategy that calls another protocol, can exceed it. Programs that call the router: see [`CPI-GUIDE.md`](CPI-GUIDE.md) section 6.
 - **Compute.** A typical swap costs 40–55k compute units in total. Strategies vary.
-- **Heap with many hook accounts.** With the default 32 KiB heap, a swap handles about 28 transfer-hook accounts; beyond that the router runs out of memory and the whole transaction reverts (nothing moves). Add a ComputeBudget `RequestHeapFrame` instruction (up to 256 KiB) for swaps with very long hook account lists. Plain strategy accounts hit Solana's 64-account limit first.
+- **Account limits.** A transaction can lock at most 64 accounts, and that binds first: with distinct accounts the router's 32 KiB heap holds a swap's 48 remaining accounts (strategy plus hook accounts) and a four-hop route's 6 extra strategy accounts per hop. Only an account repeated many times (about 95 times in a swap's hook accounts) exhausts the heap; the transaction then reverts with nothing moved. The router uses the default allocator, so requesting a bigger heap frame doesn't help. Swaps with several hooked transfers need a compute-budget request above the default 200,000 units.

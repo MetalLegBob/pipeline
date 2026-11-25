@@ -87,7 +87,6 @@ fn h029_no_router_instruction_discriminator_collides_with_the_event_tag() {
         "update_metadata",
         "create_market",
         "register_existing_market",
-        "migrate_market",
         "init_fee_account",
         "swap",
         "route",

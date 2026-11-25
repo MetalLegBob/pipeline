@@ -83,7 +83,6 @@ See [`STRATEGY-GUIDE.md`](STRATEGY-GUIDE.md) section 9.
 | `register_existing_market` | Anyone | Records a market the strategy created by itself |
 | `route(amount_in, min_amount_out, integrator_fee_bps, hops)` | The trader | Up to 4 exact-in hops in one instruction; each hop is checked and charged like `swap` and spends what the previous one left the trader, through the trader's own token accounts. One minimum, on the last hop's output; an integrator fee once, on the first hop's input |
 | `record_lookup_table` | Anyone | Records a market's frozen address lookup table in `["lookup", market]`, after checking it holds every account the router needs for the market. The first valid table stays |
-| `migrate_market` | Anyone | Moves a market recorded before fee mints existed to the current layout |
 | `init_fee_account` | Anyone | Creates a market's fee account for one mint, idempotently |
 | `swap(...)` | The trader | Below |
 | `sweep_fees` | Anyone | Moves a market's collected fees in one mint to the treasury's token account |
@@ -118,7 +117,9 @@ registration. `swap`, `create_market` and `register_existing_market` don't read 
    taken from the output, when the output is the market's fee mint (the trader keeps the
    rest, and the minimum applies to that); otherwise `ceil(net_sent × 0.25%)` from the
    input. An optional integrator fee, at a rate the trader signs, is always taken from the
-   input.
+   input. The fee transfers run the mints' transfer hooks after step 5, so the router then
+   re-reads the trader's output and refuses the swap if it fell below what was measured,
+   less any fee taken from it.
 7. **Publish** a `SwapEvent` (via `emit_cpi!`, so log truncation can't lose it) and return
    `SwapResult { net_sent, received, pipeline_fee, integrator_fee, fee_mint }`.
 

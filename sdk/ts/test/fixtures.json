@@ -94,7 +94,6 @@
       "create_market": "67e261ebc8bcfbfe",
       "init_fee_account": "55a9b9d367996f02",
       "initialize_config": "d07f1501c2bec446",
-      "migrate_market": "c971b578d93c6dcb",
       "record_lookup_table": "f212e8f23f8f105a",
       "register_existing_market": "65a037a696967b36",
       "register_strategy": "790c404b630fb18f",
@@ -200,10 +199,11 @@
       }
     },
     {
-      "hex": "40420f00000000000000000000000000ffffffffffffffff",
+      "hex": "40420f00000000000000000000000000ffffffffffffffffc409000000000000",
       "type": "RouteResult",
       "value": {
         "amountOut": "0",
+        "inputPipelineFee": "2500",
         "integratorFee": "18446744073709551615",
         "netSent": "1000000"
       }
@@ -3031,32 +3031,6 @@
         "table": "3NAM1YJMhSPvtAkmGTRABe1hYZN3aE2hZHKy3JZy9fHk"
       },
       "name": "recordLookupTable",
-      "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
-    },
-    {
-      "accounts": [
-        {
-          "address": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
-          "isSigner": true,
-          "isWritable": true
-        },
-        {
-          "address": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
-          "isSigner": false,
-          "isWritable": true
-        },
-        {
-          "address": "11111111111111111111111111111111",
-          "isSigner": false,
-          "isWritable": false
-        }
-      ],
-      "data": "c971b578d93c6dcb",
-      "inputs": {
-        "market": "6gmoXp6ySebjvUKc58pWWJDtNZvSFFhfWniqpwcabbej",
-        "payer": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi"
-      },
-      "name": "migrateMarket",
       "programAddress": "PiPEf4fFBpYXCtgfiWgVWzZNXnq2wZ7bnXidJCTwf34"
     },
     {

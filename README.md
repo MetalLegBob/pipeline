@@ -40,6 +40,7 @@ devnet in a few minutes.
 | Try it on devnet | [`docs/DEVNET.md`](docs/DEVNET.md) |
 | Build your own AMM or market | [`docs/QUICKSTART.md`](docs/QUICKSTART.md), then [`docs/STRATEGY-GUIDE.md`](docs/STRATEGY-GUIDE.md) |
 | Build a desk, terminal, bot or chart on top | [`docs/INTEGRATOR-GUIDE.md`](docs/INTEGRATOR-GUIDE.md) |
+| Swap through Pipeline from your own program (a vault, treasury or keeper) | [`docs/CPI-GUIDE.md`](docs/CPI-GUIDE.md) |
 | Use the hosted API (markets, trust flags, quotes, swap transactions, trades, candles, live stream) | [`docs/API.md`](docs/API.md) |
 | Check a strategy's market (yours or anyone's) | [`crates/pipeline-check`](crates/pipeline-check/README.md) |
 | Show and filter trust facts (upgradeable, verified build, token powers) | [`docs/INTEGRATOR-GUIDE.md`](docs/INTEGRATOR-GUIDE.md) section 5, [`sdk/ts`](sdk/ts/README.md) |
@@ -55,6 +56,8 @@ devnet in a few minutes.
 | `programs/test-strategy-cp` | Example strategy: a constant-product pool, with optional extras such as `pipeline_seed_liquidity` | Apache-2.0 |
 | `programs/test-strategy-evil`, `test-strategy-script`, `test-hook`, `test-hook-refill` | Hostile strategies (one scriptable, driven by the router fuzzer) and transfer hooks used by the router's security tests | Apache-2.0 |
 | `programs/pipeline-strategy-interface` | The strategy interface: types, discriminators, account layouts, fee maths | Apache-2.0 |
+| `programs/pipeline-cpi` | Calling the router from an on-chain program: swaps, routes, results, call depth | Apache-2.0 |
+| `programs/example-dca-vault` | Example: a program-owned DCA vault that swaps through the router with `pipeline-cpi` | Apache-2.0 |
 | `crates/pipeline-client` | Rust addresses, instruction builders and account decoders | Apache-2.0 |
 | `crates/pipeline-events` | Event decoding for indexers | Apache-2.0 |
 | `crates/pipeline-quoter` | Quotes any strategy by running its real code in an embedded Solana VM | Apache-2.0 |

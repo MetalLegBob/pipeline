@@ -5,8 +5,6 @@
 //! - A trade whose output is the fee mint pays `ceil(received × 25 / 10,000)` out of what
 //!   arrived; the trader's minimum applies to what they keep. Other trades pay on the
 //!   input as before. The integrator fee always stays in the input.
-//! - Markets recorded before the fee mint existed move to the new layout with
-//!   `migrate_market`.
 
 #![allow(clippy::result_large_err)]
 
@@ -18,7 +16,6 @@ use common::*;
 use pipeline_client::{self as client, pda, AccountMeta, FeeSide, Instruction, Pubkey};
 use pipeline_strategy_interface::TradeMode;
 use router_batch::*;
-use solana_account::Account;
 use solana_keypair::Keypair;
 use solana_signer::Signer;
 
@@ -382,100 +379,6 @@ fn exact_out_into_sol_asks_for_the_amount_plus_the_fee() {
     let kept = env.token_balance(&t.sol) - sol_before;
     assert!(kept >= wanted, "kept {kept}, wanted {wanted}");
     assert_eq!(kept, gross - fee(gross));
-}
-
-// ----------------------------------------------------------------- migration
-
-/// Rewrites a market account in the layout before `fee_mint_index` existed: one byte
-/// shorter, holding the rent-exempt minimum for that length.
-fn make_v1(env: &mut Env, market: &Pubkey) -> Account {
-    let current = env.svm.get_account(market).unwrap();
-    let mut old = current.clone();
-    old.data.truncate(old.data.len() - 1);
-    old.lamports = env.svm.minimum_balance_for_rent_exemption(old.data.len());
-    env.svm.set_account(*market, old).unwrap();
-    current
-}
-
-#[test]
-fn migrate_market_restores_the_layout_with_the_default_fee_mint() {
-    let mut env = Env::new();
-    let token = env.create_mint(&TOKEN, 6, None, None);
-    let sol = sol_market(&mut env, token);
-    let a = env.create_mint(&TOKEN, 6, None, None);
-    let b = env.create_mint(&TOKEN, 6, None, None);
-    let plain = token_market(&mut env, a, b);
-    let t = trader(&mut env, &sol, 10_000_000_000, 0);
-    let payer = env.funded_keypair();
-
-    for (market, expected_index) in [(&sol, 1u8), (&plain, client::NO_FEE_MINT)] {
-        let current = make_v1(&mut env, &market.market);
-        if market.market == sol.market {
-            let ix = client::swap(&sell(&sol, &t), &exact_in(1_000_000, 0));
-            assert_fails_with(env.send(&[ix], &[&t.keypair]), "AccountDidNotDeserialize");
-        }
-
-        let before = env.lamports(&payer.pubkey());
-        env.send(
-            &[client::migrate_market(&payer.pubkey(), &market.market)],
-            &[&payer],
-        )
-        .expect("migrate");
-        let after = env.svm.get_account(&market.market).unwrap();
-        assert_eq!(after.data.len(), current.data.len());
-        let rent_difference = env.svm.minimum_balance_for_rent_exemption(after.data.len())
-            - env
-                .svm
-                .minimum_balance_for_rent_exemption(after.data.len() - 1);
-        assert_eq!(before - env.lamports(&payer.pubkey()), rent_difference);
-        assert_eq!(
-            after.lamports,
-            env.svm.minimum_balance_for_rent_exemption(after.data.len())
-        );
-        let record = client::decode_market(&after.data).unwrap();
-        assert_eq!(record.fee_mint_index, expected_index);
-        // Everything else is unchanged.
-        assert_eq!(after.data, current.data);
-
-        // Migrating again finds the new layout and refuses.
-        let again = client::migrate_market(&payer.pubkey(), &market.market);
-        assert_fails_with(env.send(&[again], &[&payer]), "NotAMarket");
-    }
-
-    let ix = client::swap(&sell(&sol, &t), &exact_in(1_000_000, 0));
-    env.send(&[ix], &[&t.keypair])
-        .expect("a migrated market trades");
-}
-
-#[test]
-fn migrate_market_refuses_what_is_not_an_old_market() {
-    let mut env = Env::new();
-    let payer = env.funded_keypair();
-    // A router account that isn't a market (the config).
-    let ix = client::migrate_market(&payer.pubkey(), &pda::config());
-    assert_fails_with(env.send(&[ix], &[&payer]), "NotAMarket");
-    // An account the router doesn't own.
-    let stranger = env.funded_keypair();
-    let ix = client::migrate_market(&payer.pubkey(), &stranger.pubkey());
-    assert_fails_with(env.send(&[ix], &[&payer]), "NotAMarket");
-    // A router-owned account with the market discriminator but the wrong length.
-    let fake = Pubkey::new_unique();
-    let mut data = client::account_discriminator("Market").to_vec();
-    data.resize(100, 0);
-    env.svm
-        .set_account(
-            fake,
-            Account {
-                lamports: SOL,
-                data,
-                owner: client::PROGRAM_ID,
-                executable: false,
-                rent_epoch: 0,
-            },
-        )
-        .unwrap();
-    let ix = client::migrate_market(&payer.pubkey(), &fake);
-    assert_fails_with(env.send(&[ix], &[&payer]), "NotAMarket");
 }
 
 /// A market whose fee mint is declared: trades into the declared mint pay on the output,

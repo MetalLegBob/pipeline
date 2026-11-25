@@ -160,9 +160,6 @@ for (const instructions of transactions) {
 }
 ```
 
-`migrateMarket({ payer, market })` moves a market recorded before fee mints existed to the
-current layout; until then it can't be traded or decoded by `decodeMarket`.
-
 ### Discover markets and quote
 
 ```ts
@@ -286,7 +283,7 @@ section is valid, with a warning, and the section is ignored.
 | `constants`    | Program addresses, seeds, discriminators, `PIPELINE_FEE_BPS`, trade account positions                                                                                                                                                                                                                     |
 | `pda`          | `configPda`, `strategyPda`, `marketPda`, `feeAuthorityPda`, `feeAccountPda`, `registerPda`, `eventAuthorityPda`, `lookupTableRecordPda`, `programDataPda`, `associatedTokenAddress`                                                                                                                       |
 | `codecs`       | Borsh codecs for strategy wire types, router arguments, `SwapResult`, `RouteResult` and router accounts (`decodeConfig`, `decodeStrategy`, `decodeMarket`, `decodeMarketLookupTable` check the Anchor discriminator); `encodeMarketInfo` / `decodeMarketInfo` with the optional fee mint; `marketFeeMint` |
-| `instructions` | `initializeConfig`, `updateConfig`, `registerStrategy`, `updateMetadata`, `createMarket`, `registerExistingMarket`, `initFeeAccount`, `swap`, `route`, `recordLookupTable`, `migrateMarket`, `sweepFees`; `feeSideOf`, `feeSideByDefault`, `swapFeeAccount`, `lookupTableAddresses`                       |
+| `instructions` | `initializeConfig`, `updateConfig`, `registerStrategy`, `updateMetadata`, `createMarket`, `registerExistingMarket`, `initFeeAccount`, `swap`, `route`, `recordLookupTable`, `createMarketLookupTable`, `sweepFees`; `feeSideOf`, `feeSideByDefault`, `swapFeeAccount`, `lookupTableAddresses`             |
 | `fees`         | `ceilBps`, `pipelineFee`, `maxTotalSpend`, `amountForBudget`, `receivedForKept`, `keptAfterOutputFee`                                                                                                                                                                                                     |
 | `events`       | `decodeEvent`, `encodeEvent`, `extractEvents`, `extractEventsFromInnerInstructions`                                                                                                                                                                                                                       |
 | `discovery`    | `fetchMarkets`, `fetchStrategies` (`getProgramAccounts` filtered by discriminator)                                                                                                                                                                                                                        |

@@ -39,8 +39,6 @@ pub const ROUTE_HOP_ACCOUNTS: usize = 12;
 /// The address lookup table program.
 pub const ADDRESS_LOOKUP_TABLE_PROGRAM_ID: Pubkey =
     pubkey!("AddressLookupTab1e1111111111111111111111111");
-/// A `Market` account's length before `fee_mint_index` was added.
-const MARKET_LEN_V1: usize = 8 + Market::INIT_SPACE - 1;
 
 #[program]
 pub mod pipeline {
@@ -335,49 +333,6 @@ pub mod pipeline {
         Ok(())
     }
 
-    /// Moves a market recorded before fee mints existed to the current `Market` layout,
-    /// with the default fee mint: wrapped SOL if the market trades it, otherwise none.
-    /// Anyone can call it; the payer covers the extra rent. A market in the old layout
-    /// can't be traded until it is migrated.
-    pub fn migrate_market(ctx: Context<MigrateMarket>) -> Result<()> {
-        let market = ctx.accounts.market.to_account_info();
-        require_keys_eq!(*market.owner, crate::ID, PipelineError::NotAMarket);
-        {
-            let data = market.try_borrow_data()?;
-            require!(
-                data.len() == MARKET_LEN_V1 && data[..8] == *Market::DISCRIMINATOR,
-                PipelineError::NotAMarket
-            );
-        }
-        let new_len = 8 + Market::INIT_SPACE;
-        let rent = Rent::get()?
-            .minimum_balance(new_len)
-            .saturating_sub(market.lamports());
-        if rent > 0 {
-            invoke(
-                &anchor_lang::solana_program::system_instruction::transfer(
-                    ctx.accounts.payer.key,
-                    market.key,
-                    rent,
-                ),
-                &[
-                    ctx.accounts.payer.to_account_info(),
-                    market.clone(),
-                    ctx.accounts.system_program.to_account_info(),
-                ],
-            )?;
-        }
-        market.resize(new_len)?;
-        let mut data = market.try_borrow_mut_data()?;
-        // The v1 layout: discriminator, strategy_program, market_state, mint_count, mints.
-        let count = data[8 + 64] as usize;
-        let mints_at = 8 + 64 + 1;
-        let native = (0..count.min(psi::MAX_MARKET_MINTS))
-            .find(|&i| data[mints_at + 32 * i..mints_at + 32 * (i + 1)] == psi::NATIVE_MINT);
-        data[new_len - 1] = native.map_or(NO_FEE_MINT, |i| i as u8);
-        Ok(())
-    }
-
     /// Creates a market's fee account for one of its mints. Swaps selling that mint
     /// need it to exist. Anyone can pay for it; it is idempotent.
     pub fn init_fee_account(ctx: Context<InitFeeAccount>) -> Result<()> {
@@ -552,6 +507,11 @@ pub mod pipeline {
             net_sent: first.net_sent,
             amount_out: kept,
             integrator_fee: first.integrator_fee,
+            input_pipeline_fee: if first.fee_mint == first.input_mint {
+                first.pipeline_fee
+            } else {
+                0
+            },
         };
         let mut encoded = Vec::with_capacity(64);
         result.serialize(&mut encoded)?;
@@ -993,6 +953,20 @@ fn execute_swap<'a, 'info>(
             &[],
         )?;
     }
+    // The fee transfers run the input mint's transfer hook (and, for a fee taken in the
+    // output, the output mint's) after the swap was measured. The output may lose only
+    // the fee charged in it there, so what the event reports is what the trader kept.
+    let output_end =
+        token::checked_balance(hop.trader_output, &output_mint, &output_token_program)?;
+    let output_fee = if fee_on_output {
+        settlement.pipeline_fee
+    } else {
+        0
+    };
+    require!(
+        output_end >= measured.output_after.saturating_sub(output_fee),
+        PipelineError::OutputDecreased
+    );
 
     Ok(HopOutcome {
         market: hop.market.key(),
@@ -1022,7 +996,10 @@ fn call_strategy_swap(
     market: &Market,
     request: &psi::SwapRequest,
 ) -> Result<()> {
-    let mut metas = vec![
+    // Sized once: the heap never frees, so a growing Vec would leave each outgrown
+    // buffer behind on every hop of a route.
+    let mut metas = Vec::with_capacity(10 + hop.remaining.len());
+    metas.extend([
         AccountMeta::new_readonly(hop.market.key(), true),
         AccountMeta::new(hop.market_state.key(), false),
         AccountMeta::new_readonly(hop.trader.key(), false),
@@ -1033,8 +1010,9 @@ fn call_strategy_swap(
         AccountMeta::new_readonly(hop.output_mint.key(), false),
         AccountMeta::new_readonly(hop.input_token_program.key(), false),
         AccountMeta::new_readonly(hop.output_token_program.key(), false),
-    ];
-    let mut infos = vec![
+    ]);
+    let mut infos = Vec::with_capacity(11 + hop.remaining.len());
+    infos.extend([
         hop.market.clone(),
         hop.market_state.clone(),
         hop.trader.clone(),
@@ -1045,7 +1023,7 @@ fn call_strategy_swap(
         hop.output_mint.clone(),
         hop.input_token_program.clone(),
         hop.output_token_program.clone(),
-    ];
+    ]);
     for account in hop.remaining {
         metas.push(meta_like(account, false));
         infos.push(account.clone());
@@ -1424,6 +1402,10 @@ pub struct RouteResult {
     /// What the trader keeps from the last hop.
     pub amount_out: u64,
     pub integrator_fee: u64,
+    /// Pipeline's fee taken in the route's input mint: the first hop's fee when that hop
+    /// pays it on its input, otherwise 0. The trader's input spend is `net_sent` plus this
+    /// plus `integrator_fee`.
+    pub input_pipeline_fee: u64,
 }
 
 /// A market's recorded address lookup table (`record_lookup_table`).
@@ -1547,16 +1529,6 @@ pub struct RegisterExistingMarket<'info> {
         bump,
     )]
     pub market: Account<'info, Market>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct MigrateMarket<'info> {
-    #[account(mut)]
-    pub payer: Signer<'info>,
-    /// CHECK: a market in the old layout; checked in the handler.
-    #[account(mut)]
-    pub market: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -1810,10 +1782,8 @@ pub enum PipelineError {
     NothingSwapped,
     #[msg("A non-zero listing fee must be at least the rent-exempt minimum")]
     ListingFeeBelowRent,
-    #[msg("The trader's output balance fell during the swap")]
+    #[msg("The trader's output balance fell during the swap or its fee transfers")]
     OutputDecreased,
-    #[msg("Not a market in the layout this instruction expects")]
-    NotAMarket,
     #[msg("Route accounts or hops are malformed or don't chain")]
     BadRoute,
     #[msg("Not a frozen, active lookup table holding the market's accounts")]

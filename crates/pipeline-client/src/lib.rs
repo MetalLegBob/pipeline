@@ -701,9 +701,14 @@ pub struct RouteHop {
 /// Return data of `route`.
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
 pub struct RouteResult {
+    /// What the trader parted with in the first hop's input, before fees.
     pub net_sent: u64,
+    /// What the trader keeps from the last hop.
     pub amount_out: u64,
     pub integrator_fee: u64,
+    /// Pipeline's fee taken in the route's input mint: the first hop's fee when that hop
+    /// pays it on its input, otherwise 0.
+    pub input_pipeline_fee: u64,
 }
 
 /// `route`: up to [`MAX_ROUTE_HOPS`] exact-in hops in one instruction. Each hop's input
@@ -761,20 +766,6 @@ pub fn route(
         hops: route_hops,
     };
     Instruction::new_with_bytes(PROGRAM_ID, &anchor_data("route", &args), accounts)
-}
-
-/// `migrate_market`: moves a market recorded before fee mints existed to the current
-/// layout. Anyone can call it; `payer` covers the extra rent.
-pub fn migrate_market(payer: &Pubkey, market: &Pubkey) -> Instruction {
-    Instruction::new_with_bytes(
-        PROGRAM_ID,
-        &instruction_discriminator("migrate_market"),
-        vec![
-            AccountMeta::new(*payer, true),
-            AccountMeta::new(*market, false),
-            AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
-        ],
-    )
 }
 
 /// `sweep_fees`, moving a market's fees in `mint` to the treasury owner's associated

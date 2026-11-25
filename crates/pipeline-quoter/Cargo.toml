@@ -1,6 +1,6 @@
 [package]
 name = "pipeline-quoter"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Quotes any Pipeline strategy by running its on-chain code in an embedded Solana VM"
@@ -13,7 +13,7 @@ categories = ["cryptography::cryptocurrencies", "simulation"]
 [dependencies]
 borsh = { version = "1.5", features = ["derive"] }
 litesvm = "0.18.2"
-pipeline-client = { path = "../pipeline-client", version = "0.3.0" }
+pipeline-client = { path = "../pipeline-client", version = "0.4.0" }
 pipeline-strategy-interface = { path = "../../programs/pipeline-strategy-interface", version = "0.1.1" }
 solana-account = "4.7.0"
 solana-clock = "~3.2.0"

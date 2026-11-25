@@ -83,17 +83,20 @@ For example, `/v1/markets?require=checks-passed` lists only markets whose curren
 
 Some strategies are launchpads: their markets trade until they raise a threshold, then move their liquidity into a market of another strategy. For launchpad strategies whose markets graduate into another AMM, each market on `/v1/markets` and `/v1/markets/{market}` has a `graduation` object, decoded from its market-state account; other markets have `graduation: null`. Fields:
 
-- `status`: `awaiting_funds`, `trading`, `complete` (the threshold is reached and anyone may graduate it) or `graduated`.
+- `status`: `awaiting_funds`, `trading`, `complete` (the threshold is reached and anyone may graduate it), `graduated` or `refunding` (a launch that didn't graduate in time, being refunded). Refunds can open before the status says `refunding`: see `refunds_open`.
 - `target_program` and `target_name`: the strategy it graduates into, and that strategy's metadata `name` when its metadata is valid (otherwise `null`).
-- `fallback_program`, `fallback_name` and `fallback_is_default`: the strategy it may graduate into instead if the target fails, and whether the creator left it at the launchpad's default.
-- `completed_at` and `fallback_available_at`: when the threshold was reached, and when graduating into the fallback becomes allowed; `null` before completion.
-- `price_tolerance_bps`, `price_check_on_target` and `price_check_on_fallback`: how far the new market's mid price may be from the launch's final price. 10000 turns the check off. It never applies to the default fallback.
-- `reserve_tokens`: tokens handed to the target on top of the pool's, for a reserve it keeps (never to the fallback).
+- `opened_at`: when the launch opened for trading; `null` before.
+- `deadline_at`: when trading stops and refunds open if the launch hasn't reached its threshold; `null` if it has no deadline or hasn't opened.
+- `completed_at` and `graduation_closes_at`: when the threshold was reached, and when graduating stops being allowed and refunds open instead; `null` before completion.
+- `refunds_open`: whether holders may return their tokens for a refund now, decided when the market is read. A `trading` launch with `refunds_open` can no longer be traded.
+- `price_tolerance_bps` and `price_check_on_target`: how far the new market's mid price may be from the launch's final price. 10000 turns the check off.
 - `lp_policy` (`locked`, `burn` or `creator`) and `lp_recipient`: where the new market's LP tokens go.
 - `threshold` and `raised`: quote to raise, and raised so far, in the quote mint's smallest units.
-- `graduated_at`, `graduated_program` (the target or the fallback) and `graduated_market` (the market it graduated into); `null` until graduated.
+- `refund_quote` and `refund_tokens`: the refund pool and the tokens it is shared between, fixed by the first refund; `"0"` before. `redeemed`: tokens returned so far.
+- `refund_rate`: `{ "quote", "tokens" }`; returning `r` tokens pays `floor(r × quote / tokens)` quote. Fixed once `refunding`; before, what the first refund would fix as of the launch's last recorded balance. `null` if nothing was sold.
+- `graduated_at`, `graduated_program` and `graduated_market` (the market it graduated into); `null` until graduated.
 
-`graduation` updates as the market-state account changes. Status changes are not on the live stream.
+Amounts are strings. `graduation` updates as the market-state account changes; `refunds_open` is decided whenever the market is read, so it follows the clock. Status changes are not on the live stream.
 
 ### Quotes
 

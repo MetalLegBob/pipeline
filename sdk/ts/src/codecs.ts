@@ -510,6 +510,12 @@ export type RouteResult = {
     /** What the trader keeps from the last hop. */
     amountOut: bigint;
     integratorFee: bigint;
+    /**
+     * Pipeline's fee taken in the route's input mint: the first hop's fee when that hop pays
+     * it on its input, otherwise 0. The trader's input spend is `netSent` plus this plus
+     * `integratorFee`.
+     */
+    inputPipelineFee: bigint;
 };
 
 export function getRouteResultCodec(): Codec<RouteResult> {
@@ -517,6 +523,7 @@ export function getRouteResultCodec(): Codec<RouteResult> {
         ['netSent', u64()],
         ['amountOut', u64()],
         ['integratorFee', u64()],
+        ['inputPipelineFee', u64()],
     ]);
 }
 

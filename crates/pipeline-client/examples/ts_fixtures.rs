@@ -205,7 +205,6 @@ fn discriminators() -> Value {
         "init_fee_account",
         "swap",
         "sweep_fees",
-        "migrate_market",
         "route",
         "record_lookup_table",
     ];
@@ -644,12 +643,6 @@ fn router_instructions() -> Value {
         ));
     }
 
-    cases.push(instruction(
-        "migrateMarket",
-        json!({ "payer": addr(&key(1)), "market": addr(&market) }),
-        &client::migrate_market(&key(1), &market),
-    ));
-
     let sweeps = [
         (
             client::TOKEN_2022_PROGRAM_ID,
@@ -1023,6 +1016,7 @@ fn encodings() -> Value {
         net_sent: 1_000_000,
         amount_out: 0,
         integrator_fee: u64::MAX,
+        input_pipeline_fee: 2_500,
     };
     cases.push(encoding(
         "RouteResult",
@@ -1030,6 +1024,7 @@ fn encodings() -> Value {
             "netSent": big(route_result.net_sent),
             "amountOut": big(route_result.amount_out),
             "integratorFee": big(route_result.integrator_fee),
+            "inputPipelineFee": big(route_result.input_pipeline_fee),
         }),
         &borsh::to_vec(&route_result).unwrap(),
     ));

@@ -14,9 +14,11 @@
 //! Asserted here:
 //! - control: the hook runs at the input leg and both fee legs, and the trader's input
 //!   debit is exactly `amount_in` plus the two fees, within `max_total_spend`;
-//! - characterisation (accepted: the trader's own delegation): a legacy-SPL
-//!   `trader_output` on which the trader earlier approved the hook's PDA as delegate is
-//!   emptied during the fee transfers, after `settle` accepted `received`;
+//! - a legacy-SPL `trader_output` on which the trader earlier approved the hook's PDA as
+//!   delegate is emptied during the fee transfers, after `settle` accepted `received`.
+//!   The audit accepted this as the trader's own delegation at work; since then the
+//!   router re-reads the output after its fee transfers and refuses the swap
+//!   (`OutputDecreased`), so the event never reports output the trader no longer holds;
 //! - without that approval the same hook cannot move `trader_output` (the swap reverts);
 //! - a Token-2022 `trader_output` or `trader_input` is out of the hook's reach even with
 //!   the delegate approved, because Token-2022 is on the call stack (re-entrancy refusal);
@@ -241,47 +243,25 @@ fn control_hook_runs_at_all_three_legs_and_debit_is_within_bound() {
     assert_eq!(w.env.token_balance(&w.trader_b), quote());
 }
 
-/// Characterisation of the residue: the trader earlier approved the hook's PDA as delegate
-/// of a legacy-SPL `trader_output`. During the first fee transfer the hook uses that
-/// delegation and empties `trader_output`, after `settle` accepted `received >=
-/// min_amount_out`. The trader's input debit is still within `max_total_spend`. The swap
-/// succeeds, and the event reports `received` as measured at `settle`.
-///
-/// This is the delegate exercising a power the trader granted (it could do the same in
-/// any other instruction, before or after the swap), so it is not asserted as a router
-/// bug: the test passes and documents the behaviour.
+/// The trader earlier approved the hook's PDA as delegate of a legacy-SPL `trader_output`.
+/// During the first fee transfer the hook uses that delegation to empty `trader_output`,
+/// after `settle` accepted `received >= min_amount_out`. The router re-reads the output
+/// after its fee transfers, sees it fell below what was measured, and refuses the swap:
+/// nothing moves.
 #[test]
-fn characterise_delegated_spl_output_is_emptied_in_the_fee_window() {
+fn a_delegated_spl_output_emptied_in_the_fee_window_is_refused() {
     let mut w = world(TOKEN);
     let (mint_a, trader_b, sink) = (w.mint_a, w.trader_b, w.sink);
     set_validation(&mut w.env, &mint_a, &trader_b, &sink, &TOKEN);
     approve_delegate(&mut w.env, &trader_b, &stash_authority());
     assert_eq!(w.env.token_balance(&trader_b), 0);
 
-    let min_out = quote();
-    let result = swap_a(&mut w, min_out, &trader_b, &TOKEN);
+    let result = swap_a(&mut w, quote(), &trader_b, &TOKEN);
     print_result("delegated spl output", &result);
-    let meta = result.expect("setup: the swap itself succeeds");
-    // The input leg ran with an empty trader_output, then the fee legs ran with it full.
-    assert_eq!(hook_invocations(&meta.logs), 3);
-    let event = swap_events(&meta).pop().expect("swap event");
-    assert_eq!(event.received, min_out, "settle measured the bound as met");
-    println!(
-        "H018 characterisation: event.received = {}, trader_output after = {}, sink = {}",
-        event.received,
-        w.env.token_balance(&w.trader_b),
-        w.env.token_balance(&w.sink)
-    );
-    // The delegate's use of the trader's approval:
+    assert_fails_with(result, "OutputDecreased");
+    assert_eq!(w.env.token_balance(&w.trader_a), TRADER_A);
     assert_eq!(w.env.token_balance(&w.trader_b), 0);
-    assert_eq!(w.env.token_balance(&w.sink), min_out);
-    // The input side stays within the signed bound.
-    let debit = TRADER_A - w.env.token_balance(&w.trader_a);
-    assert!(debit <= fees::max_total_spend(AMOUNT_IN, INTEGRATOR_BPS).unwrap());
-    assert_eq!(
-        debit,
-        AMOUNT_IN + w.env.token_balance(&w.fee_a) + w.env.token_balance(&w.integrator_a)
-    );
+    assert_eq!(w.env.token_balance(&w.sink), 0);
 }
 
 /// Safety: the same hook and the same stash, but no delegation. The hook runs and tries to

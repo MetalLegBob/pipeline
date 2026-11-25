@@ -201,6 +201,30 @@ fn two_hops_chain_through_the_traders_accounts() {
     assert_eq!(result.net_sent, first.net_sent);
     assert_eq!(result.amount_out, kept);
     assert_eq!(result.integrator_fee, 0);
+    // Hop 1 paid its fee in the route's input mint.
+    assert_eq!(result.input_pipeline_fee, first.pipeline_fee);
+    assert_eq!(
+        result.net_sent + result.input_pipeline_fee + result.integrator_fee,
+        amount + first.pipeline_fee
+    );
+}
+
+/// When the first hop's fee is taken in its output, the route's input pays none of
+/// Pipeline's fee and the result says so.
+#[test]
+fn a_first_hop_paying_on_its_output_takes_no_fee_from_the_input() {
+    let mut w = world();
+    let amount = 1_000_000_000;
+    w.env.mint_to(&w.b, &TOKEN, &w.tb, amount);
+    let b_before = w.env.token_balance(&w.tb);
+    let ix = w.route(&[w.b_to_sol()], amount, 1);
+    let meta = w.send(ix).expect("route");
+    let event = swap_events(&meta).pop().unwrap();
+    assert_eq!(event.fee_mint, NATIVE);
+    let result = route_result(&meta);
+    assert_eq!(result.input_pipeline_fee, 0);
+    assert_eq!(b_before - w.env.token_balance(&w.tb), result.net_sent);
+    assert_eq!(result.amount_out, event.received - event.pipeline_fee);
 }
 
 /// SOL → B → A: hop 2's fee is on its input, so it spends the most that, with its fee,
@@ -257,7 +281,13 @@ fn the_integrator_fee_is_charged_once_on_the_first_input() {
         a_before - w.env.token_balance(&w.ta),
         amount + events[0].pipeline_fee + integrator_fee
     );
-    assert_eq!(route_result(&meta).integrator_fee, integrator_fee);
+    let result = route_result(&meta);
+    assert_eq!(result.integrator_fee, integrator_fee);
+    assert_eq!(result.input_pipeline_fee, events[0].pipeline_fee);
+    assert_eq!(
+        a_before - w.env.token_balance(&w.ta),
+        result.net_sent + result.input_pipeline_fee + result.integrator_fee
+    );
     assert_eq!(w.env.token_balance(&w.tb), HELD_B);
 }
 

@@ -2,7 +2,7 @@
 # `programs/` because they build with Solana's platform tools.
 [workspace]
 resolver = "2"
-members = ["crates/*", "programs/pipeline-strategy-interface"]
+members = ["crates/*", "programs/pipeline-strategy-interface", "programs/pipeline-cpi"]
 
 [workspace.package]
 edition = "2021"

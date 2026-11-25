@@ -13,9 +13,14 @@
 //!
 //! Transactions mix every router instruction (with valid, substituted and garbage
 //! accounts and data), two swaps in a row, trader transfers, the strategy acting outside
-//! the router, and compute-budget prefixes. Between transactions the issuer and the
-//! world act too: time passes, the transfer fee changes, the hook's stash and vaults are
-//! topped up, the router is frozen.
+//! the router, and compute-budget prefixes. Routes of two to four hops walk the world's
+//! markets through the trader's own accounts (honest or scripted strategies, dust and
+//! near-balance amounts, a minimum a dry run says is just achievable or one above), and
+//! are sometimes broken on purpose. Lookup tables, valid or broken, are written into the
+//! SVM and recorded; half the world's markets start with one. Transactions that are too
+//! large, and some others, go out as v0 transactions through the recorded tables. Between
+//! transactions the issuer and the world act too: time passes, the transfer fee changes,
+//! the hook's stash and vaults are topped up, the router is frozen.
 //!
 //! The guarantees checked are written from the router's documented behaviour, not from
 //! its code:
@@ -39,7 +44,17 @@
 //!   only by its admin, strategies only by their owner or a new market; every event matches the accounts it describes, and
 //!   registrations and metadata updates come from the program's upgrade authority or its
 //!   registration PDA;
-//! - a market creator loses at most `max_creator_lamports` plus the market's rent;
+//! - a route's hops each emit a swap event charged like a single swap on the side the
+//!   market's record says; hop 1 sends `amount_in`, and each later hop sends what the
+//!   previous one left the trader (all of it when its own fee is on the output, else the
+//!   most that fits with its fee); the integrator fee is charged once, on hop 1's input;
+//!   what the trader keeps from the last hop is at least the minimum, and the return data
+//!   reports it; the trader's own balances of intermediate tokens never fall; a route of
+//!   honest strategies moves exactly what its events say, nothing else, and conserves
+//!   every mint; a broken route is refused; a dry run's result is what a real run does;
+//! - a lookup table is recorded only for a market without one, only if it is a frozen,
+//!   active table owned by the lookup table program holding every address the market
+//!   needs, with the event and record naming it, and the record never changes after;
 //! - freezing the router (dropping its upgrade authority) changes none of the above;
 //! - the router never panics or faults, whatever it is sent.
 //!
@@ -60,7 +75,9 @@ use pipeline_strategy_interface::{self as psi, TradeMode};
 use proptest::prelude::*;
 use solana_account::Account;
 use solana_keypair::Keypair;
+use solana_message::{v0, AddressLookupTableAccount, VersionedMessage};
 use solana_signer::Signer;
+use solana_transaction::versioned::VersionedTransaction;
 use solana_transaction::Transaction;
 
 const SCRIPT_ID: Pubkey = Pubkey::new_from_array(*b"pipeline-router-fuzz-strategy!!!");
@@ -117,6 +134,33 @@ mod swap_meta {
     pub const FEE_ACCOUNT: usize = 12;
     pub const INTEGRATOR: usize = 13;
 }
+
+/// Route instruction account positions: the trader, the integrator fee account, the event
+/// authority and the router, then each hop's `ROUTE_HOP_ACCOUNTS` fixed accounts (see
+/// `hop_at`), its strategy accounts and its input hook accounts.
+mod route_meta {
+    pub const INTEGRATOR: usize = 1;
+    pub const FIRST_HOP: usize = 4;
+    pub const HOP_ACCOUNTS: usize = 12;
+}
+
+/// A route hop's fixed account positions, from the hop's first account.
+mod hop_at {
+    pub const STRATEGY: usize = 0;
+    pub const MARKET: usize = 1;
+    pub const STATE: usize = 2;
+    pub const TRADER_INPUT: usize = 3;
+    pub const TRADER_OUTPUT: usize = 4;
+    pub const INPUT_VAULT: usize = 5;
+    pub const INPUT_MINT: usize = 6;
+    pub const OUTPUT_MINT: usize = 7;
+    pub const FEE_ACCOUNT: usize = 11;
+}
+
+const LOOKUP_TABLE_PROGRAM: Pubkey = client::ADDRESS_LOOKUP_TABLE_PROGRAM_ID;
+/// Lookup table header: u32 state, u64 deactivation slot, u64 last extended slot, u8
+/// start index, `Option<Pubkey>` authority, two bytes of padding.
+const LOOKUP_TABLE_HEADER: usize = 56;
 
 const HOOK_COUNT_OFFSET: usize = 8 + 1 + 8 + 8 + 8 + 2;
 const MAX_STEPS: usize = 64;
@@ -419,6 +463,82 @@ fn create_freezable_mint(env: &mut Env, freezer: &Pubkey) -> Pubkey {
     )
     .expect("freezable mint");
     mint.pubkey()
+}
+
+/// Writes an address lookup table account holding `addresses` at `key`, in the lookup
+/// table program's layout (see `LOOKUP_TABLE_HEADER`). A table that isn't frozen keeps a
+/// random authority; an active one has a deactivation slot of `u64::MAX`.
+fn write_lookup_table(
+    svm: &mut LiteSVM,
+    key: Pubkey,
+    owner: Pubkey,
+    addresses: &[Pubkey],
+    frozen: bool,
+    deactivation_slot: u64,
+) {
+    let mut data = vec![0u8; LOOKUP_TABLE_HEADER];
+    data[0..4].copy_from_slice(&1u32.to_le_bytes());
+    data[4..12].copy_from_slice(&deactivation_slot.to_le_bytes());
+    data[20] = addresses.len().min(255) as u8;
+    if !frozen {
+        data[21] = 1;
+        data[22..54].copy_from_slice(Pubkey::new_unique().as_ref());
+    }
+    for address in addresses {
+        data.extend_from_slice(address.as_ref());
+    }
+    let account = Account {
+        lamports: svm.minimum_balance_for_rent_exemption(data.len()),
+        data,
+        owner,
+        executable: false,
+        rent_epoch: 0,
+    };
+    svm.set_account(key, account).unwrap();
+}
+
+/// The addresses a lookup table account holds, valid or not.
+fn table_addresses(account: &Account) -> Vec<Pubkey> {
+    account
+        .data
+        .get(LOOKUP_TABLE_HEADER..)
+        .unwrap_or_default()
+        .chunks_exact(32)
+        .map(|key| Pubkey::new_from_array(key.try_into().unwrap()))
+        .collect()
+}
+
+/// Whether `table` is one `record_lookup_table` may record for the market at `market`:
+/// owned by the lookup table program, a lookup table, active, frozen, and holding every
+/// address the market needs.
+fn table_is_valid_for(svm: &LiteSVM, market: &Pubkey, table: &Pubkey) -> bool {
+    let Some(record) = svm
+        .get_account(market)
+        .filter(|a| a.owner == client::PROGRAM_ID)
+        .and_then(|a| client::decode_market(&a.data))
+    else {
+        return false;
+    };
+    let Some(account) = svm.get_account(table) else {
+        return false;
+    };
+    let data = &account.data;
+    let well_formed = account.owner == LOOKUP_TABLE_PROGRAM
+        && data.len() >= LOOKUP_TABLE_HEADER
+        && (data.len() - LOOKUP_TABLE_HEADER).is_multiple_of(32)
+        && data[0..4] == 1u32.to_le_bytes()
+        && data[4..12] == u64::MAX.to_le_bytes()
+        && data[21] == 0;
+    let programs: Vec<Pubkey> = record
+        .mints()
+        .iter()
+        .map(|mint| svm.get_account(mint).map_or(Pubkey::default(), |a| a.owner))
+        .collect();
+    let held = table_addresses(&account);
+    well_formed
+        && client::lookup_table_addresses(market, &record, &programs)
+            .iter()
+            .all(|key| held.contains(key))
 }
 
 fn hook_validation(hook: &Pubkey, mint: &Pubkey) -> Pubkey {
@@ -729,6 +849,38 @@ fn build_world() -> World {
     for market in world.markets.clone() {
         world.add_market_to_pool(&market);
     }
+
+    // Half the markets start with a recorded lookup table, holding what the router needs
+    // plus the traders' accounts and hook accounts for the market's mints, so v0
+    // transactions through it are small; the rest are left for the fuzzer to record.
+    for i in [0, 2, 4, 6] {
+        let market = world.markets[i].clone();
+        let mut addresses = world.lookup_addresses(&market);
+        for &m in &market.mints {
+            let extras = world
+                .trader_accounts
+                .iter()
+                .map(|accounts| accounts[m])
+                .chain(world.mints[m].hook_accounts.iter().map(|a| a.pubkey));
+            for key in extras {
+                if !addresses.contains(&key) {
+                    addresses.push(key);
+                }
+            }
+        }
+        let table = Pubkey::new_unique();
+        write_lookup_table(
+            &mut world.svm,
+            table,
+            LOOKUP_TABLE_PROGRAM,
+            &addresses,
+            true,
+            u64::MAX,
+        );
+        let mints: Vec<Pubkey> = market.mints.iter().map(|&m| world.mints[m].key).collect();
+        let ix = client::record_lookup_table(&world.payer.pubkey(), &market.market, &table, &mints);
+        world.setup(&[ix], &[]);
+    }
     world
 }
 
@@ -739,6 +891,7 @@ impl World {
             market.market,
             pda::fee_authority(&market.market),
             pda::setup_payer(&market.market),
+            pda::lookup_table_record(&market.market),
         ];
         keys.extend(&market.vaults);
         for &m in &market.mints {
@@ -750,13 +903,59 @@ impl World {
         }
         self.add_to_pool(&keys);
     }
+
+    /// The addresses `record_lookup_table` requires in a table for `market`.
+    fn lookup_addresses(&self, market: &MarketSpec) -> Vec<Pubkey> {
+        let Some(record) = self
+            .svm
+            .get_account(&market.market)
+            .and_then(|a| client::decode_market(&a.data))
+        else {
+            return vec![];
+        };
+        let programs: Vec<Pubkey> = market
+            .mints
+            .iter()
+            .map(|&m| self.mints[m].program)
+            .collect();
+        client::lookup_table_addresses(&market.market, &record, &programs)
+    }
 }
 
 // ----------------------------------------------------------------------- transactions
 
+/// A route the fuzzer built, and what it knows about how it should go.
+#[derive(Clone, Debug)]
+struct RouteStep {
+    args: client::RouteArgs,
+    /// Per hop: `Some(delta)` if its strategy only pays `amount_sent + delta` of the
+    /// output to the trader, `None` if it runs an arbitrary script.
+    pays: Vec<Option<i16>>,
+    /// Why the route must be refused, if it was built broken on purpose.
+    broken: Option<&'static str>,
+    /// Some accounts were substituted at random: no expectations either way.
+    mutated: bool,
+    /// What a dry run of the same route did, alone in a transaction: what the trader
+    /// kept, or the error.
+    expect: Option<Result<u64, String>>,
+}
+
+impl RouteStep {
+    fn honest(&self) -> bool {
+        !self.mutated && self.pays.iter().all(Option::is_some)
+    }
+}
+
 #[derive(Clone, Debug)]
 enum Kind {
     Swap(client::SwapArgs),
+    Route(Box<RouteStep>),
+    /// `record_lookup_table` with a table of the kind `variant` describes; `accept` if the
+    /// table is valid and the market has no table yet.
+    RecordLookupTable {
+        variant: &'static str,
+        accept: bool,
+    },
     Sweep,
     InitFee,
     CreateMarket {
@@ -783,6 +982,8 @@ impl Kind {
     fn name(&self) -> &'static str {
         match self {
             Kind::Swap(_) => "swap",
+            Kind::Route(_) => "route",
+            Kind::RecordLookupTable { .. } => "record_lookup_table",
             Kind::Sweep => "sweep_fees",
             Kind::InitFee => "init_fee_account",
             Kind::CreateMarket { .. } => "create_market",
@@ -1189,6 +1390,506 @@ impl World {
         }
     }
 
+    /// An honest strategy script: pays `amount_sent + delta` of the output from the
+    /// output vault to the trader and does nothing else. (It doesn't mint: the router
+    /// passes the strategy the output mint read-only.) Returns the script and `delta`.
+    fn honest_pay(&self, tape: &mut Tape, layout: &Layout) -> (Vec<u8>, i16) {
+        let delta = (tape.u8() % 7) as i16 - 3;
+        let op = if layout.out_hooks.is_empty() {
+            script::TRANSFER
+        } else {
+            script::TRANSFER_WITH
+        };
+        let mut s = vec![
+            op,
+            at::OUTPUT_VAULT,
+            at::OUTPUT_MINT,
+            at::TRADER_OUTPUT,
+            at::STATE,
+            script::SENT_PLUS,
+        ];
+        s.extend_from_slice(&delta.to_le_bytes());
+        if !layout.out_hooks.is_empty() {
+            s.push(layout.out_hooks.len() as u8);
+            s.extend(&layout.out_hooks);
+        }
+        (s, delta)
+    }
+
+    /// The side a trade through `market` into the world's mint `output` pays Pipeline's
+    /// fee on, from the market's record.
+    fn fee_side(&self, market: &Pubkey, output: usize) -> client::FeeSide {
+        self.svm
+            .get_account(market)
+            .and_then(|a| client::decode_market(&a.data))
+            .map_or(client::FeeSide::Input, |m| {
+                client::FeeSide::of(&m, &self.mints[output].key)
+            })
+    }
+
+    /// One route hop for trader `t` through `market`, from its `input`th mint to its
+    /// `output`th, through the trader's own accounts, with the fee on the side the market's
+    /// record says. The strategy pays honestly, or (only if `honest` is false, half the
+    /// time) runs an arbitrary script with a few extra accounts. Returns the hop and its
+    /// honest payment's delta.
+    fn route_hop(
+        &self,
+        tape: &mut Tape,
+        t: usize,
+        market: &MarketSpec,
+        input: usize,
+        output: usize,
+        honest: bool,
+    ) -> (client::RouteHopSpec, Option<i16>) {
+        let (in_mint, out_mint) = (market.mints[input], market.mints[output]);
+        let mut strategy_accounts = vec![AccountMeta::new(market.vaults[output], false)];
+        let out_hook_accounts = &self.mints[out_mint].hook_accounts;
+        strategy_accounts.extend(out_hook_accounts.iter().cloned());
+        let scripted = !honest && tape.chance(50);
+        if scripted {
+            strategy_accounts.extend(self.pool_metas(tape, 3));
+        }
+        let input_hook_accounts = self.mints[in_mint].hook_accounts.clone();
+        let in_base = 10 + strategy_accounts.len() as u8;
+        let layout = Layout {
+            out_hooks: (0..out_hook_accounts.len() as u8).map(|k| 11 + k).collect(),
+            in_hooks: (0..input_hook_accounts.len() as u8)
+                .map(|k| in_base + k)
+                .collect(),
+            exact_out: false,
+        };
+        let (extra, pay) = if scripted {
+            (self.swap_script(tape, market, output, &layout), None)
+        } else {
+            let (script, delta) = self.honest_pay(tape, &layout);
+            (script, Some(delta))
+        };
+        let accounts = client::SwapAccounts {
+            trader: self.traders[t].pubkey(),
+            strategy_program: SCRIPT_ID,
+            market_state: market.state,
+            trader_input: self.trader_accounts[t][in_mint],
+            trader_output: self.trader_accounts[t][out_mint],
+            input_vault: market.vaults[input],
+            input_mint: self.mints[in_mint].key,
+            output_mint: self.mints[out_mint].key,
+            input_token_program: self.mints[in_mint].program,
+            output_token_program: self.mints[out_mint].program,
+            integrator_fee_account: None,
+            strategy_accounts,
+            input_hook_accounts,
+        };
+        let spec = client::RouteHopSpec {
+            accounts,
+            fee_side: self.fee_side(&market.market, out_mint),
+            extra,
+        };
+        (spec, pay)
+    }
+
+    /// A route: a walk of two to four hops over the world's markets through the trader's
+    /// own accounts, or, a quarter of the time, a route broken on purpose.
+    fn gen_route(&self, tape: &mut Tape) -> Step {
+        const BREAKS: [&str; 12] = [
+            "input account off the chain",
+            "input mint off the chain",
+            "wrong fee account",
+            "market not of its state",
+            "five hops",
+            "no hops",
+            "hop account counts",
+            "extra or missing account",
+            "integrator is the input",
+            "wrong input vault",
+            "same mint in and out",
+            "integrator fee without account",
+        ];
+        let t = tape.below(self.traders.len());
+        let trader = self.traders[t].pubkey();
+        let broken = tape.chance(25).then(|| tape.pick(&BREAKS));
+        let hop_count = match broken {
+            Some("five hops") => 5,
+            Some("no hops") => 0,
+            _ => 2 + tape.below(3),
+        };
+        let honest = tape.chance(70);
+
+        // Walk from a mint of a random market; cycles are allowed.
+        let first = tape.pick(&self.markets);
+        let start = tape.pick(&first.mints);
+        let mut current = start;
+        let mut specs = vec![];
+        let mut pays = vec![];
+        let mut hop_mints = vec![];
+        for _ in 0..hop_count {
+            let options: Vec<&MarketSpec> = self
+                .markets
+                .iter()
+                .filter(|m| m.mints.contains(&current))
+                .collect();
+            let market = options[tape.below(options.len())];
+            let n = market.mints.len();
+            let input = market.mints.iter().position(|&m| m == current).unwrap();
+            let output = (input + 1 + tape.below(n - 1)) % n;
+            let (spec, pay) = self.route_hop(tape, t, market, input, output, honest);
+            specs.push(spec);
+            pays.push(pay);
+            hop_mints.push((market.clone(), input, output));
+            current = market.mints[output];
+        }
+
+        let (mut integrator, mut bps) = match tape.u8() % 8 {
+            0..=3 => (None, 0),
+            4 => (Some(self.integrator_accounts[start]), 0),
+            5 | 6 => (Some(self.integrator_accounts[start]), tape.u16() % 500),
+            _ => (
+                Some(self.integrator_accounts[start]),
+                1 + tape.u16() % 10_000,
+            ),
+        };
+        let balance = self
+            .svm
+            .get_account(&self.trader_accounts[t][start])
+            .as_ref()
+            .and_then(token_state)
+            .map_or(0, |s| s.amount);
+        let input_fee = specs
+            .first()
+            .is_some_and(|s| s.fee_side == client::FeeSide::Input);
+        // The most hop 1 can send with its fees still within the trader's balance.
+        let affordable = most_within(balance, |a| {
+            a as u128 + if input_fee { ceil_bps(a, 25) } else { 0 } + ceil_bps(a, bps as u64)
+        });
+        let amount_in = match tape.u8() % 10 {
+            0 => 1 + tape.u8() as u64 % 4,
+            // Around 400, where the fee's rounding steps.
+            1 => 396 + tape.u8() as u64 % 10,
+            2 => affordable,
+            3 => affordable.saturating_add(1),
+            4 => affordable.saturating_sub(tape.u8() as u64),
+            _ => tape.amount(1_000_000),
+        };
+
+        // Breaks made to the hops before the instruction is built.
+        let pick_hop =
+            |tape: &mut Tape, from: usize| from + tape.below(hop_count.max(from + 1) - from);
+        match broken {
+            Some("input account off the chain") => {
+                let k = pick_hop(tape, 1);
+                let m = hop_mints[k].0.mints[hop_mints[k].1];
+                let others = [
+                    self.victim_accounts[m],
+                    self.trader_accounts[(t + 1) % self.traders.len()][m],
+                    self.integrator_accounts[m],
+                ];
+                specs[k].accounts.trader_input = tape.pick(&others);
+            }
+            Some("input mint off the chain") => {
+                let k = pick_hop(tape, 1);
+                let m = hop_mints[k].0.mints[hop_mints[k].1];
+                let other = (m + 1 + tape.below(self.mints.len() - 1)) % self.mints.len();
+                specs[k].accounts.input_mint = self.mints[other].key;
+                specs[k].accounts.input_token_program = self.mints[other].program;
+            }
+            Some("same mint in and out") => {
+                let k = pick_hop(tape, 0);
+                let a = &mut specs[k].accounts;
+                a.output_mint = a.input_mint;
+                a.trader_output = a.trader_input;
+                a.output_token_program = a.input_token_program;
+            }
+            Some("wrong input vault") => {
+                let k = pick_hop(tape, 0);
+                let (market, input, _) = &hop_mints[k];
+                let vault = market.vaults[*input];
+                let others: Vec<Pubkey> = self
+                    .token_accounts_of(market.mints[*input])
+                    .into_iter()
+                    .filter(|a| *a != vault)
+                    .collect();
+                specs[k].accounts.input_vault = tape.pick(&others);
+            }
+            Some("integrator is the input") => integrator = Some(self.trader_accounts[t][start]),
+            Some("integrator fee without account") => {
+                integrator = None;
+                bps = 1 + tape.u16() % 500;
+            }
+            _ => {}
+        }
+        let mut args = client::RouteArgs {
+            amount_in,
+            min_amount_out: 0,
+            integrator_fee_bps: bps,
+            hops: specs
+                .iter()
+                .map(|s| client::RouteHop {
+                    strategy_accounts: s.accounts.strategy_accounts.len() as u8,
+                    input_hook_accounts: s.accounts.input_hook_accounts.len() as u8,
+                    extra: s.extra.clone(),
+                })
+                .collect(),
+        };
+        let mut ix = client::route(&trader, integrator, &specs, amount_in, 0, bps);
+
+        // Breaks made to the instruction itself.
+        let hop_start = |args: &client::RouteArgs, k: usize| {
+            route_meta::FIRST_HOP
+                + args.hops[..k]
+                    .iter()
+                    .map(|h| {
+                        route_meta::HOP_ACCOUNTS
+                            + h.strategy_accounts as usize
+                            + h.input_hook_accounts as usize
+                    })
+                    .sum::<usize>()
+        };
+        match broken {
+            Some("wrong fee account") => {
+                let k = pick_hop(tape, 0);
+                let (market, input, output) = &hop_mints[k];
+                let at = hop_start(&args, k) + hop_at::FEE_ACCOUNT;
+                let right = ix.accounts[at].pubkey;
+                let fee_account = |market: &Pubkey, m: usize| {
+                    pda::fee_account(market, &self.mints[m].key, &self.mints[m].program)
+                };
+                let fee_mint = match specs[k].fee_side {
+                    client::FeeSide::Input => market.mints[*input],
+                    client::FeeSide::Output => market.mints[*output],
+                };
+                let mut wrong = vec![
+                    fee_account(&market.market, market.mints[*input]),
+                    fee_account(&market.market, market.mints[*output]),
+                    specs[k].accounts.trader_input,
+                    specs[k].accounts.trader_output,
+                    pda::fee_authority(&market.market),
+                ];
+                for other in &self.markets {
+                    if other.market != market.market && other.mints.contains(&fee_mint) {
+                        wrong.push(fee_account(&other.market, fee_mint));
+                    }
+                }
+                wrong.retain(|k| *k != right);
+                ix.accounts[at].pubkey = tape.pick(&wrong);
+            }
+            Some("market not of its state") => {
+                let k = pick_hop(tape, 0);
+                let at = hop_start(&args, k);
+                let own = hop_mints[k].0.market;
+                let others: Vec<&MarketSpec> =
+                    self.markets.iter().filter(|m| m.market != own).collect();
+                let other = others[tape.below(others.len())];
+                if tape.chance(50) {
+                    ix.accounts[at + hop_at::MARKET].pubkey = other.market;
+                } else {
+                    ix.accounts[at + hop_at::STATE].pubkey = other.state;
+                }
+            }
+            Some("hop account counts") => {
+                let k = pick_hop(tape, 0);
+                let hop = &mut args.hops[k];
+                match tape.u8() % 4 {
+                    0 => hop.strategy_accounts += 1,
+                    1 => hop.strategy_accounts -= 1,
+                    2 => hop.input_hook_accounts += 1,
+                    _ if hop.input_hook_accounts > 0 => hop.input_hook_accounts -= 1,
+                    _ => hop.strategy_accounts += 2,
+                }
+                ix.data = route_data(&args);
+            }
+            Some("extra or missing account") => {
+                if tape.chance(50) {
+                    ix.accounts.pop();
+                } else {
+                    let key = self.pool_pick(tape);
+                    ix.accounts.push(AccountMeta::new_readonly(key, false));
+                }
+            }
+            _ => {}
+        }
+
+        let original = ix.accounts.clone();
+        if broken.is_none() && tape.chance(10) {
+            self.mutate_accounts(tape, &mut ix);
+        }
+        let mutated = ix.accounts != original;
+
+        // A dry run of the route alone, with no minimum, gives what the trader would keep;
+        // the minimum is then just achievable, one above, or anything.
+        let mut expect = None;
+        args.min_amount_out = match tape.u8() % 4 {
+            0 => 0,
+            _ => tape.amount(amount_in),
+        };
+        if broken.is_none() && !mutated {
+            expect = self.dry_run(&ix, t);
+            if let Some(Ok(kept)) = expect {
+                args.min_amount_out = match tape.u8() % 5 {
+                    0 | 1 => kept,
+                    2 => kept.saturating_add(1),
+                    3 => 0,
+                    _ => tape.amount(kept),
+                };
+                if args.min_amount_out > kept {
+                    expect = Some(Err("InsufficientOutput".into()));
+                }
+            }
+        }
+        ix.data = route_data(&args);
+        Step {
+            kind: Kind::Route(Box::new(RouteStep {
+                args,
+                pays,
+                broken,
+                mutated,
+                expect,
+            })),
+            ix,
+        }
+    }
+
+    /// Runs `ix` alone, signed by trader `t`, without committing it: what the trader
+    /// keeps (the route's return data), or the instruction error's name. `None` if the
+    /// transaction failed for another reason, or ran out of compute (which a raised
+    /// compute limit could change).
+    fn dry_run(&self, ix: &Instruction, t: usize) -> Option<Result<u64, String>> {
+        let tx = Transaction::new_signed_with_payer(
+            std::slice::from_ref(ix),
+            Some(&self.payer.pubkey()),
+            &[&self.payer, &self.traders[t]],
+            self.svm.latest_blockhash(),
+        );
+        match self.svm.simulate_transaction(tx) {
+            Ok(info) => {
+                let result = client::RouteResult::try_from_slice(&info.meta.return_data.data)
+                    .map_or(Err("no route result".to_string()), |r| Ok(r.amount_out));
+                Some(result)
+            }
+            Err(failed) => {
+                let err = format!("{:?}", failed.err);
+                let instruction_error = err.starts_with("InstructionError");
+                let name = error_name(&failed.meta.logs, &err);
+                (instruction_error && !out_of_compute(&name)).then_some(Err(name))
+            }
+        }
+    }
+
+    /// `record_lookup_table` for a market, with a table written into the SVM that is
+    /// valid, or broken in one way, or recorded with the wrong mints or market.
+    fn gen_record_lookup_table(&mut self, tape: &mut Tape) -> Step {
+        let market = tape.pick(&self.markets);
+        let required = self.lookup_addresses(&market);
+        let mut addresses = required.clone();
+        if tape.chance(50) {
+            for _ in 0..tape.below(6) {
+                let key = self.pool_pick(tape);
+                if !addresses.contains(&key) {
+                    addresses.push(key);
+                }
+            }
+        }
+        if !addresses.is_empty() {
+            let k = tape.below(addresses.len());
+            addresses.rotate_left(k);
+        }
+        let mut mints: Vec<Pubkey> = market.mints.iter().map(|&m| self.mints[m].key).collect();
+        let mut market_key = market.market;
+        let (mut owner, mut frozen, mut deactivation) = (LOOKUP_TABLE_PROGRAM, true, u64::MAX);
+        let mut garbage = None;
+        let variant = match tape.u8() % 12 {
+            0..=4 => "valid",
+            5 => {
+                frozen = false;
+                "unfrozen"
+            }
+            6 => {
+                deactivation = match tape.u8() % 3 {
+                    0 => 0,
+                    1 => self.svm.get_sysvar::<solana_clock::Clock>().slot,
+                    _ => u64::MAX - 1,
+                };
+                "deactivated"
+            }
+            7 if !required.is_empty() => {
+                let gone = tape.pick(&required);
+                addresses.retain(|k| *k != gone);
+                "missing an address"
+            }
+            8 => {
+                owner = tape.pick(&[
+                    client::SYSTEM_PROGRAM_ID,
+                    client::PROGRAM_ID,
+                    TOKEN,
+                    SCRIPT_ID,
+                ]);
+                "wrong owner"
+            }
+            9 => {
+                match tape.u8() % 4 {
+                    0 => mints.reverse(),
+                    1 => {
+                        let i = tape.below(mints.len());
+                        let n = self.mints.len();
+                        let m = market.mints[i];
+                        mints[i] = self.mints[(m + 1 + tape.below(n - 1)) % n].key;
+                    }
+                    2 => {
+                        mints.pop();
+                    }
+                    _ => mints.push(tape.pick(&self.mints).key),
+                }
+                "wrong mints"
+            }
+            10 => {
+                market_key = self.pool_pick(tape);
+                "another account as the market"
+            }
+            _ => {
+                let len = tape.below(200);
+                garbage = Some(tape.bytes(len));
+                "garbage"
+            }
+        };
+        let table = Pubkey::new_unique();
+        write_lookup_table(
+            &mut self.svm,
+            table,
+            owner,
+            &addresses,
+            frozen,
+            deactivation,
+        );
+        if let Some(data) = garbage {
+            let mut account = self.svm.get_account(&table).unwrap();
+            account.data = data;
+            self.svm.set_account(table, account).unwrap();
+        }
+        // Whether the router should take it, judged from the accounts alone.
+        let market_mints = self
+            .svm
+            .get_account(&market_key)
+            .filter(|a| a.owner == client::PROGRAM_ID)
+            .and_then(|a| client::decode_market(&a.data))
+            .map(|m| m.mints().to_vec());
+        let unrecorded = !holds_lookup_record(
+            self.svm
+                .get_account(&pda::lookup_table_record(&market_key))
+                .as_ref(),
+        );
+        let accept = table_is_valid_for(&self.svm, &market_key, &table)
+            && market_mints == Some(mints.clone())
+            && unrecorded;
+        let variant = if variant == "valid" && !unrecorded {
+            "valid, for a market that has one"
+        } else {
+            variant
+        };
+        let ix = client::record_lookup_table(&self.payer.pubkey(), &market_key, &table, &mints);
+        Step {
+            kind: Kind::RecordLookupTable { variant, accept },
+            ix,
+        }
+    }
+
     fn gen_sweep(&self, tape: &mut Tape) -> Step {
         let market = tape.pick(&self.markets);
         let mint = self.mints[tape.pick(&market.mints)].clone();
@@ -1533,14 +2234,13 @@ impl World {
     }
 
     fn gen_raw(&self, tape: &mut Tape) -> Step {
-        const NAMES: [&str; 13] = [
+        const NAMES: [&str; 12] = [
             "initialize_config",
             "update_config",
             "register_strategy",
             "update_metadata",
             "create_market",
             "register_existing_market",
-            "migrate_market",
             "init_fee_account",
             "swap",
             "route",
@@ -1715,6 +2415,117 @@ impl World {
         }
     }
 
+    /// `ixs` as a v0 transaction loading accounts from the recorded lookup tables of the
+    /// markets they name, and, if that is still too large and `must_fit` (the legacy
+    /// transaction is too large), from a table of its own as well. Returns the
+    /// transaction, its account keys (loaded ones included) and a label, or `None` if no
+    /// recorded table applies and the transaction needn't fit, or it can't fit.
+    fn v0_transaction(
+        &mut self,
+        ixs: &[Instruction],
+        signers: &[&Keypair],
+        must_fit: bool,
+    ) -> Option<(VersionedTransaction, Vec<Pubkey>, &'static str)> {
+        let named: HashSet<Pubkey> = ixs
+            .iter()
+            .flat_map(|ix| ix.accounts.iter().map(|a| a.pubkey))
+            .collect();
+        let mut tables: Vec<AddressLookupTableAccount> = vec![];
+        for market in &self.markets {
+            if !named.contains(&market.market) {
+                continue;
+            }
+            let Some(record) = self
+                .svm
+                .get_account(&pda::lookup_table_record(&market.market))
+                .and_then(|a| client::decode_market_lookup_table(&a.data))
+            else {
+                continue;
+            };
+            let Some(table) = self.svm.get_account(&record.table) else {
+                continue;
+            };
+            if !tables.iter().any(|t| t.key == record.table) {
+                tables.push(AddressLookupTableAccount {
+                    key: record.table,
+                    addresses: table_addresses(&table),
+                });
+            }
+        }
+        if tables.is_empty() && !must_fit {
+            return None;
+        }
+        let payer = self.payer.pubkey();
+        let compile = |tables: &[AddressLookupTableAccount], blockhash| {
+            let message = v0::Message::try_compile(&payer, ixs, tables, blockhash).ok()?;
+            VersionedTransaction::try_new(VersionedMessage::V0(message), signers).ok()
+        };
+        let size =
+            |tx: &VersionedTransaction| bincode::serialize(tx).map_or(usize::MAX, |b| b.len());
+        let mut tx = compile(&tables, self.svm.latest_blockhash())?;
+        let mut via = " (v0)";
+        if size(&tx) > MAX_TRANSACTION_SIZE {
+            if !must_fit {
+                return None;
+            }
+            let held: HashSet<Pubkey> = tables
+                .iter()
+                .flat_map(|t| t.addresses.iter().copied())
+                .collect();
+            let mut rest: Vec<Pubkey> = vec![];
+            for meta in ixs.iter().flat_map(|ix| &ix.accounts) {
+                if !meta.is_signer && !held.contains(&meta.pubkey) && !rest.contains(&meta.pubkey) {
+                    rest.push(meta.pubkey);
+                }
+            }
+            rest.truncate(255);
+            let key = Pubkey::new_unique();
+            write_lookup_table(
+                &mut self.svm,
+                key,
+                LOOKUP_TABLE_PROGRAM,
+                &rest,
+                true,
+                u64::MAX,
+            );
+            tables.push(AddressLookupTableAccount {
+                key,
+                addresses: rest,
+            });
+            tx = compile(&tables, self.svm.latest_blockhash())?;
+            via = " (v0, own table)";
+            if size(&tx) > MAX_TRANSACTION_SIZE {
+                return None;
+            }
+        }
+        let VersionedMessage::V0(message) = &tx.message else {
+            unreachable!("compiled as v0");
+        };
+        // Loaded accounts follow the static ones: every table's writable ones, then every
+        // table's read-only ones.
+        let mut keys = message.account_keys.clone();
+        let table = |key: &Pubkey| tables.iter().find(|t| t.key == *key).unwrap();
+        for lookup in &message.address_table_lookups {
+            let addresses = &table(&lookup.account_key).addresses;
+            keys.extend(
+                lookup
+                    .writable_indexes
+                    .iter()
+                    .map(|&i| addresses[i as usize]),
+            );
+        }
+        for lookup in &message.address_table_lookups {
+            let addresses = &table(&lookup.account_key).addresses;
+            keys.extend(
+                lookup
+                    .readonly_indexes
+                    .iter()
+                    .map(|&i| addresses[i as usize]),
+            );
+        }
+        Some((tx, keys, via))
+    }
+
     fn config(&self) -> client::Config {
         client::decode_config(&self.svm.get_account(&pda::config()).unwrap().data).unwrap()
     }
@@ -1780,6 +2591,68 @@ fn ceil_bps(amount: u64, bps: u64) -> u128 {
     (amount as u128 * bps as u128).div_ceil(10_000)
 }
 
+/// The largest `a <= budget` with `cost(a) <= budget`, for a non-decreasing `cost`.
+fn most_within(budget: u64, cost: impl Fn(u64) -> u128) -> u64 {
+    let (mut low, mut high) = (0u64, budget);
+    while low < high {
+        let mid = low + (high - low).div_ceil(2);
+        if cost(mid) <= budget as u128 {
+            low = mid;
+        } else {
+            high = mid - 1;
+        }
+    }
+    low
+}
+
+/// What a later route hop with its fee on the input may send out of `kept`: the most
+/// that, with Pipeline's fee on it, fits.
+fn spendable(kept: u64) -> u64 {
+    most_within(kept, |a| a as u128 + ceil_bps(a, 25))
+}
+
+fn route_data(args: &client::RouteArgs) -> Vec<u8> {
+    let mut data = client::instruction_discriminator("route").to_vec();
+    data.extend(borsh::to_vec(args).unwrap());
+    data
+}
+
+/// Transfer fees withheld in a Token-2022 account (0 for any other account).
+fn withheld(account: &Account) -> u64 {
+    use spl_token_2022_interface::extension::{
+        transfer_fee::TransferFeeAmount, BaseStateWithExtensions, StateWithExtensions,
+    };
+    if account.owner != TOKEN_2022 {
+        return 0;
+    }
+    StateWithExtensions::<spl_token_2022_interface::state::Account>::unpack(&account.data)
+        .ok()
+        .and_then(|state| {
+            state
+                .get_extension::<TransferFeeAmount>()
+                .ok()
+                .map(|e| u64::from(e.withheld_amount))
+        })
+        .unwrap_or(0)
+}
+
+/// A token account's balance plus the transfer fees withheld in it: what arrived, before
+/// the mint's transfer fee was set aside (0 for anything else).
+fn gross(snap: &Snapshot, key: &Pubkey) -> i128 {
+    snap.get(key)
+        .and_then(|a| a.as_ref())
+        .and_then(|a| token_state(a).map(|t| t.amount as i128 + withheld(a) as i128))
+        .unwrap_or(0)
+}
+
+/// A mint's supply (both token programs keep it at offset 36).
+fn supply(snap: &Snapshot, mint: &Pubkey) -> i128 {
+    snap.get(mint)
+        .and_then(|a| a.as_ref())
+        .and_then(|a| a.data.get(36..44))
+        .map_or(0, |b| u64::from_le_bytes(b.try_into().unwrap()) as i128)
+}
+
 /// What a mint's Token-2022 transfer fee (as configured for `epoch`) withholds from a
 /// transfer of `amount`; 0 for a mint without one.
 fn transfer_fee_cut(mint: Option<&Account>, epoch: u64, amount: u64) -> u64 {
@@ -1808,13 +2681,14 @@ fn freeze_authority(mint: Option<&Account>) -> Option<Pubkey> {
         .then(|| Pubkey::new_from_array(data[50..82].try_into().unwrap()))
 }
 
-/// Router events emitted by each top-level instruction.
+/// Router events emitted by each of a transaction's `instructions` top-level
+/// instructions; `keys` are its account keys, including any loaded from lookup tables.
 fn events_by_instruction(
-    tx: &Transaction,
+    keys: &[Pubkey],
+    instructions: usize,
     meta: &litesvm::types::TransactionMetadata,
 ) -> Vec<Vec<PipelineEvent>> {
-    let keys = &tx.message.account_keys;
-    let mut out = vec![vec![]; tx.message.instructions.len()];
+    let mut out = vec![vec![]; instructions];
     for (i, inner) in meta.inner_instructions.iter().enumerate() {
         for ix in inner {
             let program = keys[ix.instruction.program_id_index as usize];
@@ -1846,16 +2720,16 @@ struct Context<'a> {
 /// Checks every guarantee after a successful transaction.
 fn check_success(
     ctx: &Context,
-    tx: &Transaction,
+    keys: &[Pubkey],
     meta: &litesvm::types::TransactionMetadata,
 ) -> Result<(), String> {
     let world = ctx.world;
     let (before, after) = (ctx.before, ctx.after);
-    let events = events_by_instruction(tx, meta).split_off(ctx.event_offset);
+    let events = events_by_instruction(keys, ctx.event_offset + ctx.steps.len(), meta)
+        .split_off(ctx.event_offset);
     let mint_account = |mint: &Pubkey| after.get(mint).and_then(|a| a.as_ref());
     let stash_authority = Pubkey::find_program_address(&[b"stash"], &REFILL_ID).0;
     // Did the refill hook move anything (a token transfer out of its stash)?
-    let keys = &tx.message.account_keys;
     let refilled = meta.inner_instructions.iter().flatten().any(|inner| {
         let ix = &inner.instruction;
         keys[ix.program_id_index as usize] == TOKEN
@@ -2126,6 +3000,21 @@ fn check_success(
                     }
                 }
             }
+            Kind::Route(route) => {
+                let mut budget = Budget {
+                    allowance: &mut allowance,
+                    min_fee_gain: &mut min_fee_gain,
+                };
+                check_route(ctx, i, ix, route, &events[i], meta, &mut budget)?;
+            }
+            Kind::RecordLookupTable { variant, accept } => {
+                // The record and its event are checked below, with any other recording.
+                if !accept {
+                    return Err(format!(
+                        "record_lookup_table {i} accepted a table that is {variant}"
+                    ));
+                }
+            }
             Kind::Sweep => {
                 swept.insert(ix.accounts[4].pubkey);
                 for event in &events[i] {
@@ -2314,6 +3203,38 @@ fn check_success(
                         ));
                     }
                 }
+                PipelineEvent::LookupTableRecorded(e) => {
+                    let record_key = pda::lookup_table_record(&e.market);
+                    if holds_lookup_record(before.get(&record_key).and_then(|a| a.as_ref())) {
+                        return Err(format!(
+                            "a second table {} was recorded for market {}",
+                            e.table, e.market
+                        ));
+                    }
+                    let record = after
+                        .get(&record_key)
+                        .and_then(|a| a.as_ref())
+                        .filter(|a| a.owner == client::PROGRAM_ID)
+                        .and_then(|a| client::decode_market_lookup_table(&a.data))
+                        .ok_or(format!("LookupTableRecorded {e:?} without a record"))?;
+                    let bump = Pubkey::find_program_address(
+                        &[b"lookup", e.market.as_ref()],
+                        &client::PROGRAM_ID,
+                    );
+                    if (record.market, record.table) != (e.market, e.table)
+                        || (record_key, record.bump) != bump
+                    {
+                        return Err(format!(
+                            "LookupTableRecorded {e:?} but the record is {record:?}"
+                        ));
+                    }
+                    if !table_is_valid_for(&world.svm, &e.market, &e.table) {
+                        return Err(format!(
+                            "recorded table {} is not a frozen, active table holding market {}'s addresses",
+                            e.table, e.market
+                        ));
+                    }
+                }
                 PipelineEvent::MetadataUpdated(e) => {
                     let registrar = step.ix.accounts[0].pubkey;
                     if program_authority(&e.strategy) != Some(registrar)
@@ -2369,6 +3290,10 @@ fn check_success(
             if client::decode_market(&old.data).is_some() && new.data != old.data {
                 return Err(format!("market {key} changed"));
             }
+            // The first table recorded for a market stays.
+            if client::decode_market_lookup_table(&old.data).is_some() && new.data != old.data {
+                return Err(format!("lookup table record {key} changed"));
+            }
             if let (Some(a), Some(b)) = (
                 client::decode_strategy(&old.data),
                 client::decode_strategy(&new.data),
@@ -2402,7 +3327,10 @@ fn check_success(
                 ));
             }
             // In a transaction that only swaps, a trader's SOL is never touched.
-            let only_swaps = ctx.steps.iter().all(|s| matches!(s.kind, Kind::Swap(_)));
+            let only_swaps = ctx
+                .steps
+                .iter()
+                .all(|s| matches!(s.kind, Kind::Swap(_) | Kind::Route(_)));
             if only_swaps
                 && world.traders.iter().any(|t| t.pubkey() == *key)
                 && new_lamports < old_lamports
@@ -2508,6 +3436,19 @@ fn check_success(
         if new.owner != client::PROGRAM_ID {
             continue;
         }
+        // A new lookup table record comes with its event (checked above).
+        if let Some(record) = client::decode_market_lookup_table(&new.data) {
+            let announced = events.iter().flatten().any(|e| {
+                matches!(e, PipelineEvent::LookupTableRecorded(r)
+                    if (r.market, r.table) == (record.market, record.table))
+            });
+            if !announced || pda::lookup_table_record(&record.market) != *key {
+                return Err(format!(
+                    "lookup table record {key} ({record:?}) appeared without its event"
+                ));
+            }
+            continue;
+        }
         let Some(market) = client::decode_market(&new.data) else {
             continue;
         };
@@ -2547,6 +3488,458 @@ fn check_success(
         }
     }
     Ok(())
+}
+
+/// What a transaction's successful steps may take from signers' token accounts, and the
+/// least each fee account must gain.
+struct Budget<'a> {
+    allowance: &'a mut HashMap<Pubkey, u128>,
+    min_fee_gain: &'a mut HashMap<Pubkey, u128>,
+}
+
+/// Each route hop's fixed accounts and strategy accounts, cut from the instruction by
+/// the counts its arguments declare; `None` if they don't add up to the accounts passed.
+type HopAccounts<'a> = (&'a [AccountMeta], &'a [AccountMeta]);
+
+fn route_hops<'a>(ix: &'a Instruction, args: &client::RouteArgs) -> Option<Vec<HopAccounts<'a>>> {
+    let mut at = route_meta::FIRST_HOP;
+    let mut hops = vec![];
+    for hop in &args.hops {
+        let fixed_end = at + route_meta::HOP_ACCOUNTS;
+        let strategy_end = fixed_end + hop.strategy_accounts as usize;
+        let end = strategy_end + hop.input_hook_accounts as usize;
+        if end > ix.accounts.len() {
+            return None;
+        }
+        hops.push((
+            &ix.accounts[at..fixed_end],
+            &ix.accounts[fixed_end..strategy_end],
+        ));
+        at = end;
+    }
+    (at == ix.accounts.len()).then_some(hops)
+}
+
+/// What a route of honest strategies must have done to every account, from its events.
+#[derive(Default)]
+struct RouteModel {
+    /// The change in each of the trader's accounts.
+    trader: HashMap<Pubkey, i128>,
+    /// What each fee account (and the integrator's) gained, counting transfer fees
+    /// withheld in it.
+    fees: HashMap<Pubkey, i128>,
+    /// The hops' vaults, which only conservation constrains.
+    vaults: HashSet<Pubkey>,
+}
+
+/// Checks a successful route, step `i`: its hops' events against each other, the
+/// markets and the arguments, and, when it ran alone through honest strategies, every
+/// balance it could have touched.
+fn check_route(
+    ctx: &Context,
+    i: usize,
+    ix: &Instruction,
+    route: &RouteStep,
+    events: &[PipelineEvent],
+    meta: &litesvm::types::TransactionMetadata,
+    budget: &mut Budget,
+) -> Result<(), String> {
+    if let Some(why) = route.broken {
+        return Err(format!(
+            "route {i} was broken on purpose ({why}) yet succeeded"
+        ));
+    }
+    let (before, after) = (ctx.before, ctx.after);
+    let world = ctx.world;
+    let args = &route.args;
+    let hops = route_hops(ix, args).ok_or(format!(
+        "route {i} succeeded with accounts that don't match its {} hops",
+        args.hops.len()
+    ))?;
+    if !(1..=client::MAX_ROUTE_HOPS).contains(&hops.len()) {
+        return Err(format!("route {i} of {} hops succeeded", hops.len()));
+    }
+    let swaps: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            PipelineEvent::Swap(s) => Some(s),
+            _ => None,
+        })
+        .collect();
+    if swaps.len() != hops.len() {
+        return Err(format!(
+            "route {i} of {} hops emitted {} swap events",
+            hops.len(),
+            swaps.len()
+        ));
+    }
+    let trader = ix.accounts[0].pubkey;
+    let integrator =
+        Some(ix.accounts[route_meta::INTEGRATOR].pubkey).filter(|k| *k != client::PROGRAM_ID);
+    let alone = ctx.steps.len() == 1;
+    let exact = alone && route.honest();
+    let refill_target = world.trader_accounts[0][0];
+    let stash_lost = gross(before, &world.stash) - gross(after, &world.stash);
+    let mint_account = |mint: &Pubkey| after.get(mint).and_then(|a| a.as_ref());
+    let cut = |mint: &Pubkey, fee: u64| {
+        fee.saturating_sub(transfer_fee_cut(mint_account(mint), ctx.epoch, fee)) as u128
+    };
+
+    let mut model = RouteModel::default();
+    // What the current hop sends: `amount_in` for hop 1, then what the previous hop
+    // left the trader.
+    let mut sent = args.amount_in;
+    // The previous hop's output account, its mint, and what the trader kept of it.
+    let mut previous: Option<(Pubkey, Pubkey, u64)> = None;
+    let mut outputs = vec![];
+    // Pipeline's fee in the route's input mint: hop 1's, if it pays on its input.
+    let mut input_pipeline_fee = 0;
+    for (k, ((fixed, strategy), event)) in hops.iter().zip(&swaps).enumerate() {
+        let key = |at: usize| fixed[at].pubkey;
+        let market = key(hop_at::MARKET);
+        let record = before
+            .get(&market)
+            .and_then(|a| a.as_ref())
+            .filter(|a| a.owner == client::PROGRAM_ID)
+            .and_then(|a| client::decode_market(&a.data))
+            .ok_or(format!(
+                "route {i} hop {k} went through {market}, which is not a market"
+            ))?;
+        let (input, output) = (key(hop_at::TRADER_INPUT), key(hop_at::TRADER_OUTPUT));
+        let (in_mint, out_mint) = (key(hop_at::INPUT_MINT), key(hop_at::OUTPUT_MINT));
+        if event.trader != trader
+            || event.market != market
+            || event.strategy != record.strategy_program
+            || event.input_mint != in_mint
+            || event.output_mint != out_mint
+            || event.mode != TradeMode::ExactIn as u8
+        {
+            return Err(format!(
+                "route {i} hop {k}: event doesn't describe the hop: {event:?}"
+            ));
+        }
+        if key(hop_at::STRATEGY) != record.strategy_program
+            || pda::market(&key(hop_at::STRATEGY), &key(hop_at::STATE)) != market
+            || record.vault_for(&in_mint) != Some(key(hop_at::INPUT_VAULT))
+            || !record.mints().contains(&out_mint)
+            || in_mint == out_mint
+        {
+            return Err(format!(
+                "route {i} hop {k}: accounts don't match market {market}"
+            ));
+        }
+        let fee_on_output = client::FeeSide::of(&record, &out_mint) == client::FeeSide::Output;
+        if let Some((prev_output, prev_mint, kept)) = previous {
+            if (input, in_mint) != (prev_output, prev_mint) {
+                return Err(format!(
+                    "route {i} hop {k} spent {input} ({in_mint}) but hop {} paid {prev_output} ({prev_mint})",
+                    k - 1
+                ));
+            }
+            sent = if fee_on_output { kept } else { spendable(kept) };
+        }
+        if event.net_sent == 0 || event.net_sent > sent {
+            return Err(format!(
+                "route {i} hop {k}: net_sent {} outside 1..={sent}",
+                event.net_sent
+            ));
+        }
+        let (fee_mint, fee_base) = if fee_on_output {
+            (out_mint, event.received)
+        } else {
+            (in_mint, event.net_sent)
+        };
+        if event.fee_mint != fee_mint {
+            return Err(format!(
+                "route {i} hop {k}: fee taken in {} but the market's fee side says {fee_mint}",
+                event.fee_mint
+            ));
+        }
+        if event.pipeline_fee as u128 != ceil_bps(fee_base, 25) {
+            return Err(format!(
+                "route {i} hop {k}: pipeline fee {} on {fee_base} (fee on output: {fee_on_output})",
+                event.pipeline_fee
+            ));
+        }
+        let fee_account = key(hop_at::FEE_ACCOUNT);
+        let fee_program = mint_account(&fee_mint)
+            .map(|a| a.owner)
+            .ok_or("fee mint missing")?;
+        let expected = pda::fee_account(&market, &fee_mint, &fee_program);
+        if fee_account != expected {
+            return Err(format!(
+                "route {i} hop {k}: fee paid to {fee_account} instead of the market's fee account {expected}"
+            ));
+        }
+        // The integrator fee: once, on hop 1's input.
+        let (hop_integrator, bps) = if k == 0 {
+            (integrator, args.integrator_fee_bps)
+        } else {
+            (None, 0)
+        };
+        if event.integrator != hop_integrator
+            || event.integrator_fee as u128 != ceil_bps(event.net_sent, bps as u64)
+        {
+            return Err(format!(
+                "route {i} hop {k}: integrator {:?} fee {} but expected {hop_integrator:?} at {bps} bps on net_sent {}",
+                event.integrator, event.integrator_fee, event.net_sent
+            ));
+        }
+        let output_fee = if fee_on_output { event.pipeline_fee } else { 0 };
+        let input_fee = event.pipeline_fee - output_fee;
+        let kept = event.received.checked_sub(output_fee).ok_or(format!(
+            "route {i} hop {k}: fee {output_fee} out of an output of {}",
+            event.received
+        ))?;
+        if exact {
+            if event.net_sent != sent {
+                return Err(format!(
+                    "route {i} hop {k}: an honest strategy was sent {sent} but net_sent is {}",
+                    event.net_sent
+                ));
+            }
+            let delta = route.pays[k].unwrap_or_default();
+            let paid = sent.saturating_add_signed(delta as i64);
+            let arrived = paid - transfer_fee_cut(mint_account(&out_mint), ctx.epoch, paid);
+            // The refill hook may top up the output account while it is measured.
+            let refilled = stash_lost != 0 && output == refill_target;
+            if event.received != arrived && !refilled {
+                return Err(format!(
+                    "route {i} hop {k}: the strategy paid {paid} ({arrived} after transfer fees) but received is {}",
+                    event.received
+                ));
+            }
+        }
+
+        if k == 0 {
+            input_pipeline_fee = input_fee;
+            let fee = if fee_on_output {
+                0
+            } else {
+                ceil_bps(args.amount_in, 25)
+            };
+            *budget.allowance.entry(input).or_default() += args.amount_in as u128
+                + fee
+                + ceil_bps(args.amount_in, args.integrator_fee_bps as u64);
+        }
+        *budget.min_fee_gain.entry(fee_account).or_default() += cut(&fee_mint, event.pipeline_fee);
+        *model.trader.entry(input).or_default() -=
+            event.net_sent as i128 + input_fee as i128 + event.integrator_fee as i128;
+        *model.trader.entry(output).or_default() += kept as i128;
+        *model.fees.entry(fee_account).or_default() += event.pipeline_fee as i128;
+        if let Some(account) = hop_integrator {
+            *budget.min_fee_gain.entry(account).or_default() += cut(&in_mint, event.integrator_fee);
+            *model.fees.entry(account).or_default() += event.integrator_fee as i128;
+        }
+        model.vaults.insert(key(hop_at::INPUT_VAULT));
+        if let Some(vault) = strategy.first() {
+            model.vaults.insert(vault.pubkey);
+        }
+        outputs.push(output);
+        previous = Some((output, out_mint, kept));
+    }
+
+    let kept = previous.map_or(0, |p| p.2);
+    if kept < args.min_amount_out {
+        return Err(format!(
+            "route {i}: the trader kept {kept} < min {}",
+            args.min_amount_out
+        ));
+    }
+    // The return data is the route's when nothing runs after it.
+    if i + 1 == ctx.steps.len() {
+        if meta.return_data.program_id != client::PROGRAM_ID {
+            return Err(format!(
+                "route {i}: return data is from {}",
+                meta.return_data.program_id
+            ));
+        }
+        let result = client::RouteResult::try_from_slice(&meta.return_data.data)
+            .map_err(|_| format!("route {i}: return data does not decode"))?;
+        let expected = client::RouteResult {
+            net_sent: swaps[0].net_sent,
+            amount_out: kept,
+            integrator_fee: swaps[0].integrator_fee,
+            input_pipeline_fee,
+        };
+        if result != expected {
+            return Err(format!(
+                "route {i}: return data {result:?} but the hops say {expected:?}"
+            ));
+        }
+    }
+    let outputs_all = outputs.clone();
+    // What the trader already held in intermediate tokens is never spent (a mint whose
+    // permanent delegate is a market aside).
+    if alone {
+        let first_input = hops[0].0[hop_at::TRADER_INPUT].pubkey;
+        outputs.pop();
+        for account in outputs {
+            let Some(old) = before
+                .get(&account)
+                .and_then(|a| a.as_ref())
+                .and_then(token_state)
+            else {
+                continue;
+            };
+            let delegated = world
+                .mints
+                .iter()
+                .any(|m| m.key == old.mint && m.permanent_delegate);
+            let now = balance(after, &account).unwrap_or(0);
+            if account != first_input && !delegated && now < old.amount {
+                return Err(format!(
+                    "route {i} spent the trader's own {account}: {} -> {now}",
+                    old.amount
+                ));
+            }
+        }
+    }
+    if exact {
+        // The trader's input spend is what the return data reports, when no later hop
+        // pays back into the first input account.
+        let first_input = hops[0].0[hop_at::TRADER_INPUT].pubkey;
+        let refilled = stash_lost != 0 && first_input == refill_target;
+        if !outputs_all.contains(&first_input) && !refilled {
+            let spent = balance(before, &first_input).unwrap_or(0) as i128
+                - balance(after, &first_input).unwrap_or(0) as i128;
+            let reported = swaps[0].net_sent as i128
+                + input_pipeline_fee as i128
+                + swaps[0].integrator_fee as i128;
+            if spent != reported {
+                return Err(format!(
+                    "route {i}: the trader's input lost {spent} but net_sent + input_pipeline_fee + integrator_fee is {reported}"
+                ));
+            }
+        }
+        check_route_exact(ctx, i, &model, stash_lost)?;
+    }
+    Ok(())
+}
+
+/// A route of honest strategies, alone in its transaction: every token account moved
+/// exactly as its events say (vaults aside), nothing else moved (but the refill hook's
+/// stash into its target), and every mint is conserved across the accounts watched.
+fn check_route_exact(
+    ctx: &Context,
+    i: usize,
+    model: &RouteModel,
+    stash_lost: i128,
+) -> Result<(), String> {
+    let (before, after) = (ctx.before, ctx.after);
+    let world = ctx.world;
+    let refill_target = world.trader_accounts[0][0];
+    let mut seen = HashSet::new();
+    // Per mint: the change in what the watched accounts hold, withheld fees included.
+    let mut moved: HashMap<Pubkey, i128> = HashMap::new();
+    for (key, old) in before {
+        let old_token = old.as_ref().and_then(token_state);
+        let new_token = after
+            .get(key)
+            .and_then(|a| a.as_ref())
+            .and_then(token_state);
+        let Some(mint) = old_token.as_ref().or(new_token.as_ref()).map(|t| t.mint) else {
+            continue;
+        };
+        seen.insert(*key);
+        let amount = |t: &Option<TokenState>| t.as_ref().map_or(0, |t| t.amount as i128);
+        let changed = amount(&new_token) - amount(&old_token);
+        let changed_gross = gross(after, key) - gross(before, key);
+        *moved.entry(mint).or_default() += changed_gross;
+        if model.vaults.contains(key) || *key == world.stash {
+            continue;
+        }
+        if let Some(&expected) = model.trader.get(key) {
+            if *key == refill_target && stash_lost != 0 {
+                ctx.notes
+                    .borrow_mut()
+                    .push("the refill hook topped up an account of a route".into());
+            } else if changed != expected {
+                return Err(format!(
+                    "route {i}: trader account {key} moved {changed} but its hops say {expected}"
+                ));
+            }
+        } else if let Some(&expected) = model.fees.get(key) {
+            if changed_gross != expected {
+                return Err(format!(
+                    "route {i}: fee account {key} gained {changed_gross} but the events say {expected}"
+                ));
+            }
+        } else if *key == refill_target {
+            if changed != stash_lost {
+                return Err(format!(
+                    "route {i}: the refill target moved {changed} but the stash lost {stash_lost}"
+                ));
+            }
+        } else if changed != 0 || changed_gross != 0 {
+            return Err(format!(
+                "route {i} moved {changed} ({changed_gross} with withheld fees) in {key}, which takes no part in it"
+            ));
+        }
+    }
+    for key in model.trader.keys().chain(model.fees.keys()) {
+        if !seen.contains(key) {
+            return Err(format!("route {i}: {key} is not a watched token account"));
+        }
+    }
+    for (mint, total) in moved {
+        let minted = supply(after, &mint) - supply(before, &mint);
+        if total != minted {
+            return Err(format!(
+                "route {i} doesn't conserve {mint}: its accounts moved {total}, its supply {minted}"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Whether an error's name says the transaction ran out of compute.
+fn out_of_compute(name: &str) -> bool {
+    name.contains("ComputationalBudgetExceeded") || name.contains("ProgramFailedToComplete")
+}
+
+/// What the generator knew in advance about a step alone in its transaction: that a
+/// route does what its dry run did, and that a valid table for a market without one is
+/// recorded. `result` is the transaction's metadata, or its error's name.
+fn check_expectation(
+    steps: &[Step],
+    result: Result<&litesvm::types::TransactionMetadata, &str>,
+) -> Result<(), String> {
+    let [step] = steps else {
+        return Ok(());
+    };
+    // A dry run has the default compute limit; the transaction may not have had more.
+    if result.is_err_and(out_of_compute) {
+        return Ok(());
+    }
+    match (&step.kind, result) {
+        (Kind::Route(route), result) => match (&route.expect, result) {
+            (Some(Ok(kept)), Ok(meta)) => {
+                let result = client::RouteResult::try_from_slice(&meta.return_data.data)
+                    .map(|r| r.amount_out)
+                    .ok();
+                if result != Some(*kept) {
+                    return Err(format!("route kept {result:?} but its dry run kept {kept}"));
+                }
+                Ok(())
+            }
+            (Some(Ok(kept)), Err(name)) => Err(format!(
+                "route failed ({name}) but its dry run kept {kept}, and the minimum is {}",
+                route.args.min_amount_out
+            )),
+            (Some(Err(expected)), Ok(_)) => Err(format!(
+                "route succeeded but its dry run (or its minimum) said {expected}"
+            )),
+            (Some(Err(expected)), Err(name)) if name != expected => Err(format!(
+                "route failed with {name} but its dry run (or its minimum) said {expected}"
+            )),
+            _ => Ok(()),
+        },
+        (Kind::RecordLookupTable { variant, accept }, Err(name)) if *accept => Err(format!(
+            "record_lookup_table refused a {variant} table for a market without one: {name}"
+        )),
+        _ => Ok(()),
+    }
 }
 
 /// The router must never panic or fault, whatever it is sent: the first program to
@@ -2650,27 +4043,29 @@ fn run_case(base: &World, tape_bytes: &[u8], stats: &mut Stats, trace: bool) -> 
             });
         }
         let main = match tape.u8() % 100 {
-            0..=54 => world.gen_swap(&mut tape),
-            55..=62 => world.gen_sweep(&mut tape),
-            63..=66 => world.gen_init_fee(&mut tape),
-            67..=74 => {
+            0..=44 => world.gen_swap(&mut tape),
+            45..=58 => world.gen_route(&mut tape),
+            59..=64 => world.gen_sweep(&mut tape),
+            65..=67 => world.gen_init_fee(&mut tape),
+            68..=74 => {
                 let (step, p, signers) = world.gen_create_market(&mut tape);
                 pending = p;
                 extra_signers.extend(signers);
                 step
             }
-            75..=78 => world.gen_register_existing(&mut tape),
-            79..=84 => world.gen_update_config(&mut tape),
-            85..=87 => world.gen_swap(&mut tape),
+            75..=77 => world.gen_register_existing(&mut tape),
+            78..=82 => world.gen_record_lookup_table(&mut tape),
+            83..=87 => world.gen_update_config(&mut tape),
             88..=90 => world.gen_register_strategy(&mut tape),
             91 | 92 => world.gen_update_metadata(&mut tape),
             _ => world.gen_raw(&mut tape),
         };
         steps.push(main);
         if tape.chance(14) {
-            steps.push(match tape.u8() % 3 {
+            steps.push(match tape.u8() % 4 {
                 0 => world.gen_sweep(&mut tape),
                 1 => world.gen_direct_script(&mut tape),
+                2 => world.gen_route(&mut tape),
                 _ => world.gen_swap(&mut tape),
             });
         }
@@ -2766,23 +4161,44 @@ fn run_case(base: &World, tape_bytes: &[u8], stats: &mut Stats, trace: bool) -> 
         let epoch = world.svm.get_sysvar::<solana_clock::Clock>().epoch;
         ixs.extend(steps.iter().map(|s| s.ix.clone()));
         let refs: Vec<&Keypair> = keypairs.iter().collect();
-        let tx = Transaction::new_signed_with_payer(
+        let legacy = Transaction::new_signed_with_payer(
             &ixs,
             Some(&world.payer.pubkey()),
             &refs,
             world.svm.latest_blockhash(),
         );
-        let size = bincode::serialize(&tx).map_or(usize::MAX, |b| b.len());
-        if size > MAX_TRANSACTION_SIZE {
-            stats.oversize += 1;
-            continue;
-        }
+        let oversize =
+            bincode::serialize(&legacy).map_or(usize::MAX, |b| b.len()) > MAX_TRANSACTION_SIZE;
+        let trades = steps
+            .iter()
+            .any(|s| matches!(s.kind, Kind::Swap(_) | Kind::Route(_)));
+        // Too large for a legacy transaction, or now and then anyway: a v0 transaction
+        // through the markets' recorded lookup tables (and a table of its own if those
+        // aren't enough).
+        let v0 = if oversize || (trades && tape.chance(20)) {
+            world.v0_transaction(&ixs, &refs, oversize)
+        } else {
+            None
+        };
+        let (tx, keys, via) = match v0 {
+            Some(v0) => v0,
+            None if oversize => {
+                stats.oversize += 1;
+                continue;
+            }
+            None => {
+                let keys = legacy.message.account_keys.clone();
+                (VersionedTransaction::from(legacy), keys, "")
+            }
+        };
         stats.transactions += 1;
         // Swaps are labelled with their market: `@3` for the world's market 3, `@new` for
-        // one created during the case, `@?` for a substituted market account.
+        // one created during the case, `@?` for a substituted market account. Routes with
+        // their hop count, `/scripted` if a strategy may do anything, and why they were
+        // broken; lookup table records with their table.
         let label = steps
             .iter()
-            .map(|s| match s.kind {
+            .map(|s| match &s.kind {
                 Kind::Swap(_) => {
                     let market = s.ix.accounts[swap_meta::MARKET].pubkey;
                     match world.markets.iter().position(|m| m.market == market) {
@@ -2791,10 +4207,27 @@ fn run_case(base: &World, tape_bytes: &[u8], stats: &mut Stats, trace: bool) -> 
                         None => "swap@?".to_string(),
                     }
                 }
+                Kind::Route(r) => {
+                    let mut label = format!("route{}", r.args.hops.len());
+                    if !r.pays.iter().all(Option::is_some) {
+                        label.push_str("/scripted");
+                    }
+                    if r.mutated {
+                        label.push_str("/substituted");
+                    }
+                    if let Some(why) = r.broken {
+                        label.push_str(&format!("!{why}"));
+                    }
+                    label
+                }
+                Kind::RecordLookupTable { variant, .. } => {
+                    format!("record_lookup_table({variant})")
+                }
                 _ => s.kind.name().to_string(),
             })
             .collect::<Vec<_>>()
-            .join("+");
+            .join("+")
+            + via;
         let result = world.svm.send_transaction(tx.clone());
         let after = snapshot(&world.svm, &watch);
         let ctx = Context {
@@ -2811,7 +4244,9 @@ fn run_case(base: &World, tape_bytes: &[u8], stats: &mut Stats, trace: bool) -> 
         let verdict = match &result {
             Ok(meta) => {
                 *stats.outcomes.entry(format!("{label}: ok")).or_default() += 1;
-                check_success(&ctx, &tx, meta).map_err(|e| (e, meta.logs.clone()))
+                check_success(&ctx, &keys, meta)
+                    .and_then(|()| check_expectation(&steps, Ok(meta)))
+                    .map_err(|e| (e, meta.logs.clone()))
             }
             Err(failed) => {
                 let name = error_name(&failed.meta.logs, &format!("{:?}", failed.err));
@@ -2825,7 +4260,9 @@ fn run_case(base: &World, tape_bytes: &[u8], stats: &mut Stats, trace: bool) -> 
                         failed.meta.logs.clone(),
                     ))
                 } else {
-                    match check_failure(&failed.meta.logs) {
+                    match check_failure(&failed.meta.logs)
+                        .and_then(|note| check_expectation(&steps, Err(&name)).map(|()| note))
+                    {
                         Ok(note) => {
                             ctx.notes.borrow_mut().extend(note);
                             Ok(())
@@ -2868,20 +4305,35 @@ fn run_case(base: &World, tape_bytes: &[u8], stats: &mut Stats, trace: bool) -> 
         }
         if result.is_ok() {
             if let Some(p) = pending {
-                // Fund the new market's vaults and fee accounts so later steps can trade.
-                let payer = world.payer.pubkey();
-                let mut ixs = vec![];
-                for &m in &p.market.mints {
-                    ixs.push(client::init_fee_account(
-                        &payer,
-                        &p.market.market,
-                        &world.mints[m].key,
-                        &world.mints[m].program,
-                    ));
+                // A random init script can rewrite the state the market info is read
+                // from, so the router may have recorded other mints than were generated.
+                // Only a market recorded as expected joins the world.
+                let recorded = world
+                    .svm
+                    .get_account(&p.market.market)
+                    .and_then(|a| client::decode_market(&a.data));
+                let expected: Vec<Pubkey> =
+                    p.market.mints.iter().map(|&m| world.mints[m].key).collect();
+                let as_expected = recorded.is_some_and(|m| {
+                    m.mints() == expected.as_slice()
+                        && m.vaults[..m.mint_count as usize] == p.market.vaults[..]
+                });
+                if as_expected {
+                    // Fund the new market's fee accounts so later steps can trade.
+                    let payer = world.payer.pubkey();
+                    let mut ixs = vec![];
+                    for &m in &p.market.mints {
+                        ixs.push(client::init_fee_account(
+                            &payer,
+                            &p.market.market,
+                            &world.mints[m].key,
+                            &world.mints[m].program,
+                        ));
+                    }
+                    world.setup(&ixs, &[]);
+                    world.add_market_to_pool(&p.market);
+                    world.markets.push(p.market);
                 }
-                world.setup(&ixs, &[]);
-                world.add_market_to_pool(&p.market);
-                world.markets.push(p.market);
             }
         }
     }
@@ -3243,4 +4695,12 @@ fn finding_key(message: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// Whether an account is a market's lookup table record. Passing an address as a
+/// writable account leaves an empty system account behind in the SVM, which isn't one.
+fn holds_lookup_record(account: Option<&Account>) -> bool {
+    account.is_some_and(|a| {
+        a.owner == client::PROGRAM_ID && client::decode_market_lookup_table(&a.data).is_some()
+    })
 }

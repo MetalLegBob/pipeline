@@ -7,7 +7,7 @@ what the router will charge and deliver. About 10–20 µs per quote for simple 
 
 ```toml
 [dependencies]
-pipeline-quoter = "0.3"
+pipeline-quoter = "0.4"
 ```
 
 ```rust
