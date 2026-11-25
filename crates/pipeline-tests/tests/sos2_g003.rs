@@ -298,9 +298,10 @@ fn g003_hook_tail_ceiling_is_the_lock_limit_then_the_heap_and_beyond_it_nothing_
              accounts; one more exceeds the account lock or compute limit",
             ceiling.largest_working
         );
-        // Not the heap: the account lock limit, or with an integrator fee (a third hooked
-        // transfer) the default 200,000 compute units, which a compute-budget request
-        // raises.
+        // Not the heap: the account lock limit, or the default 200,000 compute units
+        // (which a compute-budget request raises). Which binds first depends on the
+        // account keys drawn, and the compute limit shows either as a program running
+        // out of its meter or as the transaction's budget being exceeded.
         let Failure::Failed(failed) = &ceiling.failure else {
             panic!("expected the lock limit or the compute limit");
         };
@@ -308,6 +309,11 @@ fn g003_hook_tail_ceiling_is_the_lock_limit_then_the_heap_and_beyond_it_nothing_
         assert!(!logs.contains("out of memory"), "ran out of heap:\n{logs}");
         assert!(
             failed.err == TransactionError::TooManyAccountLocks
+                || failed.err
+                    == TransactionError::InstructionError(
+                        0,
+                        InstructionError::ComputationalBudgetExceeded
+                    )
                 || logs.contains("exceeded CUs meter"),
             "expected the lock or compute limit: {:?}\n{logs}",
             failed.err
